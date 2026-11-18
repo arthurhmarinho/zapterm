@@ -191,7 +191,7 @@ func renderChatItem(c ipc.Chat, w int, selected, focused bool) string {
 // os dos outros à esquerda, com separador quando o dia muda. Devolve também
 // a linha inicial e final de cada balão, para o cursor de mensagem rolar até
 // ele.
-func renderMessages(msgs []ipc.Message, w int, isGroup bool, sel int) (string, [][2]int) {
+func renderMessages(msgs []ipc.Message, w int, isGroup bool, sel int, imgs *images) (string, [][2]int) {
 	if w < 10 {
 		return "", nil
 	}
@@ -208,7 +208,7 @@ func renderMessages(msgs []ipc.Message, w int, isGroup bool, sel int) (string, [
 			line++
 			lastDay = t
 		}
-		b := renderBubble(m, w, maxBubble, isGroup, i == sel)
+		b := renderBubble(m, w, maxBubble, isGroup, i == sel, imgs)
 		h := lipgloss.Height(b)
 		spans[i] = [2]int{line, line + h - 1}
 		line += h
@@ -227,10 +227,32 @@ func renderQuote(q *ipc.Quote, inner int) string {
 		bar + sDim.Render(ansi.Truncate(oneLine(q.Text), inner-1, "…"))
 }
 
-func renderBubble(m ipc.Message, w, maxBubble int, isGroup, selected bool) string {
+func renderBubble(m ipc.Message, w, maxBubble int, isGroup, selected bool, imgs *images) string {
 	inner := maxBubble - 4 // borda + padding
+
+	// Imagem e figurinha já baixadas aparecem no balão; a legenda vem
+	// embaixo, sem o marcador "[imagem]".
+	pic := ""
+	if md := m.Media; md != nil && md.Preview != "" && imgs != nil {
+		maxCols := min(inner, 44)
+		if m.Kind == "sticker" {
+			maxCols = min(inner, 16)
+		}
+		pic = imgs.block(md.Preview, md.Width, md.Height, maxCols)
+	}
 	text := m.Text
-	if m.Kind != "text" {
+	if pic != "" {
+		text = stripTag(text)
+	} else if m.Kind != "text" && m.Kind != "other" {
+		hint := ""
+		switch {
+		case m.Media != nil:
+			hint = " · ctrl+o abre"
+		case m.HasRaw:
+			hint = " · ctrl+o baixa"
+		}
+		text = sDim.Render(text + hint)
+	} else if m.Kind != "text" {
 		text = sDim.Render(text)
 	}
 	body := ansi.Wrap(text, inner, " ")
@@ -243,7 +265,12 @@ func renderBubble(m ipc.Message, w, maxBubble int, isGroup, selected bool) strin
 	if m.Quote != nil {
 		lines = append(lines, renderQuote(m.Quote, inner))
 	}
-	lines = append(lines, body)
+	if pic != "" {
+		lines = append(lines, pic)
+	}
+	if body != "" {
+		lines = append(lines, body)
+	}
 	content := strings.Join(lines, "\n")
 	cw := min(inner, max(lipgloss.Width(content), lipgloss.Width(stamp)))
 	content += "\n" + lipgloss.PlaceHorizontal(cw, lipgloss.Right, stamp)
@@ -263,4 +290,14 @@ func renderBubble(m ipc.Message, w, maxBubble int, isGroup, selected bool) strin
 		Padding(0, 1).
 		Render(content)
 	return lipgloss.PlaceHorizontal(w, align, bubble)
+}
+
+// stripTag tira o marcador "[imagem]" do começo e deixa só a legenda.
+func stripTag(s string) string {
+	if strings.HasPrefix(s, "[") {
+		if i := strings.Index(s, "]"); i >= 0 {
+			return strings.TrimSpace(s[i+1:])
+		}
+	}
+	return s
 }

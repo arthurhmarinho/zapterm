@@ -15,6 +15,7 @@ const (
 	OpSend     = "send"     // envia texto
 	OpRead     = "read"     // marca o chat como lido
 	OpViewing  = "viewing"  // chat aberto numa TUI em foco ("" = nenhum); suprime notificação
+	OpMedia    = "media"    // baixa a mídia da mensagem Msg (ou devolve do cache)
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -35,6 +36,18 @@ type Request struct {
 	Before int64  `json:"before,omitempty"` // unix ms; 0 = mais recentes
 	// ReplyTo é o ID da mensagem respondida (só em OpSend).
 	ReplyTo string `json:"reply_to,omitempty"`
+	// Msg é o ID da mensagem alvo (OpMedia).
+	Msg string `json:"msg,omitempty"`
+}
+
+// Media é um arquivo de mídia baixado. Preview (PNG reduzido) só existe
+// para imagem e figurinha.
+type Media struct {
+	Path    string `json:"path"`
+	Preview string `json:"preview,omitempty"`
+	Width   int    `json:"width,omitempty"` // da prévia, em pixels
+	Height  int    `json:"height,omitempty"`
+	Mime    string `json:"mime,omitempty"`
 }
 
 // Frame vai do daemon para a TUI. Resposta tem ID; evento tem Event.
@@ -70,6 +83,10 @@ type Message struct {
 	Kind       string `json:"kind"` // text, image, audio, video, document, sticker, other
 	Text       string `json:"text"`
 	Quote      *Quote `json:"quote,omitempty"` // mensagem citada, se for resposta
+	Media      *Media `json:"media,omitempty"` // mídia já baixada, se houver
+	// HasRaw diz se a mensagem guarda o protobuf original, ou seja, se a
+	// mídia dela pode ser baixada.
+	HasRaw bool `json:"has_raw,omitempty"`
 }
 
 // Quote é o trecho citado de uma resposta.

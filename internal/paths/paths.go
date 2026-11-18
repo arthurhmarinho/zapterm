@@ -42,6 +42,36 @@ func inData(name string) (string, error) {
 	return filepath.Join(dir, name), nil
 }
 
+// CacheDir devolve ~/.cache/zapterm (respeitando XDG_CACHE_HOME). Tudo
+// aqui pode ser apagado: é baixado de novo quando preciso.
+func CacheDir() (string, error) {
+	base := os.Getenv("XDG_CACHE_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		base = filepath.Join(home, ".cache")
+	}
+	dir := filepath.Join(base, "zapterm")
+	return dir, os.MkdirAll(dir, 0o700)
+}
+
+// MediaDir guarda fotos, vídeos e documentos baixados.
+func MediaDir() (string, error) { return cacheSub("media") }
+
+// AvatarDir guarda fotos de perfil.
+func AvatarDir() (string, error) { return cacheSub("avatars") }
+
+func cacheSub(name string) (string, error) {
+	base, err := CacheDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(base, name)
+	return dir, os.MkdirAll(dir, 0o700)
+}
+
 // Socket fica em $XDG_RUNTIME_DIR; no Void sem systemd essa variável pode
 // faltar, então cai para /tmp/zapterm-<uid>.sock.
 func Socket() string {

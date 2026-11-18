@@ -220,12 +220,12 @@ func (s *Store) Messages(chat string, limit int, before int64) ([]ipc.Message, e
 	return out, rows.Err()
 }
 
-const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text`
+const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw IS NOT NULL`
 
 func scanMessage(r interface{ Scan(...any) error }) (ipc.Message, error) {
 	var m ipc.Message
 	var q ipc.Quote
-	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text)
+	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw)
 	if q.ID != "" {
 		m.Quote = &q
 	}
@@ -239,7 +239,7 @@ func (s *Store) Message(chat, id string) (ipc.Message, []byte, error) {
 	row := s.db.QueryRow(`SELECT `+msgCols+`, raw FROM messages WHERE chat = ? AND id = ?`, chat, id)
 	var m ipc.Message
 	var q ipc.Quote
-	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &raw)
+	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &raw)
 	if q.ID != "" {
 		m.Quote = &q
 	}

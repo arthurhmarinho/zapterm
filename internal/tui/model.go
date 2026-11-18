@@ -81,6 +81,8 @@ type model struct {
 	flash   string
 	flashAt time.Time
 
+	imgs *images
+
 	termFocused bool   // o kitty avisa quando a janela ganha/perde foco
 	sentViewing string // último valor de "viewing" mandado ao daemon
 	quitArmed   bool   // ctrl+c com campo vazio pede confirmação
@@ -106,6 +108,11 @@ type (
 	}
 	errMsg    struct{ err error }
 	statusMsg ipc.Status
+	mediaMsg  struct {
+		chat, id string
+		media    *ipc.Media
+		open     bool // abrir no programa externo quando chegar
+	}
 )
 
 func Run() error {
@@ -116,12 +123,13 @@ func Run() error {
 	m := newModel(cli)
 	defer func() { m.cli.Close() }()
 	_, err = tea.NewProgram(m).Run()
+	m.imgs.cleanup()
 	return err
 }
 
 func newModel(cli *ipc.Client) *model {
 	m := &model{cli: cli, input: newInput(), jump: newJump(), vp: newVP(),
-		status: "conectando", termFocused: true, msgSel: -1}
+		status: "conectando", termFocused: true, msgSel: -1, imgs: newImages()}
 	m.input.Focus()
 	return m
 }
@@ -242,7 +250,18 @@ func reconnect() tea.Cmd {
 
 // ---------- update ----------
 
+// Update envolve update para mandar ao kitty as imagens que o desenho
+// acabou de pedir.
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	_, cmd := m.update(msg)
+	if f := m.imgs.flush(); f != nil {
+		// A transmissão vai antes do quadro que usa os placeholders.
+		return m, tea.Sequence(f, cmd)
+	}
+	return m, cmd
+}
+
+func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
@@ -327,11 +346,71 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
+	case mediaMsg:
+		return m, m.onMedia(msg)
+
 	case errMsg:
 		m.setFlash(msg.err.Error())
 		return m, nil
 	}
 	return m, nil
+}
+
+// ---------- mídia ----------
+
+// openMedia: mídia já baixada abre no programa externo (foto em tela
+// cheia, vídeo, PDF); a não baixada é baixada e, se for imagem no kitty,
+// aparece no balão.
+func (m *model) openMedia(i int) tea.Cmd {
+	if i < 0 || i >= len(m.msgs) {
+		return nil
+	}
+	msg := m.msgs[i]
+	if msg.Kind == "text" || msg.Kind == "other" {
+		return nil
+	}
+	if msg.Media != nil {
+		if err := openExternal(msg.Media.Path); err != nil {
+			m.setFlash("xdg-open: " + err.Error())
+		}
+		return nil
+	}
+	if !msg.HasRaw {
+		m.setFlash("mídia de mensagem antiga (do pareamento) não pode ser baixada")
+		return nil
+	}
+	m.setFlash("baixando…")
+	chat, id := m.active, msg.ID
+	isPic := msg.Kind == "image" || msg.Kind == "sticker"
+	open := !(isPic && m.imgs.enabled)
+	var md ipc.Media
+	return m.call(ipc.Request{Op: ipc.OpMedia, Chat: chat, Msg: id}, &md,
+		func() tea.Msg { return mediaMsg{chat: chat, id: id, media: &md, open: open} })
+}
+
+func (m *model) onMedia(msg mediaMsg) tea.Cmd {
+	m.flash = ""
+	if msg.open {
+		if err := openExternal(msg.media.Path); err != nil {
+			m.setFlash("xdg-open: " + err.Error())
+		}
+	}
+	if msg.chat != m.active {
+		return nil
+	}
+	for i := range m.msgs {
+		if m.msgs[i].ID == msg.id {
+			m.msgs[i].Media = msg.media
+			off := m.vp.YOffset()
+			atBottom := m.vp.AtBottom()
+			m.refreshMessages(atBottom)
+			if !atBottom {
+				m.vp.SetYOffset(off)
+			}
+			m.ensureSelVisible()
+		}
+	}
+	return nil
 }
 
 // afterNav redesenha a conversa quando o foco de painel muda: o destaque da
@@ -659,7 +738,7 @@ func (m *model) refreshMessages(toBottom bool) {
 		if m.focus == paneChat {
 			sel = m.sel()
 		}
-		content, m.spans = renderMessages(m.msgs, m.vp.Width(), m.activeChat.Kind == "group", sel)
+		content, m.spans = renderMessages(m.msgs, m.vp.Width(), m.activeChat.Kind == "group", sel, m.imgs)
 	}
 	m.vp.SetContent(content)
 	if toBottom {

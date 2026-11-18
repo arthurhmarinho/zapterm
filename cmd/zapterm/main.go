@@ -7,6 +7,7 @@
 //	zapterm msgs <jid> [n]   últimas n mensagens de um chat
 //	zapterm send <jid> <txt> envia texto
 //	zapterm tail             mostra os eventos ao vivo
+//	zapterm media <jid> <id> baixa a mídia de uma mensagem e mostra o caminho
 package main
 
 import (
@@ -53,10 +54,12 @@ func run(args []string) error {
 		return send(args)
 	case "tail":
 		return tail()
+	case "media":
+		return media(args)
 	case "":
 		return tui.Run()
 	case "help", "-h", "--help":
-		fmt.Println("uso: zapterm [login | daemon | chats | msgs <jid> [n] | send <jid> <texto> | tail]")
+		fmt.Println("uso: zapterm [login | daemon | chats | msgs <jid> [n] | send <jid> <texto> | tail | media <jid> <id>]")
 		return nil
 	}
 	return fmt.Errorf("comando desconhecido: %s", cmd)
@@ -194,4 +197,21 @@ func compact(raw json.RawMessage) string {
 		return ""
 	}
 	return string(raw)
+}
+
+func media(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("uso: zapterm media <jid> <id>")
+	}
+	c, err := dial()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	var md ipc.Media
+	if err := c.Call(ipc.Request{Op: ipc.OpMedia, Chat: args[0], Msg: args[1]}, &md); err != nil {
+		return err
+	}
+	fmt.Printf("arquivo: %s\nprévia:  %s (%dx%d)\ntipo:    %s\n", md.Path, md.Preview, md.Width, md.Height, md.Mime)
+	return nil
 }

@@ -1,0 +1,249 @@
+package wa
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	"image/png"
+	"io/fs"
+	"mime"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
+
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
+	"google.golang.org/protobuf/proto"
+
+	"github.com/arthurhmarinho/zapterm/internal/ipc"
+	"github.com/arthurhmarinho/zapterm/internal/paths"
+)
+
+// Largura máxima da prévia em pixels: a TUI mostra no máximo ~40 colunas,
+// e o kitty reduz o resto. Prévia menor = menos disco e transmissão mais
+// rápida para o terminal.
+const previewMaxPx = 720
+
+// Limite do cache de mídia; ao subir, o daemon apaga os mais antigos.
+const mediaCacheMax = 500 << 20
+
+var safeName = regexp.MustCompile(`[^A-Za-z0-9_-]`)
+
+func mediaBase(id string) (string, error) {
+	dir, err := paths.MediaDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, safeName.ReplaceAllString(id, "_")), nil
+}
+
+// cachedMedia devolve a mídia já baixada de uma mensagem, sem rede.
+func cachedMedia(id string) *ipc.Media {
+	base, err := mediaBase(id)
+	if err != nil {
+		return nil
+	}
+	matches, _ := filepath.Glob(base + ".*")
+	if len(matches) == 0 {
+		return nil
+	}
+	md := &ipc.Media{}
+	for _, p := range matches {
+		if strings.HasSuffix(p, ".preview.png") {
+			md.Preview = p
+		} else {
+			md.Path = p
+		}
+	}
+	if md.Path == "" {
+		return nil
+	}
+	if md.Preview != "" {
+		md.Width, md.Height = pngSize(md.Preview)
+	}
+	return md
+}
+
+// downloadMedia baixa (ou pega do cache) a mídia de uma mensagem. Só
+// funciona para mensagens com o protobuf original guardado.
+func (d *Daemon) downloadMedia(ctx context.Context, chat, id string) (*ipc.Media, error) {
+	if md := cachedMedia(id); md != nil {
+		return md, nil
+	}
+	_, raw, err := d.st.Message(chat, id)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) == 0 {
+		return nil, errors.New("mídia de mensagem antiga (do pareamento) não pode ser baixada")
+	}
+	var msg waE2E.Message
+	if err := proto.Unmarshal(raw, &msg); err != nil {
+		return nil, err
+	}
+
+	var dl whatsmeow.DownloadableMessage
+	var mimeType, fileName string
+	isImage := false
+	switch {
+	case msg.GetImageMessage() != nil:
+		m := msg.GetImageMessage()
+		dl, mimeType, isImage = m, m.GetMimetype(), true
+	case msg.GetStickerMessage() != nil:
+		m := msg.GetStickerMessage()
+		dl, mimeType, isImage = m, m.GetMimetype(), true
+	case msg.GetVideoMessage() != nil:
+		m := msg.GetVideoMessage()
+		dl, mimeType = m, m.GetMimetype()
+	case msg.GetAudioMessage() != nil:
+		m := msg.GetAudioMessage()
+		dl, mimeType = m, m.GetMimetype()
+	case msg.GetDocumentMessage() != nil:
+		m := msg.GetDocumentMessage()
+		dl, mimeType, fileName = m, m.GetMimetype(), m.GetFileName()
+	default:
+		return nil, errors.New("essa mensagem não tem mídia")
+	}
+
+	data, err := d.cli.Download(ctx, dl)
+	if err != nil {
+		return nil, fmt.Errorf("baixando: %w", err)
+	}
+	base, err := mediaBase(id)
+	if err != nil {
+		return nil, err
+	}
+	md := &ipc.Media{Mime: mimeType, Path: base + extFor(mimeType, fileName)}
+	if err := os.WriteFile(md.Path, data, 0o600); err != nil {
+		return nil, err
+	}
+	if isImage {
+		md.Preview = base + ".preview.png"
+		md.Width, md.Height, err = writePreview(data, md.Preview)
+		if err != nil {
+			d.log.Warn("prévia da imagem", "id", id, "err", err)
+			md.Preview = ""
+		}
+	}
+	return md, nil
+}
+
+func extFor(mimeType, fileName string) string {
+	if ext := filepath.Ext(fileName); ext != "" && len(ext) <= 6 && !strings.HasSuffix(ext, ".png") {
+		return safeExt(ext)
+	}
+	mt, _, _ := strings.Cut(mimeType, ";")
+	switch mt {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/webp":
+		return ".webp"
+	case "audio/ogg":
+		return ".ogg"
+	case "video/mp4":
+		return ".mp4"
+	}
+	if exts, _ := mime.ExtensionsByType(mt); len(exts) > 0 {
+		return safeExt(exts[0])
+	}
+	return ".bin"
+}
+
+// safeExt evita colidir com o sufixo da prévia e com caracteres estranhos.
+func safeExt(ext string) string {
+	ext = "." + safeName.ReplaceAllString(strings.TrimPrefix(ext, "."), "")
+	if ext == "." {
+		return ".bin"
+	}
+	return ext
+}
+
+// writePreview decodifica a imagem (jpeg, png, gif, webp), reduz para no
+// máximo previewMaxPx de largura e grava PNG, o formato que o kitty lê
+// direto do arquivo.
+func writePreview(data []byte, path string) (int, int, error) {
+	src, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return 0, 0, err
+	}
+	b := src.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w > previewMaxPx {
+		h = h * previewMaxPx / w
+		w = previewMaxPx
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Src, nil)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer f.Close()
+	if err := png.Encode(f, dst); err != nil {
+		return 0, 0, err
+	}
+	return w, h, nil
+}
+
+func pngSize(path string) (int, int) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, 0
+	}
+	defer f.Close()
+	cfg, err := png.DecodeConfig(f)
+	if err != nil {
+		return 0, 0
+	}
+	return cfg.Width, cfg.Height
+}
+
+// pruneMediaCache apaga os arquivos mais antigos até o cache caber no
+// limite. Roda uma vez ao subir o daemon.
+func pruneMediaCache() (removed int, err error) {
+	dir, err := paths.MediaDir()
+	if err != nil {
+		return 0, err
+	}
+	type file struct {
+		path string
+		size int64
+		mod  int64
+	}
+	var files []file
+	var total int64
+	err = filepath.WalkDir(dir, func(p string, e fs.DirEntry, err error) error {
+		if err != nil || e.IsDir() {
+			return err
+		}
+		info, err := e.Info()
+		if err != nil {
+			return nil
+		}
+		files = append(files, file{p, info.Size(), info.ModTime().Unix()})
+		total += info.Size()
+		return nil
+	})
+	if err != nil || total <= mediaCacheMax {
+		return 0, err
+	}
+	slices.SortFunc(files, func(a, b file) int { return int(a.mod - b.mod) })
+	for _, f := range files {
+		if total <= mediaCacheMax*8/10 {
+			break
+		}
+		if os.Remove(f.path) == nil {
+			total -= f.size
+			removed++
+		}
+	}
+	return removed, nil
+}

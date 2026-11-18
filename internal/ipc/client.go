@@ -74,9 +74,16 @@ func (cl *Client) Call(req Request, out any) error {
 		return nil
 	case <-cl.closed:
 		return ErrClosed
-	case <-time.After(30 * time.Second):
-		return errors.New("daemon não respondeu em 30s")
+	case <-time.After(callTimeout(req.Op)):
+		return errors.New("daemon não respondeu a tempo")
 	}
+}
+
+func callTimeout(op string) time.Duration {
+	if op == OpMedia {
+		return 4 * time.Minute
+	}
+	return 30 * time.Second
 }
 
 func (cl *Client) loop() {

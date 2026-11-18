@@ -62,6 +62,11 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case "ctrl+r":
 		return m.startReply()
+	case "ctrl+o":
+		if m.active != "" {
+			return m.openMedia(m.sel())
+		}
+		return nil
 	case "enter":
 		return m.onEnter()
 	case "pgup":
@@ -238,15 +243,21 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 		if m.active == "" {
 			return nil
 		}
+		wasChat := m.focus == paneChat
 		m.focus = paneChat
 		i := m.msgAtLine(y - g.vpY + m.vp.YOffset())
 		if i < 0 {
 			return nil
 		}
-		m.setSel(i)
 		if c.Button == tea.MouseRight {
+			m.setSel(i)
 			return m.startReply()
 		}
+		// Clique na mensagem já selecionada abre a mídia dela.
+		if wasChat && i == m.sel() {
+			return m.openMedia(i)
+		}
+		m.setSel(i)
 		return nil
 
 	case x >= g.listW && y >= g.inputY:

@@ -194,8 +194,11 @@ func (m *model) viewInput(w int) string {
 	body := m.input.View()
 	if r := m.replyTo; r != nil {
 		name := r.SenderName
-		if r.FromMe {
+		switch {
+		case r.FromMe:
 			name = "você"
+		case m.activeChat.Kind == "channel":
+			name = m.activeChat.Name
 		}
 		body = renderQuote(&ipc.Quote{Sender: r.Sender, SenderName: "respondendo " + name + "  (esc cancela)", Text: r.Text}, w) + "\n" + body
 	}
@@ -237,7 +240,7 @@ func (m *model) viewFooter() string {
 	case m.focus == paneList:
 		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pular · alt+1..5 abas · ctrl+c sair"
 	default:
-		help = "↑/↓ mensagem · ctrl+r responder · pgup/pgdn rolar · shift+enter linha · tab lista · esc"
+		help = "↑/↓ mensagem · ctrl+r responder · ctrl+o mídia · pgup/pgdn rolar · shift+enter linha · tab lista"
 	}
 	left := sAccent.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {

@@ -93,6 +93,12 @@ func Run(ctx context.Context, opt Options) error {
 		}
 	}()
 
+	if n, err := pruneMediaCache(); err != nil {
+		log.Warn("limpando cache de mídia", "err", err)
+	} else if n > 0 {
+		log.Info("cache de mídia limpo", "arquivos", n)
+	}
+
 	if device.ID == nil {
 		if err := d.pair(ctx, opt.QROut); err != nil {
 			return err
@@ -347,6 +353,9 @@ func (d *Daemon) fillSenders(ctx context.Context, msgs []ipc.Message) {
 		if q := m.Quote; q != nil {
 			q.SenderName = d.senderLabel(ctx, q.Sender, cache)
 		}
+		if m.Kind != "text" && m.Kind != "other" {
+			m.Media = cachedMedia(m.ID)
+		}
 	}
 }
 
@@ -483,6 +492,11 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 	case ipc.OpViewing:
 		d.notif.setViewing(conn, req.Chat)
 		return nil, nil
+	case ipc.OpMedia:
+		// Vídeo grande demora; o prazo de 25s dos outros pedidos é curto.
+		mctx, mcancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer mcancel()
+		return d.downloadMedia(mctx, req.Chat, req.Msg)
 	}
 	return nil, fmt.Errorf("operação desconhecida: %q", req.Op)
 }
