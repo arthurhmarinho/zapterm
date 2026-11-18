@@ -33,6 +33,8 @@ type Request struct {
 	Text   string `json:"text,omitempty"`
 	Limit  int    `json:"limit,omitempty"`
 	Before int64  `json:"before,omitempty"` // unix ms; 0 = mais recentes
+	// ReplyTo é o ID da mensagem respondida (só em OpSend).
+	ReplyTo string `json:"reply_to,omitempty"`
 }
 
 // Frame vai do daemon para a TUI. Resposta tem ID; evento tem Event.
@@ -62,6 +64,15 @@ type Message struct {
 	FromMe     bool   `json:"from_me"`
 	TS         int64  `json:"ts"`   // unix ms
 	Kind       string `json:"kind"` // text, image, audio, video, document, sticker, other
+	Text       string `json:"text"`
+	Quote      *Quote `json:"quote,omitempty"` // mensagem citada, se for resposta
+}
+
+// Quote é o trecho citado de uma resposta.
+type Quote struct {
+	ID         string `json:"id"`
+	Sender     string `json:"sender"`
+	SenderName string `json:"sender_name"`
 	Text       string `json:"text"`
 }
 

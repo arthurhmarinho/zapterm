@@ -36,6 +36,41 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS messages_chat_ts ON messages (chat, ts);
 `
 
+// migrations rodam em ordem; PRAGMA user_version guarda quantas já rodaram.
+var migrations = []string{
+	// 1: citação e protobuf original. raw é o waE2E.Message serializado; só
+	// mensagens recebidas depois desta versão têm, o history sync antigo não.
+	`ALTER TABLE messages ADD COLUMN quote_id TEXT NOT NULL DEFAULT '';
+	 ALTER TABLE messages ADD COLUMN quote_sender TEXT NOT NULL DEFAULT '';
+	 ALTER TABLE messages ADD COLUMN quote_text TEXT NOT NULL DEFAULT '';
+	 ALTER TABLE messages ADD COLUMN raw BLOB;`,
+}
+
+func migrate(db *sql.DB) error {
+	var v int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
+		return err
+	}
+	for i := v; i < len(migrations); i++ {
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(migrations[i]); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("migração %d: %w", i+1, err)
+		}
+		if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, i+1)); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type Store struct{ db *sql.DB }
 
 func Open(path string) (*Store, error) {
@@ -49,6 +84,10 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("criando schema: %w", err)
 	}
+	if err := migrate(db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return &Store{db: db}, nil
 }
 
@@ -57,17 +96,21 @@ func (s *Store) Close() error { return s.db.Close() }
 // SaveMessage grava a mensagem (ignora duplicata) e atualiza o chat.
 // incUnread conta como não lida; só vale para mensagem ao vivo de terceiros.
 // Devolve true se a mensagem era nova.
-func (s *Store) SaveMessage(m ipc.Message, isGroup, incUnread bool) (bool, error) {
+func (s *Store) SaveMessage(m ipc.Message, raw []byte, isGroup, incUnread bool) (bool, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return false, err
 	}
 	defer tx.Rollback()
 
+	var q ipc.Quote
+	if m.Quote != nil {
+		q = *m.Quote
+	}
 	res, err := tx.Exec(`INSERT OR IGNORE INTO messages
-		(chat, id, sender, sender_name, from_me, ts, kind, text)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		m.Chat, m.ID, m.Sender, m.SenderName, m.FromMe, m.TS, m.Kind, m.Text)
+		(chat, id, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.Chat, m.ID, m.Sender, m.SenderName, m.FromMe, m.TS, m.Kind, m.Text, q.ID, q.Sender, q.Text, raw)
 	if err != nil {
 		return false, err
 	}
@@ -158,7 +201,7 @@ func (s *Store) Messages(chat string, limit int, before int64) ([]ipc.Message, e
 		before = 1 << 62
 	}
 	rows, err := s.db.Query(`SELECT * FROM (
-			SELECT id, chat, sender, sender_name, from_me, ts, kind, text
+			SELECT `+msgCols+`
 			FROM messages WHERE chat = ? AND ts < ?
 			ORDER BY ts DESC LIMIT ?
 		) ORDER BY ts ASC`, chat, before, limit)
@@ -168,13 +211,39 @@ func (s *Store) Messages(chat string, limit int, before int64) ([]ipc.Message, e
 	defer rows.Close()
 	out := []ipc.Message{}
 	for rows.Next() {
-		var m ipc.Message
-		if err := rows.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text); err != nil {
+		m, err := scanMessage(rows)
+		if err != nil {
 			return nil, err
 		}
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text`
+
+func scanMessage(r interface{ Scan(...any) error }) (ipc.Message, error) {
+	var m ipc.Message
+	var q ipc.Quote
+	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text)
+	if q.ID != "" {
+		m.Quote = &q
+	}
+	return m, err
+}
+
+// Message busca uma mensagem e o protobuf original (nil se for do history
+// sync antigo).
+func (s *Store) Message(chat, id string) (ipc.Message, []byte, error) {
+	var raw []byte
+	row := s.db.QueryRow(`SELECT `+msgCols+`, raw FROM messages WHERE chat = ? AND id = ?`, chat, id)
+	var m ipc.Message
+	var q ipc.Quote
+	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &raw)
+	if q.ID != "" {
+		m.Quote = &q
+	}
+	return m, raw, err
 }
 
 func preview(m ipc.Message, isGroup bool) string {

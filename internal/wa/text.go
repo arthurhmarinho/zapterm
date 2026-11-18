@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
+
+	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
 
 // describe reduz uma mensagem do WhatsApp a (tipo, texto). Mídia vira um
@@ -42,6 +44,31 @@ func describe(m *waE2E.Message) (kind, text string) {
 		return "other", "[enquete: " + m.GetPollCreationMessageV3().GetName() + "]"
 	}
 	return "", ""
+}
+
+// quoteOf extrai a citação de uma resposta. Toda mensagem com conteúdo pode
+// carregar ContextInfo; o WhatsApp só preenche StanzaID quando é resposta.
+func quoteOf(m *waE2E.Message) *ipc.Quote {
+	var ci *waE2E.ContextInfo
+	switch {
+	case m.GetExtendedTextMessage() != nil:
+		ci = m.GetExtendedTextMessage().GetContextInfo()
+	case m.GetImageMessage() != nil:
+		ci = m.GetImageMessage().GetContextInfo()
+	case m.GetVideoMessage() != nil:
+		ci = m.GetVideoMessage().GetContextInfo()
+	case m.GetAudioMessage() != nil:
+		ci = m.GetAudioMessage().GetContextInfo()
+	case m.GetDocumentMessage() != nil:
+		ci = m.GetDocumentMessage().GetContextInfo()
+	case m.GetStickerMessage() != nil:
+		ci = m.GetStickerMessage().GetContextInfo()
+	}
+	if ci.GetStanzaID() == "" {
+		return nil
+	}
+	_, text := describe(ci.GetQuotedMessage())
+	return &ipc.Quote{ID: ci.GetStanzaID(), Sender: ci.GetParticipant(), Text: text}
 }
 
 func tag(label, caption string) string {

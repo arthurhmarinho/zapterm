@@ -131,27 +131,46 @@ func renderChatItem(c ipc.Chat, w int, selected, focused bool) string {
 }
 
 // renderMessages monta a conversa inteira como balões: os seus à direita,
-// os dos outros à esquerda, com separador quando o dia muda.
-func renderMessages(msgs []ipc.Message, w int, isGroup bool) string {
+// os dos outros à esquerda, com separador quando o dia muda. Devolve também
+// a linha inicial e final de cada balão, para o cursor de mensagem rolar até
+// ele.
+func renderMessages(msgs []ipc.Message, w int, isGroup bool, sel int) (string, [][2]int) {
 	if w < 10 {
-		return ""
+		return "", nil
 	}
 	maxBubble := max(20, w*3/4)
 	var out []string
+	spans := make([][2]int, len(msgs))
+	line := 0
 	var lastDay time.Time
 	for i, m := range msgs {
 		t := time.UnixMilli(m.TS)
 		if i == 0 || !sameDay(t, lastDay) {
 			label := " " + dayLabel(t) + " "
 			out = append(out, sDim.Render(lipgloss.PlaceHorizontal(w, lipgloss.Center, label, lipgloss.WithWhitespaceChars("─"))))
+			line++
 			lastDay = t
 		}
-		out = append(out, renderBubble(m, w, maxBubble, isGroup))
+		b := renderBubble(m, w, maxBubble, isGroup, i == sel)
+		h := lipgloss.Height(b)
+		spans[i] = [2]int{line, line + h - 1}
+		line += h
+		out = append(out, b)
 	}
-	return strings.Join(out, "\n")
+	return strings.Join(out, "\n"), spans
 }
 
-func renderBubble(m ipc.Message, w, maxBubble int, isGroup bool) string {
+func renderQuote(q *ipc.Quote, inner int) string {
+	bar := sAccent.Render("▎")
+	name := q.SenderName
+	if name == "" {
+		name = "mensagem"
+	}
+	return bar + senderStyle(q.Sender).Render(ansi.Truncate(name, inner-1, "…")) + "\n" +
+		bar + sDim.Render(ansi.Truncate(oneLine(q.Text), inner-1, "…"))
+}
+
+func renderBubble(m ipc.Message, w, maxBubble int, isGroup, selected bool) string {
 	inner := maxBubble - 4 // borda + padding
 	text := m.Text
 	if m.Kind != "text" {
@@ -164,6 +183,9 @@ func renderBubble(m ipc.Message, w, maxBubble int, isGroup bool) string {
 	if isGroup && !m.FromMe {
 		lines = append(lines, senderStyle(m.Sender).Render(ansi.Truncate(m.SenderName, inner, "…")))
 	}
+	if m.Quote != nil {
+		lines = append(lines, renderQuote(m.Quote, inner))
+	}
 	lines = append(lines, body)
 	content := strings.Join(lines, "\n")
 	cw := min(inner, max(lipgloss.Width(content), lipgloss.Width(stamp)))
@@ -174,8 +196,12 @@ func renderBubble(m ipc.Message, w, maxBubble int, isGroup bool) string {
 	if m.FromMe {
 		border, align = cOwn, lipgloss.Right
 	}
+	style := lipgloss.RoundedBorder()
+	if selected {
+		border, style = cAccent, lipgloss.ThickBorder()
+	}
 	bubble := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(style).
 		BorderForeground(border).
 		Padding(0, 1).
 		Render(content)

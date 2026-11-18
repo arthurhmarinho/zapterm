@@ -2,6 +2,7 @@ package tui
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -22,7 +23,7 @@ func TestSnapshotLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := &model{cli: cli, vp: newVP(), input: newInput(), jump: newJump()}
+	m := &model{cli: cli, vp: newVP(), input: newInput(), jump: newJump(), msgSel: -1}
 	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
 	m.Update(m.loadChats()())
 	m.Update(m.loadStatus()())
@@ -33,11 +34,17 @@ func TestSnapshotLive(t *testing.T) {
 	// abre o chat indicado sem mandar recibo de leitura
 	for _, c := range m.chats {
 		if c.JID == os.Getenv("ZAPTERM_CHAT") {
-			m.active, m.activeName, m.activeGroup, m.focus = c.JID, c.Name, true, paneChat
+			m.active, m.activeName, m.activeGroup, m.focus = c.JID, c.Name, strings.HasSuffix(c.JID, "@g.us"), paneChat
 		}
 	}
 	m.Update(m.loadMessages(m.active, 0)())
 	dump("chat")
+	m.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
+	m.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
+	m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	dump("resposta (cursor duas acima, r)")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 	for _, r := range "debat" {

@@ -52,6 +52,9 @@ type model struct {
 	activeName  string
 	activeGroup bool
 	msgs        []ipc.Message
+	spans       [][2]int // linhas de cada balão no viewport
+	msgSel      int      // mensagem sob o cursor; -1 = seguir a última
+	replyTo     *ipc.Message
 	loadingOld  bool
 	noMoreOld   bool
 	vp          viewport.Model
@@ -98,7 +101,7 @@ func Run() error {
 	}
 	defer func() { cli.Close() }()
 
-	m := &model{cli: cli, input: newInput(), jump: newJump(), vp: newVP(), status: "conectando", termFocused: true}
+	m := &model{cli: cli, input: newInput(), jump: newJump(), vp: newVP(), status: "conectando", termFocused: true, msgSel: -1}
 	_, err = tea.NewProgram(m).Run()
 	return err
 }
@@ -186,11 +189,11 @@ func (m *model) markRead(chat string) tea.Cmd {
 	}
 }
 
-func (m *model) send(chat, text string) tea.Cmd {
+func (m *model) send(chat, text, replyTo string) tea.Cmd {
 	cli := m.cli
 	return func() tea.Msg {
 		// A mensagem enviada volta como evento; aqui só interessa o erro.
-		if err := cli.Call(ipc.Request{Op: ipc.OpSend, Chat: chat, Text: text}, nil); err != nil {
+		if err := cli.Call(ipc.Request{Op: ipc.OpSend, Chat: chat, Text: text, ReplyTo: replyTo}, nil); err != nil {
 			return errMsg{fmt.Errorf("não enviou: %w", err)}
 		}
 		return nil
@@ -235,7 +238,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
-		return m, tea.Batch(m.onKey(msg), m.syncViewing())
+		prev := m.focus
+		cmd := m.onKey(msg)
+		if m.focus != prev {
+			// o destaque da mensagem só existe com o painel da conversa em foco
+			off := m.vp.YOffset()
+			m.refreshMessages(false)
+			m.vp.SetYOffset(off)
+		}
+		return m, tea.Batch(cmd, m.syncViewing())
 
 	case tea.FocusMsg:
 		m.termFocused = true
@@ -330,7 +341,11 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 		if slices.ContainsFunc(m.msgs, func(x ipc.Message) bool { return x.ID == msg.ID }) {
 			return nil
 		}
+		following := m.msgSel < 0 || m.msgSel == len(m.msgs)-1
 		m.msgs = append(m.msgs, msg)
+		if following {
+			m.msgSel = -1
+		}
 		m.refreshMessages(m.vp.AtBottom() || msg.FromMe)
 		if !msg.FromMe && m.termFocused {
 			// Chat aberto na tela = lido, como no app.
@@ -358,6 +373,9 @@ func (m *model) onMessages(msg msgsMsg) tea.Cmd {
 	// Mantém o mesmo trecho na tela depois de inserir as antigas em cima.
 	before := m.vp.TotalLineCount()
 	off := m.vp.YOffset()
+	if m.msgSel >= 0 {
+		m.msgSel += len(msg.msgs)
+	}
 	m.msgs = append(msg.msgs, m.msgs...)
 	m.refreshMessages(false)
 	m.vp.SetYOffset(off + m.vp.TotalLineCount() - before)
@@ -421,27 +439,112 @@ func (m *model) keyList(k tea.KeyPressMsg) tea.Cmd {
 
 func (m *model) keyChat(k tea.KeyPressMsg) tea.Cmd {
 	switch k.String() {
-	case "esc", "h", "left":
+	case "esc":
+		if m.replyTo != nil {
+			m.replyTo = nil
+			m.layout()
+			return nil
+		}
+		m.focus = paneList
+		return nil
+	case "h", "left":
 		m.focus = paneList
 		return nil
 	case "i", "a", "enter":
-		m.mode = modeInsert
-		m.layout()
-		return m.input.Focus()
+		return m.startInsert()
+	case "r":
+		if i := m.sel(); i >= 0 {
+			msg := m.msgs[i]
+			m.replyTo = &msg
+			return m.startInsert()
+		}
+		return nil
 	case "j", "down":
-		m.vp.ScrollDown(1)
+		m.moveSel(1)
 	case "k", "up":
-		m.vp.ScrollUp(1)
+		m.moveSel(-1)
 	case "ctrl+d", "pgdown":
 		m.vp.ScrollDown(m.vp.Height() / 2)
+		m.selFromViewport(false)
 	case "ctrl+u", "pgup":
 		m.vp.ScrollUp(m.vp.Height() / 2)
+		m.selFromViewport(true)
 	case "g", "home":
 		m.vp.GotoTop()
+		m.selFromViewport(true)
 	case "G", "end":
-		m.vp.GotoBottom()
+		m.msgSel = -1
+		m.refreshMessages(true)
 	}
 	return m.maybeLoadOlder()
+}
+
+func (m *model) startInsert() tea.Cmd {
+	m.mode = modeInsert
+	m.layout()
+	return m.input.Focus()
+}
+
+// sel devolve o índice real da mensagem sob o cursor.
+func (m *model) sel() int {
+	if len(m.msgs) == 0 {
+		return -1
+	}
+	if m.msgSel < 0 || m.msgSel >= len(m.msgs) {
+		return len(m.msgs) - 1
+	}
+	return m.msgSel
+}
+
+func (m *model) moveSel(d int) {
+	i := m.sel()
+	if i < 0 {
+		return
+	}
+	i = max(0, min(i+d, len(m.msgs)-1))
+	m.msgSel = i
+	if i == len(m.msgs)-1 {
+		m.msgSel = -1
+	}
+	m.refreshMessages(false)
+	m.ensureSelVisible()
+}
+
+// selFromViewport põe o cursor na primeira (ou última) mensagem visível
+// depois de rolar por página.
+func (m *model) selFromViewport(top bool) {
+	y0, y1 := m.vp.YOffset(), m.vp.YOffset()+m.vp.Height()-1
+	pick := -1
+	for i, sp := range m.spans {
+		if sp[1] >= y0 && sp[0] <= y1 {
+			pick = i
+			if top {
+				break
+			}
+		}
+	}
+	if pick >= 0 {
+		m.msgSel = pick
+		off := m.vp.YOffset()
+		m.refreshMessages(false)
+		m.vp.SetYOffset(off)
+	}
+}
+
+func (m *model) ensureSelVisible() {
+	i := m.sel()
+	if i < 0 || i >= len(m.spans) {
+		return
+	}
+	sp := m.spans[i]
+	h := m.vp.Height()
+	switch {
+	case sp[1]-sp[0]+1 > h, sp[0] < m.vp.YOffset():
+		// balão acima da tela, ou maior que ela: mostra o começo dele
+		m.vp.SetYOffset(sp[0])
+	case sp[1] > m.vp.YOffset()+h-1:
+		m.vp.SetYOffset(sp[1] - h + 1)
+	}
 }
 
 func (m *model) keyInsert(k tea.KeyPressMsg) tea.Cmd {
@@ -456,9 +559,15 @@ func (m *model) keyInsert(k tea.KeyPressMsg) tea.Cmd {
 		if text == "" || m.active == "" {
 			return nil
 		}
+		reply := ""
+		if m.replyTo != nil {
+			reply = m.replyTo.ID
+		}
+		m.replyTo = nil
+		m.msgSel = -1
 		m.input.Reset()
 		m.layout()
-		return m.send(m.active, text)
+		return m.send(m.active, text, reply)
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(k)
@@ -503,6 +612,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.active, m.activeName = c.JID, c.Name
 	m.activeGroup = strings.HasSuffix(c.JID, "@g.us")
 	m.msgs = nil
+	m.msgSel, m.replyTo = -1, nil
 	m.loadingOld, m.noMoreOld = false, false
 	m.input.Reset()
 	m.refreshMessages(true)
@@ -514,7 +624,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 }
 
 func (m *model) maybeLoadOlder() tea.Cmd {
-	if !m.vp.AtTop() || m.loadingOld || m.noMoreOld || len(m.msgs) == 0 {
+	if !(m.vp.AtTop() || m.sel() == 0) || m.loadingOld || m.noMoreOld || len(m.msgs) == 0 {
 		return nil
 	}
 	m.loadingOld = true
@@ -611,7 +721,13 @@ func (m *model) setFlash(s string) {
 func (m *model) listWidth() int { return max(24, min(42, m.w*30/100)) }
 func (m *model) listRows() int  { return (m.h - 1 - 2) / 2 }
 
-func (m *model) inputHeight() int { return m.input.Height() + 2 }
+func (m *model) inputHeight() int {
+	h := m.input.Height() + 2
+	if m.replyTo != nil {
+		h += 2
+	}
+	return h
+}
 
 func (m *model) layout() {
 	if m.w == 0 {
@@ -635,7 +751,11 @@ func (m *model) refreshMessages(toBottom bool) {
 	case len(m.msgs) == 0:
 		content = sDim.Render("\n  Carregando…")
 	default:
-		content = renderMessages(m.msgs, m.vp.Width(), m.activeGroup)
+		sel := -2 // sem destaque fora do painel da conversa
+		if m.focus == paneChat {
+			sel = m.sel()
+		}
+		content, m.spans = renderMessages(m.msgs, m.vp.Width(), m.activeGroup, sel)
 	}
 	m.vp.SetContent(content)
 	if toBottom {
@@ -664,7 +784,15 @@ func (m *model) View() tea.View {
 		chatTitle = "2 · " + m.activeName
 	}
 	chat := box(chatTitle, m.vp.View(), cw, m.h-1-m.inputHeight(), m.focus == paneChat && m.mode != modeInsert)
-	input := box("3", m.input.View(), cw, m.inputHeight(), m.mode == modeInsert)
+	inputBody := m.input.View()
+	if r := m.replyTo; r != nil {
+		name := r.SenderName
+		if r.FromMe {
+			name = "você"
+		}
+		inputBody = renderQuote(&ipc.Quote{Sender: r.Sender, SenderName: "respondendo " + name, Text: r.Text}, cw-4) + "\n" + inputBody
+	}
+	input := box("3", inputBody, cw, m.inputHeight(), m.mode == modeInsert)
 
 	screen := lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.JoinHorizontal(lipgloss.Top, list, lipgloss.JoinVertical(lipgloss.Left, chat, input)),
@@ -733,7 +861,7 @@ func (m *model) viewFooter() string {
 	case m.focus == paneList:
 		help = "j/k mover · enter abrir · ctrl+p pular · tab painel · q sair"
 	default:
-		help = "j/k rolar · ctrl+u/d página · g/G topo/fim · i escrever · esc lista"
+		help = "j/k mensagem · r responder · ctrl+u/d página · g/G topo/fim · i escrever · esc lista"
 	}
 	left := sAccent.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {

@@ -192,6 +192,16 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 		TS:         e.Info.Timestamp.UnixMilli(),
 		Kind:       kind,
 		Text:       text,
+		Quote:      quoteOf(e.Message),
+	}
+	if m.Quote != nil && m.Quote.Sender != "" {
+		if q, err := types.ParseJID(m.Quote.Sender); err == nil {
+			m.Quote.Sender = d.normalize(ctx, q).String()
+		}
+	}
+	raw, err := proto.Marshal(e.Message)
+	if err != nil {
+		raw = nil
 	}
 	if m.FromMe {
 		// Enviada por você em outro aparelho: o contato "você" na agenda tem
@@ -199,7 +209,7 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 		m.SenderName = "você"
 	}
 	isGroup := chat.Server == types.GroupServer
-	isNew, err := d.st.SaveMessage(m, isGroup, live && !m.FromMe)
+	isNew, err := d.st.SaveMessage(m, raw, isGroup, live && !m.FromMe)
 	if err != nil {
 		d.log.Error("gravando mensagem", "err", err)
 		return
@@ -207,6 +217,9 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	if !live || !isNew {
 		return
 	}
+	one := []ipc.Message{m}
+	d.fillSenders(ctx, one)
+	m = one[0]
 	d.srv.Broadcast(ipc.EvMessage, m)
 	d.ensureName(chat)
 	c := d.pushChat(m.Chat)
@@ -324,7 +337,25 @@ func (d *Daemon) fillSenders(ctx context.Context, msgs []ipc.Message) {
 		if name != "" {
 			m.SenderName = name
 		}
+		if q := m.Quote; q != nil {
+			q.SenderName = d.senderLabel(ctx, q.Sender, cache)
+		}
 	}
+}
+
+// senderLabel dá nome a um JID citado: "você", contato, ou o número.
+func (d *Daemon) senderLabel(ctx context.Context, sender string, cache map[string]string) string {
+	jid, err := types.ParseJID(sender)
+	if err != nil || sender == "" {
+		return ""
+	}
+	if id := d.cli.Store.ID; id != nil && jid.User == id.User {
+		return "você"
+	}
+	if n, ok := cache[sender]; ok && n != "" {
+		return n
+	}
+	return d.contactName(ctx, jid, "")
 }
 
 func (d *Daemon) fillName(ctx context.Context, c *ipc.Chat) {
@@ -416,7 +447,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		d.fillSenders(ctx, msgs)
 		return msgs, nil
 	case ipc.OpSend:
-		return d.send(ctx, req.Chat, req.Text)
+		return d.send(ctx, req.Chat, req.Text, req.ReplyTo)
 	case ipc.OpRead:
 		return nil, d.markRead(ctx, req.Chat)
 	case ipc.OpViewing:
@@ -426,7 +457,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 	return nil, fmt.Errorf("operação desconhecida: %q", req.Op)
 }
 
-func (d *Daemon) send(ctx context.Context, chat, text string) (any, error) {
+func (d *Daemon) send(ctx context.Context, chat, text, replyTo string) (any, error) {
 	text = strings.TrimRight(text, " \n")
 	if text == "" {
 		return nil, errors.New("mensagem vazia")
@@ -435,18 +466,53 @@ func (d *Daemon) send(ctx context.Context, chat, text string) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("chat inválido: %w", err)
 	}
-	resp, err := d.cli.SendMessage(ctx, jid, &waE2E.Message{Conversation: proto.String(text)})
+	msg := &waE2E.Message{Conversation: proto.String(text)}
+	var quote *ipc.Quote
+	if replyTo != "" {
+		orig, origRaw, err := d.st.Message(chat, replyTo)
+		if err != nil {
+			return nil, fmt.Errorf("mensagem respondida não encontrada: %w", err)
+		}
+		// O celular mostra a citação a partir de QuotedMessage. Com o
+		// protobuf original vai a mensagem exata (com miniatura, se for
+		// foto); sem ele (history sync antigo), vai só o texto.
+		quoted := &waE2E.Message{Conversation: proto.String(orig.Text)}
+		if len(origRaw) > 0 {
+			var q waE2E.Message
+			if proto.Unmarshal(origRaw, &q) == nil {
+				quoted = &q
+			}
+		}
+		participant := orig.Sender
+		if orig.FromMe {
+			participant = d.cli.Store.ID.ToNonAD().String()
+		}
+		msg = &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: proto.String(text),
+			ContextInfo: &waE2E.ContextInfo{
+				StanzaID:      proto.String(orig.ID),
+				Participant:   proto.String(participant),
+				QuotedMessage: quoted,
+			},
+		}}
+		quote = &ipc.Quote{ID: orig.ID, Sender: participant, Text: orig.Text}
+	}
+	resp, err := d.cli.SendMessage(ctx, jid, msg)
 	if err != nil {
 		return nil, err
 	}
 	me := d.cli.Store.ID.ToNonAD()
 	m := ipc.Message{
 		ID: resp.ID, Chat: jid.String(), Sender: me.String(), SenderName: "você",
-		FromMe: true, TS: resp.Timestamp.UnixMilli(), Kind: "text", Text: text,
+		FromMe: true, TS: resp.Timestamp.UnixMilli(), Kind: "text", Text: text, Quote: quote,
 	}
-	if _, err := d.st.SaveMessage(m, jid.Server == types.GroupServer, false); err != nil {
+	raw, _ := proto.Marshal(msg)
+	if _, err := d.st.SaveMessage(m, raw, jid.Server == types.GroupServer, false); err != nil {
 		d.log.Error("gravando enviada", "err", err)
 	}
+	one := []ipc.Message{m}
+	d.fillSenders(ctx, one)
+	m = one[0]
 	d.srv.Broadcast(ipc.EvMessage, m)
 	d.pushChat(m.Chat)
 	return m, nil
