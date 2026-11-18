@@ -188,6 +188,11 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 		Kind:       kind,
 		Text:       text,
 	}
+	if m.FromMe {
+		// Enviada por você em outro aparelho: o contato "você" na agenda tem
+		// o próprio número como nome.
+		m.SenderName = "você"
+	}
 	isGroup := chat.Server == types.GroupServer
 	isNew, err := d.st.SaveMessage(m, isGroup, live && !m.FromMe)
 	if err != nil {
@@ -198,7 +203,7 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 		return
 	}
 	d.srv.Broadcast(ipc.EvMessage, m)
-	d.ensureGroupName(chat)
+	d.ensureName(chat)
 	d.pushChat(m.Chat)
 }
 
@@ -259,12 +264,8 @@ func (d *Daemon) normalize(ctx context.Context, jid types.JID) types.JID {
 }
 
 func (d *Daemon) contactName(ctx context.Context, jid types.JID, pushName string) string {
-	if c, err := d.cli.Store.Contacts.GetContact(ctx, jid); err == nil && c.Found {
-		for _, n := range []string{c.FullName, c.FirstName, c.BusinessName, c.PushName} {
-			if n != "" {
-				return n
-			}
-		}
+	if n := d.knownName(ctx, jid); n != "" {
+		return n
 	}
 	if pushName != "" {
 		return pushName
@@ -273,6 +274,48 @@ func (d *Daemon) contactName(ctx context.Context, jid types.JID, pushName string
 		return "+" + jid.User
 	}
 	return jid.User
+}
+
+// knownName devolve o nome que o whatsmeow conhece (agenda, perfil
+// comercial ou nome de perfil), ou "" se não houver nenhum.
+func (d *Daemon) knownName(ctx context.Context, jid types.JID) string {
+	c, err := d.cli.Store.Contacts.GetContact(ctx, jid)
+	if err != nil || !c.Found {
+		return ""
+	}
+	for _, n := range []string{c.FullName, c.FirstName, c.BusinessName} {
+		if n != "" {
+			return n
+		}
+	}
+	if c.PushName != "" {
+		return "~" + c.PushName // como o WhatsApp mostra quem não está na agenda
+	}
+	return ""
+}
+
+// fillSenders resolve o nome do remetente na hora da leitura. Gravar só o
+// nome visto na chegada congelaria "+5584…": no history sync os nomes de
+// perfil chegam depois das mensagens.
+func (d *Daemon) fillSenders(ctx context.Context, msgs []ipc.Message) {
+	cache := map[string]string{}
+	for i := range msgs {
+		m := &msgs[i]
+		if m.FromMe {
+			m.SenderName = "você"
+			continue
+		}
+		name, ok := cache[m.Sender]
+		if !ok {
+			if jid, err := types.ParseJID(m.Sender); err == nil {
+				name = d.knownName(ctx, jid)
+			}
+			cache[m.Sender] = name
+		}
+		if name != "" {
+			m.SenderName = name
+		}
+	}
 }
 
 func (d *Daemon) fillName(ctx context.Context, c *ipc.Chat) {
@@ -284,17 +327,23 @@ func (d *Daemon) fillName(ctx context.Context, c *ipc.Chat) {
 		c.Name = c.JID
 		return
 	}
-	if jid.Server == types.GroupServer {
+	switch jid.Server {
+	case types.GroupServer:
 		c.Name = "(grupo)"
+		d.ensureName(jid)
+		return
+	case types.NewsletterServer:
+		c.Name = "(canal)"
+		d.ensureName(jid)
 		return
 	}
 	c.Name = d.contactName(ctx, jid, "")
 }
 
-// ensureGroupName busca o nome de um grupo que apareceu só por mensagem ao
-// vivo (sem history sync), uma vez por execução.
-func (d *Daemon) ensureGroupName(jid types.JID) {
-	if jid.Server != types.GroupServer {
+// ensureName busca no servidor o nome de um grupo ou canal que chegou sem
+// nome (mensagem ao vivo, ou history sync incompleto), uma vez por execução.
+func (d *Daemon) ensureName(jid types.JID) {
+	if jid.Server != types.GroupServer && jid.Server != types.NewsletterServer {
 		return
 	}
 	if _, loaded := d.groupNameFetch.LoadOrStore(jid.String(), struct{}{}); loaded {
@@ -306,12 +355,26 @@ func (d *Daemon) ensureGroupName(jid types.JID) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		info, err := d.cli.GetGroupInfo(ctx, jid)
-		if err != nil {
-			d.log.Warn("nome do grupo", "jid", jid, "err", err)
+		var name string
+		if jid.Server == types.GroupServer {
+			info, err := d.cli.GetGroupInfo(ctx, jid)
+			if err != nil {
+				d.log.Warn("nome do grupo", "jid", jid, "err", err)
+				return
+			}
+			name = info.Name
+		} else {
+			info, err := d.cli.GetNewsletterInfo(ctx, jid)
+			if err != nil {
+				d.log.Warn("nome do canal", "jid", jid, "err", err)
+				return
+			}
+			name = info.ThreadMeta.Name.Text
+		}
+		if name == "" {
 			return
 		}
-		if err := d.st.SetChatName(jid.String(), info.Name); err == nil {
+		if err := d.st.SetChatName(jid.String(), name); err == nil {
 			d.pushChat(jid.String())
 		}
 	}()
@@ -337,7 +400,12 @@ func (d *Daemon) handle(req ipc.Request) (any, error) {
 		}
 		return chats, nil
 	case ipc.OpMessages:
-		return d.st.Messages(req.Chat, req.Limit, req.Before)
+		msgs, err := d.st.Messages(req.Chat, req.Limit, req.Before)
+		if err != nil {
+			return nil, err
+		}
+		d.fillSenders(ctx, msgs)
+		return msgs, nil
 	case ipc.OpSend:
 		return d.send(ctx, req.Chat, req.Text)
 	case ipc.OpRead:

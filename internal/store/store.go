@@ -127,9 +127,12 @@ func (s *Store) Chat(jid string) (ipc.Chat, error) {
 	return c, err
 }
 
+// Chats lista as conversas com atividade. O history sync também manda
+// centenas de conversas vazias (contatos com quem você nunca falou ou que
+// foram apagadas), sem timestamp; essas ficam de fora.
 func (s *Store) Chats() ([]ipc.Chat, error) {
 	rows, err := s.db.Query(`SELECT jid, name, is_group, last_ts, last_text, unread
-		FROM chats ORDER BY last_ts DESC`)
+		FROM chats WHERE last_ts > 0 ORDER BY last_ts DESC`)
 	if err != nil {
 		return nil, err
 	}
