@@ -14,6 +14,7 @@ const (
 	OpMessages = "messages" // mensagens de um chat
 	OpSend     = "send"     // envia texto
 	OpRead     = "read"     // marca o chat como lido
+	OpViewing  = "viewing"  // chat aberto numa TUI em foco ("" = nenhum); suprime notificação
 )
 
 // Eventos empurrados pelo daemon sem pedido.

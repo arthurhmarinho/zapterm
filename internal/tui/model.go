@@ -64,6 +64,9 @@ type model struct {
 	status  string
 	flash   string
 	flashAt time.Time
+
+	termFocused bool   // o kitty avisa quando a janela ganha/perde foco
+	sentViewing string // último valor de "viewing" mandado ao daemon
 }
 
 // ---------- mensagens internas ----------
@@ -95,7 +98,7 @@ func Run() error {
 	}
 	defer func() { cli.Close() }()
 
-	m := &model{cli: cli, input: newInput(), jump: newJump(), vp: newVP(), status: "conectando"}
+	m := &model{cli: cli, input: newInput(), jump: newJump(), vp: newVP(), status: "conectando", termFocused: true}
 	_, err = tea.NewProgram(m).Run()
 	return err
 }
@@ -194,6 +197,26 @@ func (m *model) send(chat, text string) tea.Cmd {
 	}
 }
 
+// syncViewing conta ao daemon qual chat está na tela, para ele não notificar
+// mensagem que você já está vendo.
+func (m *model) syncViewing() tea.Cmd {
+	want := ""
+	if m.termFocused {
+		want = m.active
+	}
+	if want == m.sentViewing {
+		return nil
+	}
+	m.sentViewing = want
+	cli := m.cli
+	return func() tea.Msg {
+		if err := cli.Call(ipc.Request{Op: ipc.OpViewing, Chat: want}, nil); err != nil {
+			return errMsg{err}
+		}
+		return nil
+	}
+}
+
 func reconnect() tea.Cmd {
 	return tea.Tick(2*time.Second, func(time.Time) tea.Msg {
 		cli, err := connect()
@@ -212,7 +235,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
-		return m, m.onKey(msg)
+		return m, tea.Batch(m.onKey(msg), m.syncViewing())
+
+	case tea.FocusMsg:
+		m.termFocused = true
+		cmds := []tea.Cmd{m.syncViewing()}
+		if c, ok := m.activeChat(); ok && c.Unread > 0 {
+			// Voltou para a janela com mensagem nova no chat aberto.
+			cmds = append(cmds, m.markRead(c.JID))
+		}
+		return m, tea.Batch(cmds...)
+
+	case tea.BlurMsg:
+		m.termFocused = false
+		return m, m.syncViewing()
 
 	case chatsMsg:
 		sel := m.selectedJID()
@@ -247,7 +283,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.cli.Close()
 		m.cli = msg.cli
-		cmds := []tea.Cmd{m.loadChats(), m.loadStatus(), waitEvent(m.cli)}
+		m.sentViewing = ""
+		cmds := []tea.Cmd{m.loadChats(), m.loadStatus(), waitEvent(m.cli), m.syncViewing()}
 		if m.active != "" {
 			cmds = append(cmds, m.loadMessages(m.active, 0))
 		}
@@ -295,7 +332,7 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 		}
 		m.msgs = append(m.msgs, msg)
 		m.refreshMessages(m.vp.AtBottom() || msg.FromMe)
-		if !msg.FromMe {
+		if !msg.FromMe && m.termFocused {
 			// Chat aberto na tela = lido, como no app.
 			return m.markRead(m.active)
 		}
@@ -523,6 +560,13 @@ func (m *model) selected() (ipc.Chat, bool) {
 	return m.chats[m.cursor], true
 }
 
+func (m *model) activeChat() (ipc.Chat, bool) {
+	if i := m.chatIndex(m.active); i >= 0 {
+		return m.chats[i], true
+	}
+	return ipc.Chat{}, false
+}
+
 func (m *model) selectedJID() string {
 	c, _ := m.selected()
 	return c.JID
@@ -604,6 +648,7 @@ func (m *model) refreshMessages(toBottom bool) {
 func (m *model) View() tea.View {
 	v := tea.NewView("")
 	v.AltScreen = true
+	v.ReportFocus = true
 	v.WindowTitle = m.title()
 	if m.w < 50 || m.h < 12 {
 		v.SetContent("janela pequena demais para o zapterm")

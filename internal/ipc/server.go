@@ -12,8 +12,9 @@ import (
 	"time"
 )
 
-// Handler responde a um pedido. O valor devolvido vira Frame.Data.
-type Handler func(Request) (any, error)
+// Handler responde a um pedido. conn identifica a conexão (uma por TUI
+// aberta). O valor devolvido vira Frame.Data.
+type Handler func(conn uint64, req Request) (any, error)
 
 // Server aceita várias TUIs ao mesmo tempo e faz broadcast dos eventos.
 type Server struct {
@@ -22,9 +23,14 @@ type Server struct {
 	log     *slog.Logger
 	mu      sync.Mutex
 	clients map[*conn]struct{}
+	lastID  uint64
+
+	// OnClose é chamado (em goroutine própria) quando uma TUI desconecta.
+	OnClose func(conn uint64)
 }
 
 type conn struct {
+	id  uint64
 	c   net.Conn
 	out chan Frame
 }
@@ -57,8 +63,9 @@ func (s *Server) Serve() error {
 			}
 			return err
 		}
-		cc := &conn{c: c, out: make(chan Frame, 256)}
 		s.mu.Lock()
+		s.lastID++
+		cc := &conn{id: s.lastID, c: c, out: make(chan Frame, 256)}
 		s.clients[cc] = struct{}{}
 		s.mu.Unlock()
 		go s.writer(cc)
@@ -97,6 +104,9 @@ func (s *Server) drop(cc *conn) {
 	delete(s.clients, cc)
 	close(cc.out)
 	cc.c.Close()
+	if s.OnClose != nil {
+		go s.OnClose(cc.id)
+	}
 }
 
 func (s *Server) writer(cc *conn) {
@@ -129,7 +139,7 @@ func (s *Server) reader(cc *conn) {
 		// segurar a listagem de chats.
 		go func() {
 			f := Frame{ID: req.ID}
-			data, err := s.handle(req)
+			data, err := s.handle(cc.id, req)
 			if err != nil {
 				f.Error = err.Error()
 			} else if data != nil {

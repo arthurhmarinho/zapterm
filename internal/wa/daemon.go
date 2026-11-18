@@ -41,6 +41,7 @@ type Daemon struct {
 	status ipc.Status
 
 	groupNameFetch sync.Map // jid -> struct{}: evita buscar o mesmo grupo duas vezes
+	notif          *notifier
 }
 
 // Run sobe o daemon e só volta quando ctx for cancelado ou algo fatal ocorrer.
@@ -74,7 +75,7 @@ func Run(ctx context.Context, opt Options) error {
 	}
 	defer st.Close()
 
-	d := &Daemon{log: log, st: st, status: ipc.Status{State: "connecting"}}
+	d := &Daemon{log: log, st: st, status: ipc.Status{State: "connecting"}, notif: newNotifier()}
 	d.cli = whatsmeow.NewClient(device, waLogger{log.With("mod", "whatsmeow")})
 	d.cli.AddEventHandler(d.onEvent)
 
@@ -85,6 +86,7 @@ func Run(ctx context.Context, opt Options) error {
 		return err
 	}
 	defer d.srv.Close()
+	d.srv.OnClose = func(conn uint64) { d.notif.setViewing(conn, "") }
 	go func() {
 		if err := d.srv.Serve(); err != nil {
 			log.Error("socket", "err", err)
@@ -172,6 +174,9 @@ func (d *Daemon) onEvent(evt any) {
 }
 
 func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
+	if e.Info.Chat == types.StatusBroadcastJID {
+		return // status (stories) fica fora do zapterm
+	}
 	kind, text := describe(e.Message)
 	if kind == "" {
 		return
@@ -204,7 +209,10 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	}
 	d.srv.Broadcast(ipc.EvMessage, m)
 	d.ensureName(chat)
-	d.pushChat(m.Chat)
+	c := d.pushChat(m.Chat)
+	if !m.FromMe {
+		go d.notify(m, chat, c.Name)
+	}
 }
 
 func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
@@ -238,13 +246,14 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 }
 
 // pushChat avisa as TUIs de que um chat mudou.
-func (d *Daemon) pushChat(jid string) {
+func (d *Daemon) pushChat(jid string) ipc.Chat {
 	c, err := d.st.Chat(jid)
 	if err != nil {
-		return
+		return ipc.Chat{JID: jid, Name: jid}
 	}
 	d.fillName(context.Background(), &c)
 	d.srv.Broadcast(ipc.EvChat, c)
+	return c
 }
 
 // ---------- nomes e JIDs ----------
@@ -382,7 +391,7 @@ func (d *Daemon) ensureName(jid types.JID) {
 
 // ---------- pedidos da TUI ----------
 
-func (d *Daemon) handle(req ipc.Request) (any, error) {
+func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 	switch req.Op {
@@ -410,6 +419,9 @@ func (d *Daemon) handle(req ipc.Request) (any, error) {
 		return d.send(ctx, req.Chat, req.Text)
 	case ipc.OpRead:
 		return nil, d.markRead(ctx, req.Chat)
+	case ipc.OpViewing:
+		d.notif.setViewing(conn, req.Chat)
+		return nil, nil
 	}
 	return nil, fmt.Errorf("operação desconhecida: %q", req.Op)
 }
