@@ -155,7 +155,7 @@ func (s *Store) Messages(chat string, limit int, before int64) ([]ipc.Message, e
 		limit = 100
 	}
 	if before <= 0 {
-		before = 1<<62
+		before = 1 << 62
 	}
 	rows, err := s.db.Query(`SELECT * FROM (
 			SELECT id, chat, sender, sender_name, from_me, ts, kind, text

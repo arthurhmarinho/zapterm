@@ -1,5 +1,6 @@
 // zapterm: cliente de WhatsApp para o terminal.
 //
+//	zapterm                  abre a TUI (sobe o daemon se preciso)
 //	zapterm login            pareia por QR code e fica rodando como daemon
 //	zapterm daemon           daemon em segundo plano (exige sessão)
 //	zapterm chats            lista os chats (depuração do IPC)
@@ -23,6 +24,7 @@ import (
 
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 	"github.com/arthurhmarinho/zapterm/internal/paths"
+	"github.com/arthurhmarinho/zapterm/internal/tui"
 	"github.com/arthurhmarinho/zapterm/internal/wa"
 )
 
@@ -51,8 +53,10 @@ func run(args []string) error {
 		return send(args)
 	case "tail":
 		return tail()
-	case "", "help", "-h", "--help":
-		fmt.Println("uso: zapterm login | daemon | chats | msgs <jid> [n] | send <jid> <texto> | tail")
+	case "":
+		return tui.Run()
+	case "help", "-h", "--help":
+		fmt.Println("uso: zapterm [login | daemon | chats | msgs <jid> [n] | send <jid> <texto> | tail]")
 		return nil
 	}
 	return fmt.Errorf("comando desconhecido: %s", cmd)

@@ -3,23 +3,41 @@ module github.com/arthurhmarinho/zapterm
 go 1.27.3
 
 require (
+	charm.land/bubbles/v2 v2.2.1
+	charm.land/bubbletea/v2 v2.1.2
+	charm.land/lipgloss/v2 v2.1.1
+	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/mattn/go-sqlite3 v1.14.53
 	github.com/mdp/qrterminal/v3 v3.2.1
+	github.com/sahilm/fuzzy v0.1.3
 	go.mau.fi/whatsmeow v0.0.0-20261116172437-19d61352436f
 	google.golang.org/protobuf v1.36.12
 )
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/beeper/argo-go v1.1.2 // indirect
+	github.com/charmbracelet/colorprofile v0.4.3 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4 // indirect
+	github.com/charmbracelet/x/term v0.2.2 // indirect
+	github.com/charmbracelet/x/termios v0.1.1 // indirect
+	github.com/charmbracelet/x/windows v0.2.2 // indirect
+	github.com/clipperhouse/displaywidth v0.11.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-runewidth v0.0.30 // indirect
+	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/petermattis/goid v0.0.0-20261109124353-7cfa343ad0ab // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.27 // indirect
+	github.com/xo/terminfo v1.0.0 // indirect
 	go.mau.fi/libsignal v0.2.3 // indirect
 	go.mau.fi/util v0.11.1 // indirect
 	golang.org/x/crypto v0.59.0 // indirect

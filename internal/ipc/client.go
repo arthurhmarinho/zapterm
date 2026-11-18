@@ -41,7 +41,7 @@ func Dial(path string) (*Client, error) {
 }
 
 func (cl *Client) Events() <-chan Frame { return cl.events }
-func (cl *Client) Close() error       { return cl.c.Close() }
+func (cl *Client) Close() error         { return cl.c.Close() }
 
 // Call manda o pedido e decodifica a resposta em out (pode ser nil).
 func (cl *Client) Call(req Request, out any) error {

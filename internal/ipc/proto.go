@@ -59,7 +59,7 @@ type Message struct {
 	Sender     string `json:"sender"`
 	SenderName string `json:"sender_name"`
 	FromMe     bool   `json:"from_me"`
-	TS         int64  `json:"ts"` // unix ms
+	TS         int64  `json:"ts"`   // unix ms
 	Kind       string `json:"kind"` // text, image, audio, video, document, sticker, other
 	Text       string `json:"text"`
 }
