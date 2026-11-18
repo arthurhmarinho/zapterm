@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"image"
 	_ "image/gif"
-	_ "image/jpeg"
+	"image/jpeg"
 	"image/png"
 	"io/fs"
 	"mime"
@@ -19,6 +19,7 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 	"google.golang.org/protobuf/proto"
@@ -246,4 +247,83 @@ func pruneMediaCache() (removed int, err error) {
 		}
 	}
 	return removed, nil
+}
+
+// Lado maior da imagem enviada: o WhatsApp recomprime acima disso, e print
+// de tela grande vira alguns MB à toa.
+const sendMaxPx = 1600
+
+// sendImage envia um arquivo de imagem (o print colado na TUI) como foto,
+// com legenda opcional. Converte para JPEG, que é o que o app espera.
+func (d *Daemon) sendImage(ctx context.Context, chat, path, caption, replyTo string) (any, error) {
+	jid, err := types.ParseJID(chat)
+	if err != nil {
+		return nil, fmt.Errorf("chat inválido: %w", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	src, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("não é uma imagem: %w", err)
+	}
+	full, w, h := scaleJPEG(src, sendMaxPx, 85)
+	thumb, _, _ := scaleJPEG(src, 72, 60)
+
+	up, err := d.cli.Upload(ctx, full, whatsmeow.MediaImage)
+	if err != nil {
+		return nil, fmt.Errorf("upload: %w", err)
+	}
+	ci, quote, err := d.replyContext(chat, replyTo)
+	if err != nil {
+		return nil, err
+	}
+	im := &waE2E.ImageMessage{
+		Mimetype:      proto.String("image/jpeg"),
+		URL:           proto.String(up.URL),
+		DirectPath:    proto.String(up.DirectPath),
+		MediaKey:      up.MediaKey,
+		FileEncSHA256: up.FileEncSHA256,
+		FileSHA256:    up.FileSHA256,
+		FileLength:    proto.Uint64(up.FileLength),
+		Width:         proto.Uint32(uint32(w)),
+		Height:        proto.Uint32(uint32(h)),
+		JPEGThumbnail: thumb,
+		ContextInfo:   ci,
+	}
+	if caption = strings.TrimSpace(caption); caption != "" {
+		im.Caption = proto.String(caption)
+	}
+	m := ipc.Message{Kind: "image", Text: tag("imagem", caption), Quote: quote}
+	return d.sendAndStore(ctx, jid, &waE2E.Message{ImageMessage: im}, m, func(id string) *ipc.Media {
+		// Já entra no cache com o ID definitivo: aparece no balão na hora.
+		base, err := mediaBase(id)
+		if err != nil {
+			return nil
+		}
+		md := &ipc.Media{Mime: "image/jpeg", Path: base + ".jpg", Preview: base + ".preview.png"}
+		if os.WriteFile(md.Path, full, 0o600) != nil {
+			return nil
+		}
+		if md.Width, md.Height, err = writePreview(full, md.Preview); err != nil {
+			md.Preview = ""
+		}
+		return md
+	})
+}
+
+func scaleJPEG(src image.Image, maxSide, quality int) ([]byte, int, int) {
+	b := src.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if s := max(w, h); s > maxSide {
+		w, h = w*maxSide/s, h*maxSide/s
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	// Fundo branco: PNG com transparência viraria preto no JPEG.
+	draw.Draw(dst, dst.Bounds(), image.White, image.Point{}, draw.Src)
+	draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Over, nil)
+	var buf bytes.Buffer
+	_ = jpeg.Encode(&buf, dst, &jpeg.Options{Quality: quality})
+	return buf.Bytes(), w, h
 }

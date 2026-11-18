@@ -498,6 +498,10 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		actx, acancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer acancel()
 		return d.avatar(actx, req.Chat)
+	case ipc.OpSendImage:
+		ictx, icancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer icancel()
+		return d.sendImage(ictx, req.Chat, req.Path, req.Text, req.ReplyTo)
 	case ipc.OpMedia:
 		// Vídeo grande demora; o prazo de 25s dos outros pedidos é curto.
 		mctx, mcancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -516,46 +520,61 @@ func (d *Daemon) send(ctx context.Context, chat, text, replyTo string) (any, err
 	if err != nil {
 		return nil, fmt.Errorf("chat inválido: %w", err)
 	}
-	msg := &waE2E.Message{Conversation: proto.String(text)}
-	var quote *ipc.Quote
-	if replyTo != "" {
-		orig, origRaw, err := d.st.Message(chat, replyTo)
-		if err != nil {
-			return nil, fmt.Errorf("mensagem respondida não encontrada: %w", err)
-		}
-		// O celular mostra a citação a partir de QuotedMessage. Com o
-		// protobuf original vai a mensagem exata (com miniatura, se for
-		// foto); sem ele (history sync antigo), vai só o texto.
-		quoted := &waE2E.Message{Conversation: proto.String(orig.Text)}
-		if len(origRaw) > 0 {
-			var q waE2E.Message
-			if proto.Unmarshal(origRaw, &q) == nil {
-				quoted = &q
-			}
-		}
-		participant := orig.Sender
-		if orig.FromMe {
-			participant = d.cli.Store.ID.ToNonAD().String()
-		}
-		msg = &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-			Text: proto.String(text),
-			ContextInfo: &waE2E.ContextInfo{
-				StanzaID:      proto.String(orig.ID),
-				Participant:   proto.String(participant),
-				QuotedMessage: quoted,
-			},
-		}}
-		quote = &ipc.Quote{ID: orig.ID, Sender: participant, Text: orig.Text}
+	ci, quote, err := d.replyContext(chat, replyTo)
+	if err != nil {
+		return nil, err
 	}
+	msg := &waE2E.Message{Conversation: proto.String(text)}
+	if ci != nil {
+		msg = &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: proto.String(text), ContextInfo: ci,
+		}}
+	}
+	return d.sendAndStore(ctx, jid, msg, ipc.Message{Kind: "text", Text: text, Quote: quote}, nil)
+}
+
+// replyContext monta a citação de uma resposta (nil, nil se replyTo for "").
+func (d *Daemon) replyContext(chat, replyTo string) (*waE2E.ContextInfo, *ipc.Quote, error) {
+	if replyTo == "" {
+		return nil, nil, nil
+	}
+	orig, origRaw, err := d.st.Message(chat, replyTo)
+	if err != nil {
+		return nil, nil, fmt.Errorf("mensagem respondida não encontrada: %w", err)
+	}
+	// O celular mostra a citação a partir de QuotedMessage. Com o
+	// protobuf original vai a mensagem exata (com miniatura, se for foto);
+	// sem ele (history sync antigo), vai só o texto.
+	quoted := &waE2E.Message{Conversation: proto.String(orig.Text)}
+	if len(origRaw) > 0 {
+		var q waE2E.Message
+		if proto.Unmarshal(origRaw, &q) == nil {
+			quoted = &q
+		}
+	}
+	participant := orig.Sender
+	if orig.FromMe {
+		participant = d.cli.Store.ID.ToNonAD().String()
+	}
+	ci := &waE2E.ContextInfo{
+		StanzaID:      proto.String(orig.ID),
+		Participant:   proto.String(participant),
+		QuotedMessage: quoted,
+	}
+	return ci, &ipc.Quote{ID: orig.ID, Sender: participant, Text: orig.Text}, nil
+}
+
+// sendAndStore envia, grava no banco e avisa as TUIs. m traz só Kind, Text,
+// Quote e Media; o resto vem da resposta do servidor. afterSend roda com o ID
+// definitivo antes do broadcast (a imagem usa para entrar no cache).
+func (d *Daemon) sendAndStore(ctx context.Context, jid types.JID, msg *waE2E.Message, m ipc.Message, afterSend func(id string) *ipc.Media) (any, error) {
 	resp, err := d.cli.SendMessage(ctx, jid, msg)
 	if err != nil {
 		return nil, err
 	}
 	me := d.cli.Store.ID.ToNonAD()
-	m := ipc.Message{
-		ID: resp.ID, Chat: jid.String(), Sender: me.String(), SenderName: "você",
-		FromMe: true, TS: resp.Timestamp.UnixMilli(), Kind: "text", Text: text, Quote: quote,
-	}
+	m.ID, m.Chat, m.Sender, m.SenderName = resp.ID, jid.String(), me.String(), "você"
+	m.FromMe, m.TS = true, resp.Timestamp.UnixMilli()
 	raw, _ := proto.Marshal(msg)
 	if _, err := d.st.SaveMessage(m, raw, jid.Server == types.GroupServer, false); err != nil {
 		d.log.Error("gravando enviada", "err", err)
@@ -563,6 +582,10 @@ func (d *Daemon) send(ctx context.Context, chat, text, replyTo string) (any, err
 	one := []ipc.Message{m}
 	d.fillSenders(ctx, one)
 	m = one[0]
+	if afterSend != nil {
+		m.Media = afterSend(m.ID)
+	}
+	m.HasRaw = true
 	d.srv.Broadcast(ipc.EvMessage, m)
 	d.pushChat(m.Chat)
 	return m, nil

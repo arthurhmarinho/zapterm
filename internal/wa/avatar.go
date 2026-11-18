@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,7 +78,7 @@ func readAvatarMeta(jid string) (avatarMeta, string) {
 }
 
 func (meta avatarMeta) media() *ipc.Media {
-	if meta.None || meta.File == "" {
+	if meta.None || meta.File == "" || !strings.HasSuffix(meta.File, ".round.png") {
 		return nil
 	}
 	if _, err := os.Stat(meta.File); err != nil {
@@ -97,8 +99,13 @@ func (d *Daemon) avatar(ctx context.Context, chat string) (*ipc.Media, error) {
 	key := jid.ToNonAD().String()
 
 	meta, _ := readAvatarMeta(key)
-	if time.Since(time.Unix(meta.Checked, 0)) < avatarTTL {
+	// Arquivo do formato antigo (quadrado) conta como vencido.
+	fresh := meta.None || strings.HasSuffix(meta.File, ".round.png")
+	if fresh && time.Since(time.Unix(meta.Checked, 0)) < avatarTTL {
 		return meta.media(), nil
+	}
+	if !fresh {
+		meta.PicID = "" // força baixar de novo
 	}
 
 	// Uma busca por JID de cada vez; quem chega depois espera a primeira.
@@ -167,7 +174,7 @@ func (d *Daemon) fetchAvatar(ctx context.Context, jid types.JID, old avatarMeta)
 	}
 	// O ID da foto vai no nome: foto nova = arquivo novo, e o kitty não
 	// reaproveita a imagem antiga que já tem na memória.
-	file := filepath.Join(dir, fmt.Sprintf("%s_%s.png",
+	file := filepath.Join(dir, fmt.Sprintf("%s_%s.round.png",
 		safeName.ReplaceAllString(key, "_"), safeName.ReplaceAllString(info.ID, "_")))
 	if err := d.downloadAvatar(ctx, info.URL, file); err != nil {
 		return old, err
@@ -205,8 +212,12 @@ func (d *Daemon) downloadAvatar(ctx context.Context, url, file string) error {
 	side := min(b.Dx(), b.Dy())
 	crop := image.Rect(b.Min.X+(b.Dx()-side)/2, b.Min.Y+(b.Dy()-side)/2, 0, 0)
 	crop.Max = crop.Min.Add(image.Pt(side, side))
-	dst := image.NewRGBA(image.Rect(0, 0, avatarPx, avatarPx))
-	draw.CatmullRom.Scale(dst, dst.Bounds(), src, crop, draw.Src, nil)
+	sq := image.NewRGBA(image.Rect(0, 0, avatarPx, avatarPx))
+	draw.CatmullRom.Scale(sq, sq.Bounds(), src, crop, draw.Src, nil)
+	// Recorte redondo como no app: cantos transparentes deixam aparecer o
+	// fundo da TUI.
+	dst := image.NewRGBA(sq.Bounds())
+	draw.DrawMask(dst, dst.Bounds(), sq, image.Point{}, roundMask(avatarPx), image.Point{}, draw.Over)
 
 	tmp := file + ".tmp"
 	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
@@ -229,4 +240,24 @@ func writeAvatarMeta(path string, meta avatarMeta) error {
 		return err
 	}
 	return os.WriteFile(path, b, 0o600)
+}
+
+// roundMask é um círculo opaco com borda suavizada em 1px.
+func roundMask(px int) *image.Alpha {
+	m := image.NewAlpha(image.Rect(0, 0, px, px))
+	r := float64(px) / 2
+	inner := (r - 1) * (r - 1)
+	for y := 0; y < px; y++ {
+		for x := 0; x < px; x++ {
+			dx, dy := float64(x)+0.5-r, float64(y)+0.5-r
+			d2 := dx*dx + dy*dy
+			switch {
+			case d2 <= inner:
+				m.SetAlpha(x, y, color.Alpha{255})
+			case d2 < r*r:
+				m.SetAlpha(x, y, color.Alpha{uint8(255 * (r*r - d2) / (r*r - inner))})
+			}
+		}
+	}
+	return m
 }
