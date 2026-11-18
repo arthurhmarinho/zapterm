@@ -49,6 +49,10 @@ type Frame struct {
 type Chat struct {
 	JID      string `json:"jid"`
 	Name     string `json:"name"`
+	Kind     string `json:"kind"` // dm, group, channel
+	Archived bool   `json:"archived"`
+	Muted    bool   `json:"muted"`
+	Pinned   bool   `json:"pinned"`
 	IsGroup  bool   `json:"is_group"`
 	LastTS   int64  `json:"last_ts"` // unix ms
 	LastText string `json:"last_text"`

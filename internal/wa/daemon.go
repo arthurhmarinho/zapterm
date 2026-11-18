@@ -168,6 +168,13 @@ func (d *Daemon) onEvent(evt any) {
 				d.pushChat(jid)
 			}
 		}
+	case *events.Archive:
+		// O whatsmeow já gravou no ChatSettings; só avisa as TUIs.
+		d.pushChat(d.normalize(ctx, e.JID).String())
+	case *events.Mute:
+		d.pushChat(d.normalize(ctx, e.JID).String())
+	case *events.Pin:
+		d.pushChat(d.normalize(ctx, e.JID).String())
 	case *events.OfflineSyncCompleted:
 		d.log.Info("mensagens offline recebidas", "count", e.Count)
 	}
@@ -264,7 +271,7 @@ func (d *Daemon) pushChat(jid string) ipc.Chat {
 	if err != nil {
 		return ipc.Chat{JID: jid, Name: jid}
 	}
-	d.fillName(context.Background(), &c)
+	d.decorate(context.Background(), &c)
 	d.srv.Broadcast(ipc.EvChat, c)
 	return c
 }
@@ -358,6 +365,29 @@ func (d *Daemon) senderLabel(ctx context.Context, sender string, cache map[strin
 	return d.contactName(ctx, jid, "")
 }
 
+// decorate completa um chat do banco com o que vem do whatsmeow: nome,
+// tipo e as configurações sincronizadas do celular (arquivado, mudo, fixado).
+func (d *Daemon) decorate(ctx context.Context, c *ipc.Chat) {
+	d.fillName(ctx, c)
+	jid, err := types.ParseJID(c.JID)
+	if err != nil {
+		return
+	}
+	switch jid.Server {
+	case types.GroupServer:
+		c.Kind = "group"
+	case types.NewsletterServer:
+		c.Kind = "channel"
+	default:
+		c.Kind = "dm"
+	}
+	if s, err := d.cli.Store.ChatSettings.GetChatSettings(ctx, jid); err == nil && s.Found {
+		c.Archived = s.Archived
+		c.Pinned = s.Pinned
+		c.Muted = s.MutedUntil.After(time.Now())
+	}
+}
+
 func (d *Daemon) fillName(ctx context.Context, c *ipc.Chat) {
 	if c.Name != "" {
 		return
@@ -436,7 +466,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 			return nil, err
 		}
 		for i := range chats {
-			d.fillName(ctx, &chats[i])
+			d.decorate(ctx, &chats[i])
 		}
 		return chats, nil
 	case ipc.OpMessages:
