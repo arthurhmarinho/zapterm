@@ -3,8 +3,10 @@ package tui
 import (
 	"fmt"
 	"hash/fnv"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -22,6 +24,9 @@ var (
 	sAccent = lipgloss.NewStyle().Foreground(cAccent)
 	sBold   = lipgloss.NewStyle().Bold(true)
 	sBadge  = lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(cAccent).Bold(true)
+	// não lidas de chat silenciado ficam cinza, como no app
+	sBadgeMuted = lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(cDim)
+	sTabOn      = lipgloss.NewStyle().Foreground(cAccent).Bold(true).Underline(true)
 
 	senderPalette = []string{"1", "2", "3", "4", "5", "6", "9", "10", "11", "12", "13", "14"}
 )
@@ -104,30 +109,82 @@ func sameDay(a, b time.Time) bool {
 	return ay == by && am == bm && ad == bd
 }
 
-// renderChatItem: duas linhas, nome + hora e prévia + não lidas.
+// avatarFallback desenha um quadrado 4×2 com as iniciais na cor do chat,
+// usado enquanto (ou quando) não há foto de perfil.
+func avatarFallback(jid, name string) string {
+	ini := initials(name)
+	h := fnv.New32a()
+	h.Write([]byte(jid))
+	bg := lipgloss.Color(senderPalette[h.Sum32()%uint32(len(senderPalette))])
+	st := lipgloss.NewStyle().Background(bg).Foreground(lipgloss.Color("0")).Bold(true)
+	return st.Render(" "+ini+strings.Repeat(" ", 3-lipgloss.Width(ini))) + "\n" + st.Render("    ")
+}
+
+func initials(name string) string {
+	var out []rune
+	for _, w := range strings.Fields(name) {
+		r := []rune(w)
+		if len(r) == 0 {
+			continue
+		}
+		i := slices.IndexFunc(r, func(c rune) bool { return unicode.IsLetter(c) || unicode.IsDigit(c) })
+		if i < 0 {
+			continue
+		}
+		c := r[i]
+		if lipgloss.Width(string(c)) != 1 {
+			continue // letra larga (CJK) quebraria o quadrado
+		}
+		out = append(out, []rune(strings.ToUpper(string(c)))...)
+		if len(out) == 2 {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return "?"
+	}
+	return string(out)
+}
+
+// renderChatItem: avatar à esquerda; à direita, nome + hora e prévia + não
+// lidas. Ocupa itemH linhas.
 func renderChatItem(c ipc.Chat, w int, selected, focused bool) string {
-	marker := "  "
-	name := c.Name
+	marker := " "
 	if selected {
 		if focused {
-			marker = sAccent.Render("▌ ")
+			marker = sAccent.Render("▌")
 		} else {
-			marker = sDim.Render("▌ ")
+			marker = sDim.Render("▌")
 		}
+	}
+	av := avatarFallback(c.JID, c.Name)
+	iw := w - 1 - 4 - 1 // marcador, avatar, espaço
+
+	name := c.Name
+	if c.Pinned {
+		name = "📌 " + name
+	}
+	if selected {
 		name = sBold.Render(name)
 	}
-	iw := w - 2
 	when := shortTime(c.LastTS)
 	name = ansi.Truncate(name, iw-lipgloss.Width(when)-1, "…")
 	l1 := name + strings.Repeat(" ", max(1, iw-lipgloss.Width(name)-lipgloss.Width(when))) + sDim.Render(when)
 
 	badge := ""
 	if c.Unread > 0 {
-		badge = sBadge.Render(fmt.Sprintf(" %d ", c.Unread))
+		st := sBadge
+		if c.Muted {
+			st = sBadgeMuted
+		}
+		badge = st.Render(fmt.Sprintf(" %d ", c.Unread))
+	} else if c.Muted {
+		badge = sDim.Render("🔕")
 	}
 	prev := ansi.Truncate(oneLine(c.LastText), iw-lipgloss.Width(badge)-1, "…")
 	l2 := sDim.Render(prev) + strings.Repeat(" ", max(1, iw-lipgloss.Width(prev)-lipgloss.Width(badge))) + badge
-	return marker + l1 + "\n" + "  " + l2
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, marker+"\n"+marker, av, " ", l1+"\n"+l2)
 }
 
 // renderMessages monta a conversa inteira como balões: os seus à direita,

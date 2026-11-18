@@ -2,7 +2,6 @@ package tui
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -11,7 +10,7 @@ import (
 
 // TestSnapshotLive desenha as telas da TUI como texto usando o daemon real,
 // para conferir layout sem terminal. Só lê: o chat é aberto sem open(), que
-// mandaria recibo de leitura.
+// mandaria recibo de leitura, e nada é enviado.
 //
 //	ZAPTERM_LIVE=1 ZAPTERM_CHAT=<jid> go test ./internal/tui -run Snapshot -v
 func TestSnapshotLive(t *testing.T) {
@@ -23,32 +22,31 @@ func TestSnapshotLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := &model{cli: cli, vp: newVP(), input: newInput(), jump: newJump(), msgSel: -1}
+	m := newModel(cli)
 	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
 	m.Update(m.loadChats()())
 	m.Update(m.loadStatus()())
 	dump := func(label string) {
 		t.Logf("==== %s\n%s", label, ansi.Strip(m.View().Content))
 	}
-	dump("lista")
-	// abre o chat indicado sem mandar recibo de leitura
-	for _, c := range m.chats {
-		if c.JID == os.Getenv("ZAPTERM_CHAT") {
-			m.active, m.activeName, m.activeGroup, m.focus = c.JID, c.Name, strings.HasSuffix(c.JID, "@g.us"), paneChat
-		}
+	dump("lista (Todos)")
+
+	g := m.geom()
+	click := func(x, y int) { m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft}) }
+	click(m.tabStartX(tabArchived), g.tabsY)
+	dump("aba Arquivados (clique)")
+	m.Update(tea.KeyPressMsg{Code: '1', Mod: tea.ModAlt})
+
+	if c, ok := m.chatByJID(os.Getenv("ZAPTERM_CHAT")); ok {
+		m.active, m.activeChat, m.focus = c.JID, c, paneChat
+		m.layout()
+		m.Update(m.loadMessages(m.active, 0)())
 	}
-	m.Update(m.loadMessages(m.active, 0)())
-	dump("chat")
-	m.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
-	m.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
-	m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
-	dump("resposta (cursor duas acima, r)")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
-	m.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
-	for _, r := range "debat" {
+	for _, r := range "oi, isso não vai ser enviado" {
 		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
-	dump("jump")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	dump("conversa: texto digitado, ↑↑, ctrl+r")
 }
