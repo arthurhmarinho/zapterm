@@ -80,8 +80,11 @@ func (cl *Client) Call(req Request, out any) error {
 }
 
 func callTimeout(op string) time.Duration {
-	if op == OpMedia {
+	switch op {
+	case OpMedia:
 		return 4 * time.Minute
+	case OpAvatar:
+		return 3 * time.Minute
 	}
 	return 30 * time.Second
 }

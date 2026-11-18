@@ -165,7 +165,8 @@ func (m *model) viewList(g geometry) string {
 
 	focused := m.focus == paneList
 	for i := m.offset; i < min(len(m.list), m.offset+g.listRows); i++ {
-		lines = append(lines, renderChatItem(m.list[i], iw, i == m.cursor, focused))
+		c := m.list[i]
+		lines = append(lines, renderChatItem(c, iw, i == m.cursor, focused, m.avatar(c.JID, c.Name)))
 	}
 	if len(m.list) == 0 {
 		lines = append(lines, "", sDim.Render("  nada por aqui"))
@@ -185,7 +186,7 @@ func (m *model) viewHeader(w int) string {
 	if c.Archived {
 		sub += " · arquivado"
 	}
-	av := avatarFallback(c.JID, c.Name)
+	av := m.avatar(c.JID, c.Name)
 	name := ansi.Truncate(sBold.Render(c.Name), w-6, "…")
 	return lipgloss.JoinHorizontal(lipgloss.Top, av, " ", name+"\n"+sDim.Render(sub))
 }

@@ -16,6 +16,7 @@ const (
 	OpRead     = "read"     // marca o chat como lido
 	OpViewing  = "viewing"  // chat aberto numa TUI em foco ("" = nenhum); suprime notificação
 	OpMedia    = "media"    // baixa a mídia da mensagem Msg (ou devolve do cache)
+	OpAvatar   = "avatar"   // foto de perfil de Chat (pessoa ou grupo); null = sem foto
 )
 
 // Eventos empurrados pelo daemon sem pedido.

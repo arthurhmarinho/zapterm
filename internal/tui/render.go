@@ -148,7 +148,7 @@ func initials(name string) string {
 
 // renderChatItem: avatar à esquerda; à direita, nome + hora e prévia + não
 // lidas. Ocupa itemH linhas.
-func renderChatItem(c ipc.Chat, w int, selected, focused bool) string {
+func renderChatItem(c ipc.Chat, w int, selected, focused bool, av string) string {
 	marker := " "
 	if selected {
 		if focused {
@@ -157,7 +157,6 @@ func renderChatItem(c ipc.Chat, w int, selected, focused bool) string {
 			marker = sDim.Render("▌")
 		}
 	}
-	av := avatarFallback(c.JID, c.Name)
 	iw := w - 1 - 4 - 1 // marcador, avatar, espaço
 
 	name := c.Name
@@ -191,7 +190,7 @@ func renderChatItem(c ipc.Chat, w int, selected, focused bool) string {
 // os dos outros à esquerda, com separador quando o dia muda. Devolve também
 // a linha inicial e final de cada balão, para o cursor de mensagem rolar até
 // ele.
-func renderMessages(msgs []ipc.Message, w int, isGroup bool, sel int, imgs *images) (string, [][2]int) {
+func renderMessages(msgs []ipc.Message, w int, isGroup bool, sel int, imgs *images, avatar func(jid, name string) string) (string, [][2]int) {
 	if w < 10 {
 		return "", nil
 	}
@@ -202,13 +201,30 @@ func renderMessages(msgs []ipc.Message, w int, isGroup bool, sel int, imgs *imag
 	var lastDay time.Time
 	for i, m := range msgs {
 		t := time.UnixMilli(m.TS)
-		if i == 0 || !sameDay(t, lastDay) {
+		newDay := i == 0 || !sameDay(t, lastDay)
+		if newDay {
 			label := " " + dayLabel(t) + " "
 			out = append(out, sDim.Render(lipgloss.PlaceHorizontal(w, lipgloss.Center, label, lipgloss.WithWhitespaceChars("─"))))
 			line++
 			lastDay = t
 		}
-		b := renderBubble(m, w, maxBubble, isGroup, i == sel, imgs)
+		// Em grupo, avatar e nome só na primeira mensagem de uma sequência
+		// do mesmo remetente, como no app.
+		firstOfRun := newDay || msgs[i-1].Sender != m.Sender || msgs[i-1].FromMe != m.FromMe
+		var b string
+		switch {
+		case m.FromMe:
+			b = lipgloss.PlaceHorizontal(w, lipgloss.Right, renderBubble(m, maxBubble, isGroup && firstOfRun, i == sel, imgs))
+		case isGroup:
+			left := "    \n    "
+			if firstOfRun && avatar != nil {
+				left = avatar(m.Sender, m.SenderName)
+			}
+			bub := renderBubble(m, maxBubble-5, firstOfRun, i == sel, imgs)
+			b = lipgloss.JoinHorizontal(lipgloss.Top, left, " ", bub)
+		default:
+			b = renderBubble(m, maxBubble, false, i == sel, imgs)
+		}
 		h := lipgloss.Height(b)
 		spans[i] = [2]int{line, line + h - 1}
 		line += h
@@ -227,7 +243,8 @@ func renderQuote(q *ipc.Quote, inner int) string {
 		bar + sDim.Render(ansi.Truncate(oneLine(q.Text), inner-1, "…"))
 }
 
-func renderBubble(m ipc.Message, w, maxBubble int, isGroup, selected bool, imgs *images) string {
+// renderBubble desenha só o balão; quem chama alinha e põe o avatar.
+func renderBubble(m ipc.Message, maxBubble int, showName, selected bool, imgs *images) string {
 	inner := maxBubble - 4 // borda + padding
 
 	// Imagem e figurinha já baixadas aparecem no balão; a legenda vem
@@ -259,7 +276,7 @@ func renderBubble(m ipc.Message, w, maxBubble int, isGroup, selected bool, imgs 
 	stamp := sDim.Render(time.UnixMilli(m.TS).Format("15:04"))
 
 	var lines []string
-	if isGroup && !m.FromMe {
+	if showName && !m.FromMe {
 		lines = append(lines, senderStyle(m.Sender).Render(ansi.Truncate(m.SenderName, inner, "…")))
 	}
 	if m.Quote != nil {
@@ -276,9 +293,8 @@ func renderBubble(m ipc.Message, w, maxBubble int, isGroup, selected bool, imgs 
 	content += "\n" + lipgloss.PlaceHorizontal(cw, lipgloss.Right, stamp)
 
 	border := cDim
-	align := lipgloss.Left
 	if m.FromMe {
-		border, align = cOwn, lipgloss.Right
+		border = cOwn
 	}
 	style := lipgloss.RoundedBorder()
 	if selected {
@@ -289,7 +305,7 @@ func renderBubble(m ipc.Message, w, maxBubble int, isGroup, selected bool, imgs 
 		BorderForeground(border).
 		Padding(0, 1).
 		Render(content)
-	return lipgloss.PlaceHorizontal(w, align, bubble)
+	return bubble
 }
 
 // stripTag tira o marcador "[imagem]" do começo e deixa só a legenda.

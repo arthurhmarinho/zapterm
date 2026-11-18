@@ -42,6 +42,7 @@ type Daemon struct {
 
 	groupNameFetch sync.Map // jid -> struct{}: evita buscar o mesmo grupo duas vezes
 	notif          *notifier
+	avatars        *avatars
 }
 
 // Run sobe o daemon e só volta quando ctx for cancelado ou algo fatal ocorrer.
@@ -75,7 +76,7 @@ func Run(ctx context.Context, opt Options) error {
 	}
 	defer st.Close()
 
-	d := &Daemon{log: log, st: st, status: ipc.Status{State: "connecting"}, notif: newNotifier()}
+	d := &Daemon{log: log, st: st, status: ipc.Status{State: "connecting"}, notif: newNotifier(), avatars: newAvatars()}
 	d.cli = whatsmeow.NewClient(device, waLogger{log.With("mod", "whatsmeow")})
 	d.cli.AddEventHandler(d.onEvent)
 
@@ -492,6 +493,11 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 	case ipc.OpViewing:
 		d.notif.setViewing(conn, req.Chat)
 		return nil, nil
+	case ipc.OpAvatar:
+		// Prazo próprio: a fila espaça os pedidos ao servidor.
+		actx, acancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer acancel()
+		return d.avatar(actx, req.Chat)
 	case ipc.OpMedia:
 		// Vídeo grande demora; o prazo de 25s dos outros pedidos é curto.
 		mctx, mcancel := context.WithTimeout(context.Background(), 3*time.Minute)

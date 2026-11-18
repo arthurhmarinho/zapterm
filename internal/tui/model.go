@@ -81,7 +81,10 @@ type model struct {
 	flash   string
 	flashAt time.Time
 
-	imgs *images
+	imgs    *images
+	avatars map[string]*ipc.Media // jid -> foto (nil = sem foto ou ainda buscando)
+	avAsked map[string]bool
+	avQueue []string
 
 	termFocused bool   // o kitty avisa quando a janela ganha/perde foco
 	sentViewing string // último valor de "viewing" mandado ao daemon
@@ -108,7 +111,11 @@ type (
 	}
 	errMsg    struct{ err error }
 	statusMsg ipc.Status
-	mediaMsg  struct {
+	avatarMsg struct {
+		jid   string
+		media *ipc.Media
+	}
+	mediaMsg struct {
 		chat, id string
 		media    *ipc.Media
 		open     bool // abrir no programa externo quando chegar
@@ -129,7 +136,8 @@ func Run() error {
 
 func newModel(cli *ipc.Client) *model {
 	m := &model{cli: cli, input: newInput(), jump: newJump(), vp: newVP(),
-		status: "conectando", termFocused: true, msgSel: -1, imgs: newImages()}
+		status: "conectando", termFocused: true, msgSel: -1, imgs: newImages(),
+		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}}
 	m.input.Focus()
 	return m
 }
@@ -254,6 +262,15 @@ func reconnect() tea.Cmd {
 // acabou de pedir.
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.update(msg)
+	m.prepareAvatars()
+	if q := m.avQueue; len(q) > 0 {
+		m.avQueue = nil
+		cmds := []tea.Cmd{cmd}
+		for _, jid := range q {
+			cmds = append(cmds, m.loadAvatar(jid))
+		}
+		cmd = tea.Batch(cmds...)
+	}
 	if f := m.imgs.flush(); f != nil {
 		// A transmissão vai antes do quadro que usa os placeholders.
 		return m, tea.Sequence(f, cmd)
@@ -349,11 +366,66 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case mediaMsg:
 		return m, m.onMedia(msg)
 
+	case avatarMsg:
+		m.avatars[msg.jid] = msg.media
+		if msg.media != nil && m.activeChat.Kind == "group" {
+			off := m.vp.YOffset()
+			atBottom := m.vp.AtBottom()
+			m.refreshMessages(atBottom)
+			if !atBottom {
+				m.vp.SetYOffset(off)
+			}
+		}
+		return m, nil
+
 	case errMsg:
 		m.setFlash(msg.err.Error())
 		return m, nil
 	}
 	return m, nil
+}
+
+// ---------- fotos de perfil ----------
+
+// avatar devolve a foto de perfil como bloco 4×2 (ou as iniciais) e, na
+// primeira vez que vê um JID, enfileira a busca no daemon.
+func (m *model) avatar(jid, name string) string {
+	if !m.avAsked[jid] && m.imgs.enabled {
+		m.avAsked[jid] = true
+		m.avQueue = append(m.avQueue, jid)
+	}
+	if md := m.avatars[jid]; md != nil {
+		if b := m.imgs.block(md.Preview, md.Width, md.Height, 4); b != "" {
+			return b
+		}
+	}
+	return avatarFallback(jid, name)
+}
+
+// prepareAvatars toca os avatares que o próximo quadro vai desenhar (lista
+// visível e cabeçalho), para que buscas e transmissões ao kitty saiam neste
+// Update e não fiquem esperando a próxima tecla.
+func (m *model) prepareAvatars() {
+	if m.w == 0 {
+		return
+	}
+	for i := m.offset; i < min(len(m.list), m.offset+m.listRows()); i++ {
+		m.avatar(m.list[i].JID, m.list[i].Name)
+	}
+	if m.active != "" {
+		m.avatar(m.active, m.activeChat.Name)
+	}
+}
+
+func (m *model) loadAvatar(jid string) tea.Cmd {
+	cli := m.cli
+	return func() tea.Msg {
+		var md *ipc.Media
+		if err := cli.Call(ipc.Request{Op: ipc.OpAvatar, Chat: jid}, &md); err != nil {
+			return nil // sem foto não é erro que valha incomodar
+		}
+		return avatarMsg{jid: jid, media: md}
+	}
 }
 
 // ---------- mídia ----------
@@ -738,7 +810,7 @@ func (m *model) refreshMessages(toBottom bool) {
 		if m.focus == paneChat {
 			sel = m.sel()
 		}
-		content, m.spans = renderMessages(m.msgs, m.vp.Width(), m.activeChat.Kind == "group", sel, m.imgs)
+		content, m.spans = renderMessages(m.msgs, m.vp.Width(), m.activeChat.Kind == "group", sel, m.imgs, m.avatar)
 	}
 	m.vp.SetContent(content)
 	if toBottom {
