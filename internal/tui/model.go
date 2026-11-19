@@ -9,6 +9,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -118,6 +119,7 @@ type model struct {
 	termFocused bool   // o kitty avisa quando a janela ganha/perde foco
 	sentViewing string // último valor de "viewing" mandado ao daemon
 	quitArmed   bool   // ctrl+c com campo vazio pede confirmação
+	autoOpen    bool   // abrir o primeiro chat ao carregar (modo demonstração)
 }
 
 // ---------- mensagens internas ----------
@@ -162,6 +164,7 @@ func Run() error {
 		return err
 	}
 	m := newModel(cli)
+	m.autoOpen = os.Getenv("ZAPTERM_DEMO") != ""
 	defer func() { m.cli.Close() }()
 	_, err = tea.NewProgram(m).Run()
 	m.cleanupAudio()
@@ -385,6 +388,10 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chats = msg
 		m.sortChats()
 		m.applyFilter()
+		if m.autoOpen && m.active == "" && len(m.list) > 0 {
+			m.autoOpen = false
+			return m, m.open(m.list[0])
+		}
 		if c, ok := m.chatByJID(m.active); ok {
 			m.activeChat = c
 		}

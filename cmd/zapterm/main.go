@@ -226,6 +226,7 @@ func media(args []string) error {
 func demoRun() error {
 	sock := filepath.Join(os.TempDir(), fmt.Sprintf("zapterm-demo-%d.sock", os.Getpid()))
 	os.Setenv("ZAPTERM_SOCKET", sock)
+	os.Setenv("ZAPTERM_DEMO", "1") // a TUI abre a primeira conversa sozinha
 	srv, err := demo.Serve(sock)
 	if err != nil {
 		return err
