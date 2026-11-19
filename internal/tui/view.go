@@ -12,50 +12,70 @@ import (
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
 
-const (
-	itemH   = 2 // linhas por chat na lista
-	headerH = 2 // cabeçalho da conversa (avatar + nome)
-)
-
 // geometry concentra as coordenadas da tela, usadas pelo desenho e pelo
 // clique do mouse. Mudou o layout, muda aqui.
 type geometry struct {
-	listW, chatW  int
-	tabsY, itemsY int
-	listRows      int
-	chatH, inputH int
-	headerY, vpY  int
-	inputY        int
+	listW, chatX, chatW int
+	titleY, searchY     int
+	chipsY, archRowY    int // archRowY = -1 sem a linha "Arquivadas"
+	itemsY, listRows    int
+	headerH, vpY, vpH   int
+	extraY, extraH      int // painel de resposta/anexo acima da escrita
+	inputY, inputH      int
+	footerY             int
 }
+
+const headerH = 3
 
 func (m *model) geom() geometry {
 	g := geometry{}
-	g.listW = max(28, min(44, m.w*30/100))
-	g.chatW = m.w - g.listW
-	g.tabsY = 1
-	g.itemsY = 3 // borda, abas, linha
-	g.listRows = max(0, (m.h-1-2-2)/itemH)
-	g.inputH = m.input.Height() + 2
-	if m.replyTo != nil {
-		g.inputH += 2
+	g.listW = max(34, min(52, m.w*32/100))
+	g.chatX = g.listW + 1 // uma coluna de divisor
+	g.chatW = m.w - g.chatX
+	g.footerY = m.h - 1
+
+	g.titleY, g.searchY, g.chipsY = 0, 1, 2
+	g.archRowY = -1
+	g.itemsY = 4 // título, busca, pílulas, linha vazia
+	if m.showArchivedRow() {
+		g.archRowY = 4
+		g.itemsY = 6
 	}
-	g.chatH = m.h - 1 - g.inputH
-	g.headerY = 1
-	g.vpY = 1 + headerH + 1
-	g.inputY = g.chatH
+	g.listRows = max(0, (g.footerY-g.itemsY)/itemH)
+
+	g.inputH = m.input.Height() + 2
+	g.inputY = g.footerY - g.inputH
+	g.extraH = m.extraHeight()
+	g.extraY = g.inputY - g.extraH
+	g.headerH = headerH
+	g.vpY = headerH
+	g.vpH = max(1, g.extraY-g.vpY)
 	return g
 }
 
 func (m *model) listRows() int { return m.geom().listRows }
+
+func (m *model) extraHeight() int {
+	switch {
+	case m.attach != nil:
+		return m.attachRows() + 3
+	case m.replyTo != nil:
+		return 4
+	}
+	return 0
+}
+
+func (m *model) attachRows() int { return 12 }
 
 func (m *model) layout() {
 	if m.w == 0 {
 		return
 	}
 	g := m.geom()
-	m.input.SetWidth(g.chatW - 2)
-	m.vp.SetWidth(g.chatW - 2)
-	m.vp.SetHeight(max(1, g.chatH-2-headerH-1))
+	m.input.SetWidth(max(10, g.chatW-10))
+	m.search.SetWidth(max(10, g.listW-10))
+	m.vp.SetWidth(g.chatW)
+	m.vp.SetHeight(g.vpH)
 	m.scrollList()
 }
 
@@ -67,40 +87,41 @@ func (m *model) View() tea.View {
 	v.ReportFocus = true
 	v.MouseMode = tea.MouseModeCellMotion
 	v.WindowTitle = m.title()
-	if m.w < 60 || m.h < 14 {
+	v.BackgroundColor = cBgList
+	if m.w < 70 || m.h < 16 {
 		v.SetContent("janela pequena demais para o zapterm")
 		return v
 	}
 	g := m.geom()
 
-	list := m.viewList(g)
-	chat := box("", m.viewHeader(g.chatW-2)+"\n"+sDim.Render(strings.Repeat("─", g.chatW-2))+"\n"+m.vp.View(),
-		g.chatW, g.chatH, m.focus == paneChat)
-	input := box("", m.viewInput(g.chatW-2), g.chatW, g.inputH, true)
-
-	screen := lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.JoinHorizontal(lipgloss.Top, list, lipgloss.JoinVertical(lipgloss.Left, chat, input)),
-		m.viewFooter(),
-	)
-	if m.jumping {
-		pop := m.viewJump()
-		x := (m.w - lipgloss.Width(pop)) / 2
-		y := max(1, m.h/5)
-		screen = lipgloss.NewCompositor(
-			lipgloss.NewLayer(screen),
-			lipgloss.NewLayer(pop).X(x).Y(y).Z(1),
-		).Render()
+	left := m.viewList(g)
+	divider := paint(strings.TrimSuffix(strings.Repeat(fg(cDivider).Render("│")+"\n", g.footerY), "\n"), cBgList, 1)
+	var right string
+	if m.active == "" {
+		right = m.viewEmpty(g)
+	} else {
+		parts := []string{m.viewHeader(g), fitHeight(m.vp.View(), cBgChat, g.chatW, g.vpH)}
+		if g.extraH > 0 {
+			parts = append(parts, m.viewExtra(g))
+		}
+		parts = append(parts, m.viewInput(g))
+		right = strings.Join(parts, "\n")
 	}
+	screen := lipgloss.JoinHorizontal(lipgloss.Top, left, divider, right) + "\n" + m.viewFooter()
 	v.SetContent(screen)
 
-	// Cursor do campo de escrita (o textarea calcula a posição relativa).
-	if !m.jumping {
+	// Cursor real do terminal no campo em uso.
+	switch {
+	case m.searching:
+		if c := m.search.Cursor(); c != nil {
+			c.Position.X += 6
+			c.Position.Y += g.searchY
+			v.Cursor = c
+		}
+	case m.active != "":
 		if c := m.input.Cursor(); c != nil {
-			c.Position.X += g.listW + 1
+			c.Position.X += g.chatX + 5
 			c.Position.Y += g.inputY + 1
-			if m.replyTo != nil {
-				c.Position.Y += 2
-			}
 			v.Cursor = c
 		}
 	}
@@ -115,69 +136,144 @@ func (m *model) title() string {
 	return fmt.Sprintf("zapterm (%d)", n)
 }
 
-// tabLabels devolve os rótulos e onde cada um começa (para o clique).
-func (m *model) tabLabels(width int) ([]string, []int) {
-	for size := range 3 {
-		var labels []string
-		var starts []int
-		x := 1 // borda
-		for i, t := range tabNames {
-			l := t[size]
-			if i == tabUnread {
-				if n := m.tabCount(tabUnread); n > 0 {
-					l += fmt.Sprintf("·%d", n)
-				}
-			}
-			labels = append(labels, l)
-			starts = append(starts, x)
-			x += lipgloss.Width(l) + 1
-		}
-		if x-2 <= width || size == 2 {
-			return labels, starts
-		}
+// ---------- coluna da esquerda ----------
+
+func (m *model) viewList(g geometry) string {
+	w := g.listW
+	var rows []string
+
+	// Título (ou "← Arquivadas")
+	if m.archived {
+		rows = append(rows, paint("  "+sText.Render(icons.back)+"  "+sBold.Render("Arquivadas"), cBgList, w))
+	} else {
+		rows = append(rows, paint("  "+lipgloss.NewStyle().Foreground(cText).Bold(true).Render("zapterm"), cBgList, w))
 	}
-	return nil, nil
+
+	// Busca
+	field := m.search.View()
+	if !m.searching && m.searchQuery() == "" {
+		field = sText2.Render("Pesquisar ou começar uma nova conversa")
+	}
+	icon := sText2.Render(icons.search)
+	if m.searching {
+		icon = sGreen.Render(icons.search)
+	}
+	inner := paint(" "+icon+"  "+ansi.Truncate(field, w-10, "…"), cBgPanel, w-4)
+	edge := lipgloss.NewStyle().Foreground(cBgPanel).Background(cBgList)
+	if icons.pillL != "" {
+		inner = edge.Render(icons.pillL) + inner + edge.Render(icons.pillR)
+	}
+	rows = append(rows, paint(" "+inner, cBgList, w))
+
+	// Pílulas de filtro (ou explicação na vista de arquivadas)
+	if m.archived {
+		rows = append(rows, paint("  "+sText2.Render("Conversas arquivadas · esc volta"), cBgList, w))
+	} else {
+		labels, _ := m.chipLabels()
+		var chips []string
+		for i, l := range labels {
+			if i == m.tab && m.searchQuery() == "" {
+				chips = append(chips, pill(l, cChipOnFg, cChipOnBg, cBgList, true))
+			} else {
+				chips = append(chips, pill(l, cText2, cBgPanel, cBgList, false))
+			}
+		}
+		rows = append(rows, paint(" "+strings.Join(chips, " "), cBgList, w))
+	}
+	rows = append(rows, blank(cBgList, w, 1))
+
+	// Linha "Arquivadas"
+	if g.archRowY >= 0 {
+		_, unread := m.archivedUnread()
+		count := ""
+		if unread > 0 {
+			count = sGreen.Render(fmt.Sprint(unread))
+		}
+		label := "   " + sText2.Render(icons.archive) + "    " + sText.Render("Arquivadas")
+		gap := max(1, w-lipgloss.Width(label)-lipgloss.Width(count)-2)
+		rows = append(rows, paint(label+strings.Repeat(" ", gap)+count, cBgList, w), blank(cBgList, w, 1))
+	}
+
+	// Chats
+	for i := m.offset; i < min(len(m.list), m.offset+g.listRows); i++ {
+		c := m.list[i]
+		sel := i == m.cursor && (m.focus == paneList || c.JID == m.active)
+		rows = append(rows, renderChatItem(c, w, sel, m.bigAvatar(c.JID, c.Name)))
+	}
+	if len(m.list) == 0 {
+		msg := "Nenhuma conversa aqui"
+		if m.searchQuery() != "" {
+			msg = "Nenhum chat encontrado"
+		}
+		rows = append(rows, paint("  "+sText2.Render(msg), cBgList, w))
+	}
+	return fitHeight(strings.Join(rows, "\n"), cBgList, w, g.footerY)
 }
 
-func (m *model) tabAt(x int) int {
-	g := m.geom()
-	labels, starts := m.tabLabels(g.listW - 2)
+// chipLabels devolve os rótulos das pílulas e onde cada uma começa.
+func (m *model) chipLabels() ([]string, []int) {
+	var labels []string
+	var starts []int
+	x := 1
+	capW := 0
+	if icons.pillL != "" {
+		capW = 2
+	}
+	for i, n := range tabNames {
+		l := n
+		if i != tabAll && i != tabChannels {
+			if c := m.tabCount(i); c > 0 {
+				l += fmt.Sprintf(" %d", c)
+			}
+		}
+		labels = append(labels, l)
+		starts = append(starts, x)
+		x += lipgloss.Width(l) + capW + 1
+	}
+	return labels, starts
+}
+
+func (m *model) chipAt(x int) int {
+	labels, starts := m.chipLabels()
+	capW := 0
+	if icons.pillL != "" {
+		capW = 2
+	}
 	for i := range labels {
-		if x >= starts[i] && x < starts[i]+lipgloss.Width(labels[i]) {
+		if x >= starts[i] && x < starts[i]+lipgloss.Width(labels[i])+capW {
 			return i
 		}
 	}
 	return -1
 }
 
-func (m *model) viewList(g geometry) string {
-	iw := g.listW - 2
-	labels, _ := m.tabLabels(iw)
-	var tabs []string
-	for i, l := range labels {
-		if i == m.tab {
-			tabs = append(tabs, sTabOn.Render(l))
-		} else {
-			tabs = append(tabs, sDim.Render(l))
-		}
-	}
-	lines := []string{strings.Join(tabs, " "), sDim.Render(strings.Repeat("─", iw))}
+// ---------- coluna da direita ----------
 
-	focused := m.focus == paneList
-	for i := m.offset; i < min(len(m.list), m.offset+g.listRows); i++ {
-		c := m.list[i]
-		lines = append(lines, renderChatItem(c, iw, i == m.cursor, focused, m.avatar(c.JID, c.Name)))
+func (m *model) viewEmpty(g geometry) string {
+	h := g.footerY
+	lines := []string{
+		lipgloss.NewStyle().Foreground(cGreen).Bold(true).Render("zapterm"),
+		"",
+		sText2.Render("WhatsApp no terminal"),
+		"",
+		sText2.Render(icons.search + "  ctrl+p pesquisa um chat"),
+		sText2.Render(icons.attach + "  ctrl+v cola um print para enviar"),
+		sText2.Render(icons.reply + "  ctrl+r responde a mensagem selecionada"),
+		sText2.Render(icons.photo + "  ctrl+o abre foto, vídeo ou documento"),
 	}
-	if len(m.list) == 0 {
-		lines = append(lines, "", sDim.Render("  nada por aqui"))
+	block := lipgloss.JoinVertical(lipgloss.Center, lines...)
+	top := max(0, (h-len(lines))/2)
+	var out []string
+	for range top {
+		out = append(out, "")
 	}
-	return box("", strings.Join(lines, "\n"), g.listW, m.h-1, focused)
+	for _, l := range strings.Split(block, "\n") {
+		out = append(out, lipgloss.PlaceHorizontal(g.chatW, lipgloss.Center, l))
+	}
+	return fitHeight(paint(strings.Join(out, "\n"), cBgPanel, g.chatW), cBgPanel, g.chatW, h)
 }
 
-func (m *model) viewHeader(w int) string {
-	if m.active == "" {
-		return sDim.Render(" zapterm") + "\n"
-	}
+func (m *model) viewHeader(g geometry) string {
 	c := m.activeChat
 	sub := map[string]string{"dm": "conversa", "group": "grupo", "channel": "canal"}[c.Kind]
 	if c.Muted {
@@ -186,83 +282,82 @@ func (m *model) viewHeader(w int) string {
 	if c.Archived {
 		sub += " · arquivado"
 	}
-	av := m.avatar(c.JID, c.Name)
-	name := ansi.Truncate(sBold.Render(c.Name), w-6, "…")
-	return lipgloss.JoinHorizontal(lipgloss.Top, av, " ", name+"\n"+sDim.Render(sub))
+	tw := g.chatW - avatarCols - 6
+	text := "\n" + sText.Render(ansi.Truncate(oneLine(c.Name), tw, "…")) + "\n" + sText2.Render(sub)
+	row := lipgloss.JoinHorizontal(lipgloss.Top, "  ", m.bigAvatar(c.JID, c.Name), "  ", text)
+	return fitHeight(paint(row, cBgPanel, g.chatW), cBgPanel, g.chatW, headerH)
 }
 
-func (m *model) viewInput(w int) string {
-	body := m.input.View()
-	if r := m.replyTo; r != nil {
-		name := r.SenderName
-		switch {
-		case r.FromMe:
-			name = "você"
-		case m.activeChat.Kind == "channel":
-			name = m.activeChat.Name
+// viewExtra: citação da resposta ou prévia do print colado, acima da
+// barra de escrita.
+func (m *model) viewExtra(g geometry) string {
+	w := g.chatW
+	if a := m.attach; a != nil {
+		pic := m.imgs.block(a.preview, a.w, a.h, min(48, w-8), m.attachRows())
+		if pic == "" {
+			pic = sText.Render(icons.photo + " imagem colada")
 		}
-		body = renderQuote(&ipc.Quote{Sender: r.Sender, SenderName: "respondendo " + name + "  (esc cancela)", Text: r.Text}, w) + "\n" + body
+		head := "  " + sText.Render(icons.attach+"  Enviar imagem") + "   " +
+			sText2.Render("escreva uma legenda e aperte enter · esc cancela")
+		body := lipgloss.JoinHorizontal(lipgloss.Top, "    ", pic)
+		return fitHeight(paint(head+"\n\n"+body, cBgPanel, w), cBgPanel, w, g.extraH)
 	}
-	if m.active == "" && m.input.Value() == "" {
-		body = sDim.Render("Abra um chat para escrever")
+	r := m.replyTo
+	name := r.SenderName
+	switch {
+	case r.FromMe:
+		name = "Você"
+	case m.activeChat.Kind == "channel":
+		name = m.activeChat.Name
 	}
+	q := quoteBlock(&ipc.Quote{Sender: r.Sender, SenderName: name, Text: r.Text}, w-12, cBgHover)
+	closeHint := sText2.Render(icons.close + " esc")
+	row := lipgloss.JoinHorizontal(lipgloss.Top, "    ", q, "  ", closeHint)
+	return fitHeight(paint("\n"+row, cBgPanel, w), cBgPanel, w, g.extraH)
+}
+
+func (m *model) viewInput(g geometry) string {
+	w := g.chatW
+	fieldW := w - 10
+	field := paint(m.input.View(), cBgHover, fieldW)
+	lines := strings.Split(field, "\n")
+	for i, l := range lines {
+		left, right := "    ", "    "
+		if i == len(lines)-1 {
+			left = "  " + sText2.Render(icons.attach) + " "
+			right = "  " + sText2.Render(icons.send) + " "
+		}
+		lines[i] = left + " " + l + " " + right
+	}
+	body := blank(cBgPanel, w, 1) + "\n" + paint(strings.Join(lines, "\n"), cBgPanel, w) + "\n" + blank(cBgPanel, w, 1)
 	return body
-}
-
-func (m *model) viewJump() string {
-	w := max(40, min(70, m.w/2))
-	lines := []string{m.jump.View(), ""}
-	for i, idx := range m.matches {
-		c := m.chats[idx]
-		tag := ""
-		switch {
-		case c.Archived:
-			tag = sDim.Render("  arquivado")
-		case c.Kind == "channel":
-			tag = sDim.Render("  canal")
-		}
-		line := "  " + c.Name + tag
-		if i == m.jumpSel {
-			line = sAccent.Render("▸ ") + sBold.Render(c.Name) + tag
-		}
-		lines = append(lines, line, "    "+sDim.Render(oneLine(c.LastText)))
-	}
-	if len(m.matches) == 0 {
-		lines = append(lines, sDim.Render("  nada encontrado"))
-	}
-	return box("Pular para chat", strings.Join(lines, "\n"), w, len(lines)+2, true)
 }
 
 func (m *model) viewFooter() string {
 	var help string
 	switch {
-	case m.jumping:
-		help = "digite para filtrar · ↑/↓ mover · enter abrir · esc fechar"
+	case m.searching:
+		help = "digite para filtrar · ↑/↓ escolher · enter abrir · esc sair da busca"
+	case m.attach != nil:
+		help = "enter envia a imagem · esc cancela"
 	case m.focus == paneList:
-		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pular · alt+1..5 abas · ctrl+c sair"
+		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pesquisar · alt+1..4 filtros · alt+a arquivadas · ctrl+c sair"
 	default:
-		help = "↑/↓ mensagem · ctrl+r responder · ctrl+o mídia · pgup/pgdn rolar · shift+enter linha · tab lista"
+		help = "↑/↓ mensagem · ctrl+r responder · ctrl+o mídia · ctrl+v colar print · pgup/pgdn rolar · tab lista"
 	}
-	left := sAccent.Render(help)
+	left := sText2.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {
-		left = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(m.flash)
+		left = fg(cDanger).Render(m.flash)
 	}
-
-	dot := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Render("●")
+	dot := fg(lipgloss.Color("#ffd279")).Render("●")
 	switch m.status {
 	case "online":
-		dot = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render("●")
+		dot = sGreen.Render("●")
 	case "offline", "logged_out":
-		dot = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render("●")
+		dot = fg(cDanger).Render("●")
 	}
-	right := dot + " " + m.status
-	left = ansi.Truncate(left, m.w-lipgloss.Width(right)-1, "…")
+	right := dot + " " + sText2.Render(m.status) + " "
+	left = ansi.Truncate(" "+left, m.w-lipgloss.Width(right)-1, "…")
 	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(right))
-	return left + strings.Repeat(" ", gap) + right
-}
-
-// tabStartX devolve a coluna onde começa o rótulo de uma aba.
-func (m *model) tabStartX(tab int) int {
-	_, starts := m.tabLabels(m.geom().listW - 2)
-	return starts[tab]
+	return paint(left+strings.Repeat(" ", gap)+right, cBgList, m.w)
 }

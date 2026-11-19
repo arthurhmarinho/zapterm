@@ -23,19 +23,32 @@ func TestSnapshotLive(t *testing.T) {
 	}
 	defer cli.Close()
 	m := newModel(cli)
-	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(tea.WindowSizeMsg{Width: 150, Height: 40})
 	m.Update(m.loadChats()())
 	m.Update(m.loadStatus()())
 	dump := func(label string) {
 		t.Logf("==== %s\n%s", label, ansi.Strip(m.View().Content))
 	}
-	dump("lista (Todos)")
+	dump("lista (Tudo)")
 
 	g := m.geom()
 	click := func(x, y int) { m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft}) }
-	click(m.tabStartX(tabArchived), g.tabsY)
-	dump("aba Arquivados (clique)")
-	m.Update(tea.KeyPressMsg{Code: '1', Mod: tea.ModAlt})
+	_, starts := m.chipLabels()
+	click(starts[tabGroups]+1, g.chipsY)
+	dump("pílula Grupos (clique)")
+	click(starts[tabAll]+1, g.chipsY)
+	if g := m.geom(); g.archRowY >= 0 {
+		click(5, g.archRowY)
+		dump("Arquivadas (clique na linha)")
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	}
+
+	m.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	for _, r := range "carbo" {
+		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+	dump("busca 'carbo'")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if c, ok := m.chatByJID(os.Getenv("ZAPTERM_CHAT")); ok {
 		m.active, m.activeChat, m.focus = c.JID, c, paneChat
@@ -46,7 +59,6 @@ func TestSnapshotLive(t *testing.T) {
 		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
-	dump("conversa: texto digitado, ↑↑, ctrl+r")
+	dump("conversa: texto digitado, ↑, ctrl+r")
 }

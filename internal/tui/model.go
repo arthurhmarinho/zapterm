@@ -1,8 +1,9 @@
 // Package tui é a interface de terminal do zapterm, em Bubble Tea v2.
 // Ela não fala com o WhatsApp: tudo passa pelo daemon via ipc.
 //
-// Navegação no estilo do Claude Code: o campo de escrita está sempre ativo,
-// setas/PgUp/PgDn/Tab e o mouse navegam, atalhos usam ctrl/alt.
+// O visual imita o WhatsApp Web (tema escuro) e a navegação segue o Claude
+// Code: o campo de escrita está sempre ativo, setas/PgUp/PgDn/Tab e o
+// mouse navegam, atalhos usam ctrl/alt.
 package tui
 
 import (
@@ -28,26 +29,31 @@ const (
 	paneChat
 )
 
-// Abas da lista de chats.
+// Filtros ("pílulas") acima da lista. Arquivadas não é filtro: é uma
+// linha no topo da lista que abre outra vista, como no app.
 const (
 	tabAll = iota
 	tabUnread
 	tabGroups
 	tabChannels
-	tabArchived
 	numTabs
 )
 
-// Três tamanhos de rótulo: usa o maior que couber na largura da lista.
-var tabNames = [numTabs][3]string{
-	{"Todos", "Todos", "Tod"},
-	{"Não lidas", "N.lidas", "NL"},
-	{"Grupos", "Grupos", "Gr"},
-	{"Canais", "Canais", "Can"},
-	{"Arquivados", "Arq.", "Arq"},
-}
+var tabNames = [numTabs]string{"Tudo", "Não lidas", "Grupos", "Canais"}
 
-const pageSize = 100
+const (
+	pageSize        = 100
+	itemH           = 3 // linhas por chat na lista
+	avatarCols      = 6 // avatar da lista e do cabeçalho: 6×3 células
+	avatarRows      = 3
+	avatarSmallCols = 4 // avatar ao lado das mensagens em grupo: 4×2
+	avatarSmallRows = 2
+)
+
+type attachment struct {
+	path, preview string // original e PNG para o kitty
+	w, h          int
+}
 
 type model struct {
 	cli *ipc.Client
@@ -55,11 +61,15 @@ type model struct {
 	w, h  int
 	focus pane
 
-	chats  []ipc.Chat // todos, como vieram do daemon
-	list   []ipc.Chat // filtrados pela aba atual
-	tab    int
-	cursor int // em list
-	offset int
+	chats    []ipc.Chat // todos, como vieram do daemon
+	list     []ipc.Chat // o que a lista mostra agora
+	tab      int
+	archived bool // vista "Arquivadas"
+	cursor   int  // em list
+	offset   int
+
+	searching bool
+	search    textinput.Model
 
 	active     string // jid do chat aberto
 	activeChat ipc.Chat
@@ -67,24 +77,21 @@ type model struct {
 	spans      [][2]int // linhas de cada balão no viewport
 	msgSel     int      // mensagem sob o cursor; -1 = seguir a última
 	replyTo    *ipc.Message
+	attach     *attachment
 	loadingOld bool
 	noMoreOld  bool
 	vp         viewport.Model
 	input      textarea.Model
 
-	jumping bool
-	jump    textinput.Model
-	matches []int // índices em chats
-	jumpSel int
+	imgs      *images
+	avatars   map[string]*ipc.Media // jid -> foto (nil = sem foto ou buscando)
+	avAsked   map[string]bool
+	avQueue   []string
+	fallbacks map[string]string // jid -> PNG com iniciais
 
 	status  string
 	flash   string
 	flashAt time.Time
-
-	imgs    *images
-	avatars map[string]*ipc.Media // jid -> foto (nil = sem foto ou ainda buscando)
-	avAsked map[string]bool
-	avQueue []string
 
 	termFocused bool   // o kitty avisa quando a janela ganha/perde foco
 	sentViewing string // último valor de "viewing" mandado ao daemon
@@ -120,6 +127,8 @@ type (
 		media    *ipc.Media
 		open     bool // abrir no programa externo quando chegar
 	}
+	attachMsg    attachment
+	pasteTextMsg string
 )
 
 func Run() error {
@@ -135,16 +144,17 @@ func Run() error {
 }
 
 func newModel(cli *ipc.Client) *model {
-	m := &model{cli: cli, input: newInput(), jump: newJump(), vp: newVP(),
+	m := &model{cli: cli, input: newInput(), search: newSearch(), vp: viewport.New(),
 		status: "conectando", termFocused: true, msgSel: -1, imgs: newImages(),
-		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}}
+		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}, fallbacks: map[string]string{}}
+	m.vp.MouseWheelEnabled = false // a roda é tratada em input.go
 	m.input.Focus()
 	return m
 }
 
 func newInput() textarea.Model {
 	in := textarea.New()
-	in.Placeholder = "Escreva uma mensagem…"
+	in.Placeholder = "Digite uma mensagem"
 	in.ShowLineNumbers = false
 	in.Prompt = ""
 	in.CharLimit = 0
@@ -155,22 +165,22 @@ func newInput() textarea.Model {
 	in.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("shift+enter", "alt+enter", "ctrl+j"))
 	in.SetHeight(1)
 	st := in.Styles()
-	st.Focused.CursorLine = st.Focused.CursorLine.UnsetBackground()
+	for _, s := range []*textarea.StyleState{&st.Focused, &st.Blurred} {
+		s.Base = s.Base.UnsetBackground()
+		s.CursorLine = s.CursorLine.UnsetBackground().Foreground(cText)
+		s.Text = s.Text.Foreground(cText)
+		s.Placeholder = s.Placeholder.Foreground(cText2)
+		s.EndOfBuffer = s.EndOfBuffer.Foreground(cBgHover)
+	}
 	in.SetStyles(st)
 	return in
 }
 
-func newJump() textinput.Model {
-	j := textinput.New()
-	j.Prompt = "› "
-	j.Placeholder = "nome do chat"
-	return j
-}
-
-func newVP() viewport.Model {
-	vp := viewport.New()
-	vp.MouseWheelEnabled = false // a roda é tratada em input.go
-	return vp
+func newSearch() textinput.Model {
+	t := textinput.New()
+	t.Prompt = ""
+	t.Placeholder = "Pesquisar ou começar uma nova conversa"
+	return t
 }
 
 func (m *model) Init() tea.Cmd {
@@ -224,11 +234,11 @@ func (m *model) markRead(chat string) tea.Cmd {
 	return m.call(ipc.Request{Op: ipc.OpRead, Chat: chat}, nil, nil)
 }
 
-func (m *model) send(chat, text, replyTo string) tea.Cmd {
+func (m *model) send(req ipc.Request) tea.Cmd {
 	cli := m.cli
 	return func() tea.Msg {
 		// A mensagem enviada volta como evento; aqui só interessa o erro.
-		if err := cli.Call(ipc.Request{Op: ipc.OpSend, Chat: chat, Text: text, ReplyTo: replyTo}, nil); err != nil {
+		if err := cli.Call(req, nil); err != nil {
 			return errMsg{fmt.Errorf("não enviou: %w", err)}
 		}
 		return nil
@@ -258,8 +268,8 @@ func reconnect() tea.Cmd {
 
 // ---------- update ----------
 
-// Update envolve update para mandar ao kitty as imagens que o desenho
-// acabou de pedir.
+// Update envolve update: depois de cada mensagem, busca os avatares que o
+// próximo quadro vai mostrar e manda ao kitty as imagens novas.
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.update(msg)
 	m.prepareAvatars()
@@ -302,10 +312,28 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onWheel(msg)
 
 	case tea.PasteMsg:
+		if m.searching {
+			var cmd tea.Cmd
+			m.search, cmd = m.search.Update(msg)
+			m.applyFilter()
+			return m, cmd
+		}
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
 		m.layout()
 		return m, cmd
+
+	case pasteTextMsg:
+		m.input.InsertString(string(msg))
+		m.layout()
+		return m, nil
+
+	case attachMsg:
+		a := attachment(msg)
+		m.attach = &a
+		m.flash = ""
+		m.layout()
+		return m, nil
 
 	case tea.FocusMsg:
 		m.termFocused = true
@@ -369,12 +397,7 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case avatarMsg:
 		m.avatars[msg.jid] = msg.media
 		if msg.media != nil && m.activeChat.Kind == "group" {
-			off := m.vp.YOffset()
-			atBottom := m.vp.AtBottom()
-			m.refreshMessages(atBottom)
-			if !atBottom {
-				m.vp.SetYOffset(off)
-			}
+			m.rerenderKeepingPlace()
 		}
 		return m, nil
 
@@ -385,112 +408,19 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// ---------- fotos de perfil ----------
-
-// avatar devolve a foto de perfil como bloco 4×2 (ou as iniciais) e, na
-// primeira vez que vê um JID, enfileira a busca no daemon.
-func (m *model) avatar(jid, name string) string {
-	if !m.avAsked[jid] && m.imgs.enabled {
-		m.avAsked[jid] = true
-		m.avQueue = append(m.avQueue, jid)
-	}
-	if md := m.avatars[jid]; md != nil {
-		if b := m.imgs.block(md.Preview, md.Width, md.Height, 4); b != "" {
-			return b
-		}
-	}
-	return avatarFallback(jid, name)
-}
-
-// prepareAvatars toca os avatares que o próximo quadro vai desenhar (lista
-// visível e cabeçalho), para que buscas e transmissões ao kitty saiam neste
-// Update e não fiquem esperando a próxima tecla.
-func (m *model) prepareAvatars() {
-	if m.w == 0 {
-		return
-	}
-	for i := m.offset; i < min(len(m.list), m.offset+m.listRows()); i++ {
-		m.avatar(m.list[i].JID, m.list[i].Name)
-	}
-	if m.active != "" {
-		m.avatar(m.active, m.activeChat.Name)
-	}
-}
-
-func (m *model) loadAvatar(jid string) tea.Cmd {
-	cli := m.cli
-	return func() tea.Msg {
-		var md *ipc.Media
-		if err := cli.Call(ipc.Request{Op: ipc.OpAvatar, Chat: jid}, &md); err != nil {
-			return nil // sem foto não é erro que valha incomodar
-		}
-		return avatarMsg{jid: jid, media: md}
-	}
-}
-
-// ---------- mídia ----------
-
-// openMedia: mídia já baixada abre no programa externo (foto em tela
-// cheia, vídeo, PDF); a não baixada é baixada e, se for imagem no kitty,
-// aparece no balão.
-func (m *model) openMedia(i int) tea.Cmd {
-	if i < 0 || i >= len(m.msgs) {
-		return nil
-	}
-	msg := m.msgs[i]
-	if msg.Kind == "text" || msg.Kind == "other" {
-		return nil
-	}
-	if msg.Media != nil {
-		if err := openExternal(msg.Media.Path); err != nil {
-			m.setFlash("xdg-open: " + err.Error())
-		}
-		return nil
-	}
-	if !msg.HasRaw {
-		m.setFlash("mídia de mensagem antiga (do pareamento) não pode ser baixada")
-		return nil
-	}
-	m.setFlash("baixando…")
-	chat, id := m.active, msg.ID
-	isPic := msg.Kind == "image" || msg.Kind == "sticker"
-	open := !(isPic && m.imgs.enabled)
-	var md ipc.Media
-	return m.call(ipc.Request{Op: ipc.OpMedia, Chat: chat, Msg: id}, &md,
-		func() tea.Msg { return mediaMsg{chat: chat, id: id, media: &md, open: open} })
-}
-
-func (m *model) onMedia(msg mediaMsg) tea.Cmd {
-	m.flash = ""
-	if msg.open {
-		if err := openExternal(msg.media.Path); err != nil {
-			m.setFlash("xdg-open: " + err.Error())
-		}
-	}
-	if msg.chat != m.active {
-		return nil
-	}
-	for i := range m.msgs {
-		if m.msgs[i].ID == msg.id {
-			m.msgs[i].Media = msg.media
-			off := m.vp.YOffset()
-			atBottom := m.vp.AtBottom()
-			m.refreshMessages(atBottom)
-			if !atBottom {
-				m.vp.SetYOffset(off)
-			}
-			m.ensureSelVisible()
-		}
-	}
-	return nil
-}
-
 // afterNav redesenha a conversa quando o foco de painel muda: o destaque da
 // mensagem só existe com o painel da conversa em foco.
 func (m *model) afterNav(prev pane) {
 	if m.focus != prev {
-		off := m.vp.YOffset()
-		m.refreshMessages(false)
+		m.rerenderKeepingPlace()
+	}
+}
+
+func (m *model) rerenderKeepingPlace() {
+	off := m.vp.YOffset()
+	atBottom := m.vp.AtBottom()
+	m.refreshMessages(atBottom)
+	if !atBottom {
 		m.vp.SetYOffset(off)
 	}
 }
@@ -572,6 +502,9 @@ func (m *model) onMessages(msg msgsMsg) tea.Cmd {
 
 func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.focus = paneChat
+	if m.searching {
+		m.stopSearch(true)
+	}
 	if c.JID == m.active {
 		if c.Unread > 0 {
 			return m.markRead(c.JID)
@@ -580,7 +513,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	}
 	m.active, m.activeChat = c.JID, c
 	m.msgs = nil
-	m.msgSel, m.replyTo = -1, nil
+	m.msgSel, m.replyTo, m.attach = -1, nil, nil
 	m.loadingOld, m.noMoreOld = false, false
 	m.layout()
 	m.refreshMessages(true)
@@ -603,7 +536,122 @@ func (m *model) setFlash(s string) {
 	m.flash, m.flashAt = s, time.Now()
 }
 
-// ---------- lista e filtros ----------
+// ---------- mídia ----------
+
+// openMedia: mídia já baixada abre no programa externo (foto em tela
+// cheia, vídeo, PDF); a não baixada é baixada e, se for imagem no kitty,
+// aparece no balão.
+func (m *model) openMedia(i int) tea.Cmd {
+	if i < 0 || i >= len(m.msgs) {
+		return nil
+	}
+	msg := m.msgs[i]
+	if msg.Kind == "text" || msg.Kind == "other" {
+		return nil
+	}
+	if msg.Media != nil {
+		if err := openExternal(msg.Media.Path); err != nil {
+			m.setFlash("xdg-open: " + err.Error())
+		}
+		return nil
+	}
+	if !msg.HasRaw {
+		m.setFlash("mídia de mensagem antiga (do pareamento) não pode ser baixada")
+		return nil
+	}
+	m.setFlash("baixando…")
+	chat, id := m.active, msg.ID
+	isPic := msg.Kind == "image" || msg.Kind == "sticker"
+	open := !(isPic && m.imgs.enabled)
+	var md ipc.Media
+	return m.call(ipc.Request{Op: ipc.OpMedia, Chat: chat, Msg: id}, &md,
+		func() tea.Msg { return mediaMsg{chat: chat, id: id, media: &md, open: open} })
+}
+
+func (m *model) onMedia(msg mediaMsg) tea.Cmd {
+	m.flash = ""
+	if msg.open {
+		if err := openExternal(msg.media.Path); err != nil {
+			m.setFlash("xdg-open: " + err.Error())
+		}
+	}
+	if msg.chat != m.active {
+		return nil
+	}
+	for i := range m.msgs {
+		if m.msgs[i].ID == msg.id {
+			m.msgs[i].Media = msg.media
+			m.rerenderKeepingPlace()
+			m.ensureSelVisible()
+		}
+	}
+	return nil
+}
+
+// ---------- fotos de perfil ----------
+
+// avatar devolve a foto de perfil como bloco cols×rows: a foto redonda, o
+// círculo com iniciais (kitty) ou um bloco de texto. Na primeira vez que vê
+// um JID, enfileira a busca no daemon.
+func (m *model) avatar(jid, name string, cols, rows int) string {
+	if !m.imgs.enabled {
+		return textAvatar(jid, name, cols, rows)
+	}
+	if !m.avAsked[jid] {
+		m.avAsked[jid] = true
+		m.avQueue = append(m.avQueue, jid)
+	}
+	if md := m.avatars[jid]; md != nil {
+		if b := m.imgs.block(md.Preview, md.Width, md.Height, cols, rows); b != "" {
+			return b
+		}
+	}
+	f, ok := m.fallbacks[jid]
+	if !ok {
+		f = fallbackAvatarFile(jid, name)
+		m.fallbacks[jid] = f
+	}
+	if b := m.imgs.block(f, fallbackPx, fallbackPx, cols, rows); b != "" {
+		return b
+	}
+	return textAvatar(jid, name, cols, rows)
+}
+
+func (m *model) bigAvatar(jid, name string) string {
+	return m.avatar(jid, name, avatarCols, avatarRows)
+}
+
+func (m *model) smallAvatar(jid, name string) string {
+	return m.avatar(jid, name, avatarSmallCols, avatarSmallRows)
+}
+
+// prepareAvatars toca os avatares que o próximo quadro vai desenhar (lista
+// visível e cabeçalho), para que buscas e transmissões ao kitty saiam neste
+// Update e não fiquem esperando a próxima tecla.
+func (m *model) prepareAvatars() {
+	if m.w == 0 {
+		return
+	}
+	for i := m.offset; i < min(len(m.list), m.offset+m.listRows()); i++ {
+		m.bigAvatar(m.list[i].JID, m.list[i].Name)
+	}
+	if m.active != "" {
+		m.bigAvatar(m.active, m.activeChat.Name)
+	}
+}
+
+func (m *model) loadAvatar(jid string) tea.Cmd {
+	cli := m.cli
+	return func() tea.Msg {
+		var md *ipc.Media
+		if err := cli.Call(ipc.Request{Op: ipc.OpAvatar, Chat: jid}, &md); err != nil {
+			return nil // sem foto não é erro que valha incomodar
+		}
+		return avatarMsg{jid: jid, media: md}
+	}
+}
+
+// ---------- lista, filtros e busca ----------
 
 // sortChats: fixados primeiro, depois o mais recente, como no app.
 func (m *model) sortChats() {
@@ -625,20 +673,21 @@ func (m *model) sortChats() {
 }
 
 func inTab(c ipc.Chat, tab int) bool {
+	if c.Archived {
+		return false
+	}
 	switch tab {
 	case tabUnread:
-		return c.Unread > 0 && !c.Archived && c.Kind != "channel"
+		return c.Unread > 0 && c.Kind != "channel"
 	case tabGroups:
-		return c.Kind == "group" && !c.Archived
+		return c.Kind == "group"
 	case tabChannels:
 		return c.Kind == "channel"
-	case tabArchived:
-		return c.Archived
 	}
-	return !c.Archived && c.Kind != "channel"
+	return c.Kind != "channel"
 }
 
-// tabCount conta os chats não lidos de uma aba.
+// tabCount conta os chats não lidos de um filtro.
 func (m *model) tabCount(tab int) int {
 	n := 0
 	for _, c := range m.chats {
@@ -649,13 +698,43 @@ func (m *model) tabCount(tab int) int {
 	return n
 }
 
-// applyFilter refaz a lista visível mantendo o cursor no mesmo chat.
+func (m *model) archivedUnread() (total, unread int) {
+	for _, c := range m.chats {
+		if c.Archived {
+			total++
+			if c.Unread > 0 {
+				unread++
+			}
+		}
+	}
+	return
+}
+
+// showArchivedRow: a linha "Arquivadas" aparece no topo de "Tudo".
+func (m *model) showArchivedRow() bool {
+	if m.archived || m.tab != tabAll || m.searchQuery() != "" {
+		return false
+	}
+	n, _ := m.archivedUnread()
+	return n > 0
+}
+
+func (m *model) searchQuery() string { return strings.TrimSpace(m.search.Value()) }
+
+// applyFilter refaz a lista visível mantendo o cursor no mesmo chat. Com
+// texto na busca, procura em todos os chats (inclusive arquivados e canais).
 func (m *model) applyFilter() {
 	sel := m.selectedJID()
-	list := make([]ipc.Chat, 0, len(m.chats))
-	for _, c := range m.chats {
-		if inTab(c, m.tab) {
-			list = append(list, c)
+	var list []ipc.Chat
+	if q := m.searchQuery(); q != "" {
+		for _, i := range fuzzyChats(q, m.chats) {
+			list = append(list, m.chats[i])
+		}
+	} else {
+		for _, c := range m.chats {
+			if (m.archived && c.Archived) || (!m.archived && inTab(c, m.tab)) {
+				list = append(list, c)
+			}
 		}
 	}
 	m.list = list
@@ -668,13 +747,40 @@ func (m *model) applyFilter() {
 
 func (m *model) setTab(t int) {
 	m.focus = paneList
+	m.archived = false
 	if t == m.tab {
+		m.applyFilter()
 		return
 	}
 	m.tab = t
 	m.cursor, m.offset = 0, 0
-	m.list = nil
 	m.applyFilter()
+}
+
+func (m *model) setArchived(on bool) {
+	m.archived = on
+	m.focus = paneList
+	m.cursor, m.offset = 0, 0
+	m.applyFilter()
+}
+
+func (m *model) startSearch() {
+	m.searching = true
+	m.focus = paneList
+	m.input.Blur()
+	m.search.Focus()
+}
+
+// stopSearch sai da busca; clear também apaga o texto e volta à lista.
+func (m *model) stopSearch(clear bool) {
+	m.searching = false
+	m.search.Blur()
+	m.input.Focus()
+	if clear {
+		m.search.Reset()
+		m.cursor, m.offset = 0, 0
+		m.applyFilter()
+	}
 }
 
 func (m *model) selected() (ipc.Chat, bool) {
@@ -794,60 +900,27 @@ func (m *model) msgAtLine(line int) int {
 }
 
 func (m *model) refreshMessages(toBottom bool) {
-	if m.vp.Width() <= 0 {
+	w := m.vp.Width()
+	if w <= 0 {
 		return
 	}
 	var content string
 	switch {
 	case m.active == "":
-		content = sDim.Render("\n  Escolha um chat na lista (clique ou enter) ou pule com ctrl+p.")
-		m.spans = nil
+		content, m.spans = "", nil
 	case len(m.msgs) == 0:
-		content = sDim.Render("\n  Carregando…")
+		content = paint(sText2.Render("\n  Carregando…"), cBgChat, w)
 		m.spans = nil
 	default:
 		sel := -2 // sem destaque fora do painel da conversa
 		if m.focus == paneChat {
 			sel = m.sel()
 		}
-		content, m.spans = renderMessages(m.msgs, m.vp.Width(), m.activeChat.Kind == "group", sel, m.imgs, m.avatar)
+		r := msgRenderer{w: w, isGroup: m.activeChat.Kind == "group", sel: sel, imgs: m.imgs, avatar: m.smallAvatar}
+		content, m.spans = r.render(m.msgs)
 	}
 	m.vp.SetContent(content)
 	if toBottom {
 		m.vp.GotoBottom()
-	}
-}
-
-// ---------- salto (ctrl+p) ----------
-
-func (m *model) openJump() {
-	m.jumping = true
-	m.jump.Reset()
-	m.jump.Focus()
-	m.input.Blur()
-	m.filterJump()
-}
-
-func (m *model) closeJump() {
-	m.jumping = false
-	m.jump.Blur()
-	m.input.Focus()
-}
-
-func (m *model) filterJump() {
-	m.jumpSel = 0
-	m.matches = m.matches[:0]
-	q := strings.TrimSpace(m.jump.Value())
-	if q == "" {
-		for i := range min(len(m.chats), 10) {
-			m.matches = append(m.matches, i)
-		}
-		return
-	}
-	for _, r := range fuzzyChats(q, m.chats) {
-		m.matches = append(m.matches, r)
-		if len(m.matches) == 10 {
-			break
-		}
 	}
 }

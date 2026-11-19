@@ -48,17 +48,18 @@ func newImages() *images {
 	return &images{enabled: on, next: 1, placed: map[string]*kimage{}}
 }
 
-// block devolve a imagem como bloco de texto de até maxCols colunas, ou ""
-// se não houver suporte. A transmissão fica pendente até flush().
-func (im *images) block(path string, pxW, pxH, maxCols int) string {
-	if !im.enabled || path == "" || pxW <= 0 || pxH <= 0 || maxCols < 4 {
+// block devolve a imagem como bloco de texto de até maxCols×maxRows
+// células, ou "" se não houver suporte. A transmissão fica pendente até
+// flush().
+func (im *images) block(path string, pxW, pxH, maxCols, maxRows int) string {
+	if !im.enabled || path == "" || pxW <= 0 || pxH <= 0 || maxCols < 2 || maxRows < 1 {
 		return ""
 	}
 	cols := min(maxCols, (pxW+cellW-1)/cellW)
 	rows := max(1, (cols*cellW*pxH/pxW+cellH/2)/cellH)
-	if rows > 24 { // foto em pé muito alta: limita a altura
-		rows = 24
-		cols = max(4, min(cols, (rows*cellH*pxW/pxH)/cellW))
+	if rows > maxRows { // foto em pé muito alta: limita a altura
+		rows = maxRows
+		cols = max(2, min(cols, (rows*cellH*pxW/pxH)/cellW))
 	}
 	key := fmt.Sprintf("%s|%dx%d", path, cols, rows)
 	k := im.placed[key]

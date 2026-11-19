@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"hash/fnv"
+	"image/color"
 	"slices"
 	"strings"
 	"time"
@@ -14,65 +15,56 @@ import (
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
 
-// Cores ANSI 0–15: a TUI herda o tema do terminal em vez de impor o seu.
-var (
-	cAccent = lipgloss.Color("5")
-	cDim    = lipgloss.Color("8")
-	cOwn    = lipgloss.Color("6")
+// ---------- texto ----------
 
-	sDim    = lipgloss.NewStyle().Foreground(cDim)
-	sAccent = lipgloss.NewStyle().Foreground(cAccent)
-	sBold   = lipgloss.NewStyle().Bold(true)
-	sBadge  = lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(cAccent).Bold(true)
-	// não lidas de chat silenciado ficam cinza, como no app
-	sBadgeMuted = lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(cDim)
-	sTabOn      = lipgloss.NewStyle().Foreground(cAccent).Bold(true).Underline(true)
+func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 
-	senderPalette = []string{"1", "2", "3", "4", "5", "6", "9", "10", "11", "12", "13", "14"}
-)
-
-func senderStyle(jid string) lipgloss.Style {
+func senderColor(jid string) color.Color {
 	h := fnv.New32a()
 	h.Write([]byte(jid))
-	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(senderPalette[h.Sum32()%uint32(len(senderPalette))]))
+	return lipgloss.Color(senderColors[h.Sum32()%uint32(len(senderColors))])
 }
 
-// box desenha uma moldura arredondada com o título embutido na borda de
-// cima, como no tuigram. body é cortado/preenchido para caber em w×h.
-func box(title, body string, w, h int, focused bool) string {
-	if w < 4 || h < 2 {
-		return ""
+// mediaLabel troca os marcadores do daemon ("[imagem] legenda") pelos
+// ícones e nomes que o app mostra ("󰋩 Foto", "󰋩 legenda").
+func mediaLabel(s string) string {
+	if !strings.HasPrefix(s, "[") {
+		return s
 	}
-	bc := lipgloss.NewStyle().Foreground(cDim)
-	if focused {
-		bc = lipgloss.NewStyle().Foreground(cAccent)
+	end := strings.Index(s, "]")
+	if end < 0 {
+		return s
 	}
-	iw, ih := w-2, h-2
+	tag, rest := s[1:end], strings.TrimSpace(s[end+1:])
+	icon, name := "", ""
+	switch {
+	case tag == "imagem":
+		icon, name = icons.photo, "Foto"
+	case tag == "vídeo":
+		icon, name = icons.video, "Vídeo"
+	case tag == "áudio", tag == "arquivo de áudio":
+		icon, name = icons.audio, "Áudio"
+	case tag == "figurinha":
+		icon, name = icons.sticker, "Figurinha"
+	case strings.HasPrefix(tag, "documento: "):
+		icon, name = icons.doc, strings.TrimPrefix(tag, "documento: ")
+	default:
+		return s
+	}
+	if rest == "" {
+		rest = name
+	}
+	return icon + " " + rest
+}
 
-	title = ansi.Truncate(title, iw-3, "…")
-	top := "╭"
-	if title != "" {
-		top += "─ " + title + " "
-	}
-	top += strings.Repeat("─", max(0, w-1-lipgloss.Width(top))) + "╮"
-
-	lines := strings.Split(body, "\n")
-	var b strings.Builder
-	b.WriteString(bc.Render(top))
-	for i := 0; i < ih; i++ {
-		line := ""
-		if i < len(lines) {
-			line = ansi.Truncate(lines[i], iw, "")
+// stripTag tira o marcador "[imagem]" do começo e deixa só a legenda.
+func stripTag(s string) string {
+	if strings.HasPrefix(s, "[") {
+		if i := strings.Index(s, "]"); i >= 0 {
+			return strings.TrimSpace(s[i+1:])
 		}
-		pad := iw - lipgloss.Width(line)
-		b.WriteString("\n" + bc.Render("│") + line + strings.Repeat(" ", max(0, pad)) + bc.Render("│"))
 	}
-	b.WriteString("\n" + bc.Render("╰"+strings.Repeat("─", iw)+"╯"))
-	return b.String()
-}
-
-func oneLine(s string) string {
-	return strings.Join(strings.Fields(s), " ")
+	return s
 }
 
 func shortTime(ms int64) string {
@@ -85,20 +77,20 @@ func shortTime(ms int64) string {
 	case sameDay(t, now):
 		return t.Format("15:04")
 	case sameDay(t, now.AddDate(0, 0, -1)):
-		return "ontem"
+		return "Ontem"
 	case now.Sub(t) < 6*24*time.Hour:
-		return [...]string{"dom", "seg", "ter", "qua", "qui", "sex", "sáb"}[t.Weekday()]
+		return [...]string{"domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"}[t.Weekday()]
 	}
-	return t.Format("02/01/06")
+	return t.Format("02/01/2006")
 }
 
 func dayLabel(t time.Time) string {
 	now := time.Now()
 	switch {
 	case sameDay(t, now):
-		return "Hoje"
+		return "HOJE"
 	case sameDay(t, now.AddDate(0, 0, -1)):
-		return "Ontem"
+		return "ONTEM"
 	}
 	return t.Format("02/01/2006")
 }
@@ -109,24 +101,10 @@ func sameDay(a, b time.Time) bool {
 	return ay == by && am == bm && ad == bd
 }
 
-// avatarFallback desenha um quadrado 4×2 com as iniciais na cor do chat,
-// usado enquanto (ou quando) não há foto de perfil.
-func avatarFallback(jid, name string) string {
-	ini := initials(name)
-	h := fnv.New32a()
-	h.Write([]byte(jid))
-	bg := lipgloss.Color(senderPalette[h.Sum32()%uint32(len(senderPalette))])
-	st := lipgloss.NewStyle().Background(bg).Foreground(lipgloss.Color("0")).Bold(true)
-	return st.Render(" "+ini+strings.Repeat(" ", 3-lipgloss.Width(ini))) + "\n" + st.Render("    ")
-}
-
 func initials(name string) string {
 	var out []rune
 	for _, w := range strings.Fields(name) {
 		r := []rune(w)
-		if len(r) == 0 {
-			continue
-		}
 		i := slices.IndexFunc(r, func(c rune) bool { return unicode.IsLetter(c) || unicode.IsDigit(c) })
 		if i < 0 {
 			continue
@@ -146,174 +124,237 @@ func initials(name string) string {
 	return string(out)
 }
 
-// renderChatItem: avatar à esquerda; à direita, nome + hora e prévia + não
-// lidas. Ocupa itemH linhas.
-func renderChatItem(c ipc.Chat, w int, selected, focused bool, av string) string {
-	marker := " "
-	if selected {
-		if focused {
-			marker = sAccent.Render("▌")
-		} else {
-			marker = sDim.Render("▌")
+// textAvatar é a reserva sem kitty: bloco cols×rows na cor do chat com as
+// iniciais no meio.
+func textAvatar(jid, name string, cols, rows int) string {
+	st := lipgloss.NewStyle().Background(senderColor(jid)).Foreground(cBgList).Bold(true)
+	ini := initials(name)
+	var lines []string
+	for r := range rows {
+		l := strings.Repeat(" ", cols)
+		if r == rows/2 {
+			l = lipgloss.PlaceHorizontal(cols, lipgloss.Center, ini)
 		}
+		lines = append(lines, st.Render(l))
 	}
-	iw := w - 1 - 4 - 1 // marcador, avatar, espaço
-
-	name := c.Name
-	if c.Pinned {
-		name = "📌 " + name
-	}
-	if selected {
-		name = sBold.Render(name)
-	}
-	when := shortTime(c.LastTS)
-	name = ansi.Truncate(name, iw-lipgloss.Width(when)-1, "…")
-	l1 := name + strings.Repeat(" ", max(1, iw-lipgloss.Width(name)-lipgloss.Width(when))) + sDim.Render(when)
-
-	badge := ""
-	if c.Unread > 0 {
-		st := sBadge
-		if c.Muted {
-			st = sBadgeMuted
-		}
-		badge = st.Render(fmt.Sprintf(" %d ", c.Unread))
-	} else if c.Muted {
-		badge = sDim.Render("🔕")
-	}
-	prev := ansi.Truncate(oneLine(c.LastText), iw-lipgloss.Width(badge)-1, "…")
-	l2 := sDim.Render(prev) + strings.Repeat(" ", max(1, iw-lipgloss.Width(prev)-lipgloss.Width(badge))) + badge
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, marker+"\n"+marker, av, " ", l1+"\n"+l2)
+	return strings.Join(lines, "\n")
 }
 
-// renderMessages monta a conversa inteira como balões: os seus à direita,
-// os dos outros à esquerda, com separador quando o dia muda. Devolve também
-// a linha inicial e final de cada balão, para o cursor de mensagem rolar até
-// ele.
-func renderMessages(msgs []ipc.Message, w int, isGroup bool, sel int, imgs *images, avatar func(jid, name string) string) (string, [][2]int) {
-	if w < 10 {
+// ---------- lista ----------
+
+// renderChatItem desenha um chat em itemH linhas: avatar redondo à
+// esquerda; nome e hora; prévia, mudo, fixado e não lidas; um divisor.
+func renderChatItem(c ipc.Chat, w int, selected bool, av string) string {
+	bg := cBgList
+	if selected {
+		bg = cBgHover
+	}
+	tw := w - 1 - avatarCols - 2 - 1 // margem, avatar, espaço, margem direita
+
+	when := shortTime(c.LastTS)
+	whenSt := sText2
+	if c.Unread > 0 {
+		whenSt = sGreen
+	}
+	name := ansi.Truncate(oneLine(c.Name), tw-lipgloss.Width(when)-1, "…")
+	l1 := sText.Render(name) + strings.Repeat(" ", max(1, tw-lipgloss.Width(name)-lipgloss.Width(when))) + whenSt.Render(when)
+
+	var right []string
+	if c.Muted {
+		right = append(right, sText2.Render(icons.mute))
+	}
+	if c.Pinned {
+		right = append(right, sText2.Render(icons.pin))
+	}
+	if c.Unread > 0 {
+		n := fmt.Sprint(c.Unread)
+		if c.Unread > 999 {
+			n = "999+"
+		}
+		right = append(right, pill(n, cBgList, cBadge, bg, true))
+	}
+	r := strings.Join(right, " ")
+	prev := previewLabel(oneLine(c.LastText))
+	prev = strings.Replace(prev, "você: ", "Você: ", 1)
+	prev = ansi.Truncate(prev, tw-lipgloss.Width(r)-1, "…")
+	l2 := sText2.Render(prev) + strings.Repeat(" ", max(1, tw-lipgloss.Width(prev)-lipgloss.Width(r))) + r
+	l3 := fg(cDivider).Render(strings.Repeat("─", tw))
+
+	text := l1 + "\n" + l2 + "\n" + l3
+	row := lipgloss.JoinHorizontal(lipgloss.Top, " ", av, "  ", text)
+	return paint(row, bg, w)
+}
+
+// ---------- conversa ----------
+
+type msgRenderer struct {
+	w       int
+	isGroup bool
+	sel     int
+	imgs    *images
+	avatar  func(jid, name string) string // 4×2, para remetentes em grupo
+}
+
+// render monta a conversa inteira (fundo pintado) e devolve também a linha
+// inicial e final de cada balão, para o cursor e o clique.
+func (r msgRenderer) render(msgs []ipc.Message) (string, [][2]int) {
+	if r.w < 20 {
 		return "", nil
 	}
-	maxBubble := max(20, w*3/4)
 	var out []string
 	spans := make([][2]int, len(msgs))
 	line := 0
+	add := func(block string) {
+		out = append(out, block)
+		line += strings.Count(block, "\n") + 1
+	}
 	var lastDay time.Time
 	for i, m := range msgs {
 		t := time.UnixMilli(m.TS)
 		newDay := i == 0 || !sameDay(t, lastDay)
 		if newDay {
-			label := " " + dayLabel(t) + " "
-			out = append(out, sDim.Render(lipgloss.PlaceHorizontal(w, lipgloss.Center, label, lipgloss.WithWhitespaceChars("─"))))
-			line++
+			add(blank(cBgChat, r.w, 1))
+			add(paint(lipgloss.PlaceHorizontal(r.w, lipgloss.Center,
+				pill(dayLabel(t), cText2, cDayPill, cBgChat, false)), cBgChat, r.w))
 			lastDay = t
 		}
 		// Em grupo, avatar e nome só na primeira mensagem de uma sequência
-		// do mesmo remetente, como no app.
+		// do mesmo remetente, como no app; entre sequências, uma linha vazia.
 		firstOfRun := newDay || msgs[i-1].Sender != m.Sender || msgs[i-1].FromMe != m.FromMe
-		var b string
-		switch {
-		case m.FromMe:
-			b = lipgloss.PlaceHorizontal(w, lipgloss.Right, renderBubble(m, maxBubble, isGroup && firstOfRun, i == sel, imgs))
-		case isGroup:
-			left := "    \n    "
-			if firstOfRun && avatar != nil {
-				left = avatar(m.Sender, m.SenderName)
-			}
-			bub := renderBubble(m, maxBubble-5, firstOfRun, i == sel, imgs)
-			b = lipgloss.JoinHorizontal(lipgloss.Top, left, " ", bub)
-		default:
-			b = renderBubble(m, maxBubble, false, i == sel, imgs)
+		if firstOfRun {
+			add(blank(cBgChat, r.w, 1))
 		}
-		h := lipgloss.Height(b)
-		spans[i] = [2]int{line, line + h - 1}
-		line += h
-		out = append(out, b)
+		spans[i][0] = line
+		add(r.bubbleRow(m, firstOfRun, i == r.sel))
+		spans[i][1] = line - 1
 	}
+	add(blank(cBgChat, r.w, 1))
 	return strings.Join(out, "\n"), spans
 }
 
-func renderQuote(q *ipc.Quote, inner int) string {
-	bar := sAccent.Render("▎")
+func (r msgRenderer) bubbleRow(m ipc.Message, firstOfRun, selected bool) string {
+	maxW := max(20, r.w*65/100)
+	left := ""
+	if !m.FromMe && r.isGroup {
+		maxW -= avatarSmallCols + 1
+		left = strings.Repeat(" ", avatarSmallCols)
+		if firstOfRun && r.avatar != nil {
+			left = r.avatar(m.Sender, m.SenderName)
+		}
+	}
+	b := r.bubble(m, maxW, firstOfRun && r.isGroup && !m.FromMe, selected)
+	bw := lipgloss.Width(b)
+	var row string
+	switch {
+	case m.FromMe:
+		row = lipgloss.JoinHorizontal(lipgloss.Top, strings.Repeat(" ", max(0, r.w-bw-2)), b)
+	case left != "":
+		row = lipgloss.JoinHorizontal(lipgloss.Top, "  ", left, " ", b)
+	default:
+		row = lipgloss.JoinHorizontal(lipgloss.Top, "  ", b)
+	}
+	return paint(row, cBgChat, r.w)
+}
+
+// bubble desenha o balão: nome (grupo), citação, imagem, texto e hora,
+// tudo sobre o fundo verde (seu) ou cinza (dos outros), sem borda.
+func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) string {
+	bg, qbg, timeSt := cBubbleIn, cQuoteIn, sText2
+	if m.FromMe {
+		bg, qbg, timeSt = cBubbleOut, cQuoteOut, fg(cTimeOut)
+	}
+	if selected {
+		bg = cBubbleInSel
+		if m.FromMe {
+			bg = cBubbleOutSel
+		}
+	}
+	inner := maxW - 2 // um espaço de cada lado
+
+	pic := ""
+	if md := m.Media; md != nil && md.Preview != "" && r.imgs != nil {
+		cols, rows := min(inner, 44), 22
+		if m.Kind == "sticker" {
+			cols, rows = min(inner, 16), 8
+		}
+		pic = r.imgs.block(md.Preview, md.Width, md.Height, cols, rows)
+	}
+	text := m.Text
+	switch {
+	case pic != "":
+		text = stripTag(text)
+	case m.Kind != "text" && m.Kind != "other":
+		hint := ""
+		switch {
+		case m.Media != nil:
+			hint = "  · ctrl+o abre"
+		case m.HasRaw:
+			hint = "  · ctrl+o baixa"
+		}
+		text = mediaLabel(text) + sText2.Render(hint)
+	}
+	body := ""
+	if text != "" {
+		body = sText.Render(ansi.Wrap(text, inner, " "))
+	}
+	stamp := time.UnixMilli(m.TS).Format("15:04")
+
+	var parts []string
+	if showName {
+		parts = append(parts, fg(senderColor(m.Sender)).Bold(true).Render(ansi.Truncate(m.SenderName, inner, "…")))
+	}
+	quoteAt := -1
+	if m.Quote != nil {
+		quoteAt = len(parts)
+		parts = append(parts, "") // a citação entra depois, com a largura final
+	}
+	if pic != "" {
+		parts = append(parts, pic)
+	}
+	if body != "" {
+		parts = append(parts, body)
+	}
+
+	// Largura do balão: a do conteúdo, no mínimo a da hora.
+	cw := lipgloss.Width(stamp) + 2
+	for _, p := range parts {
+		cw = max(cw, lipgloss.Width(p))
+	}
+	if m.Quote != nil {
+		cw = max(cw, min(inner, lipgloss.Width(oneLine(m.Quote.Text))+2))
+	}
+	cw = min(cw, inner)
+	if quoteAt >= 0 {
+		parts[quoteAt] = quoteBlock(m.Quote, cw, qbg)
+	}
+
+	parts = append(parts, lipgloss.PlaceHorizontal(cw, lipgloss.Right, timeSt.Render(stamp)))
+	var padded []string
+	for _, l := range strings.Split(strings.Join(parts, "\n"), "\n") {
+		padded = append(padded, " "+l)
+	}
+	return paint(strings.Join(padded, "\n"), bg, cw+2)
+}
+
+// quoteBlock: citação dentro do balão (ou acima do campo de escrita), com
+// barra na cor do autor.
+func quoteBlock(q *ipc.Quote, w int, bg color.Color) string {
+	c := senderColor(q.Sender)
+	bar := fg(c).Render("▌")
 	name := q.SenderName
 	if name == "" {
 		name = "mensagem"
 	}
-	return bar + senderStyle(q.Sender).Render(ansi.Truncate(name, inner-1, "…")) + "\n" +
-		bar + sDim.Render(ansi.Truncate(oneLine(q.Text), inner-1, "…"))
+	l1 := bar + fg(c).Bold(true).Render(ansi.Truncate(name, w-2, "…"))
+	l2 := bar + sText2.Render(ansi.Truncate(mediaLabel(oneLine(q.Text)), w-2, "…"))
+	return paint(l1+"\n"+l2, bg, w)
 }
 
-// renderBubble desenha só o balão; quem chama alinha e põe o avatar.
-func renderBubble(m ipc.Message, maxBubble int, showName, selected bool, imgs *images) string {
-	inner := maxBubble - 4 // borda + padding
-
-	// Imagem e figurinha já baixadas aparecem no balão; a legenda vem
-	// embaixo, sem o marcador "[imagem]".
-	pic := ""
-	if md := m.Media; md != nil && md.Preview != "" && imgs != nil {
-		maxCols := min(inner, 44)
-		if m.Kind == "sticker" {
-			maxCols = min(inner, 16)
-		}
-		pic = imgs.block(md.Preview, md.Width, md.Height, maxCols)
+// previewLabel aplica mediaLabel também depois do "Fulano: " das prévias
+// de grupo.
+func previewLabel(s string) string {
+	if i := strings.Index(s, ": ["); i >= 0 && i < 80 {
+		return s[:i+2] + mediaLabel(s[i+2:])
 	}
-	text := m.Text
-	if pic != "" {
-		text = stripTag(text)
-	} else if m.Kind != "text" && m.Kind != "other" {
-		hint := ""
-		switch {
-		case m.Media != nil:
-			hint = " · ctrl+o abre"
-		case m.HasRaw:
-			hint = " · ctrl+o baixa"
-		}
-		text = sDim.Render(text + hint)
-	} else if m.Kind != "text" {
-		text = sDim.Render(text)
-	}
-	body := ansi.Wrap(text, inner, " ")
-	stamp := sDim.Render(time.UnixMilli(m.TS).Format("15:04"))
-
-	var lines []string
-	if showName && !m.FromMe {
-		lines = append(lines, senderStyle(m.Sender).Render(ansi.Truncate(m.SenderName, inner, "…")))
-	}
-	if m.Quote != nil {
-		lines = append(lines, renderQuote(m.Quote, inner))
-	}
-	if pic != "" {
-		lines = append(lines, pic)
-	}
-	if body != "" {
-		lines = append(lines, body)
-	}
-	content := strings.Join(lines, "\n")
-	cw := min(inner, max(lipgloss.Width(content), lipgloss.Width(stamp)))
-	content += "\n" + lipgloss.PlaceHorizontal(cw, lipgloss.Right, stamp)
-
-	border := cDim
-	if m.FromMe {
-		border = cOwn
-	}
-	style := lipgloss.RoundedBorder()
-	if selected {
-		border, style = cAccent, lipgloss.ThickBorder()
-	}
-	bubble := lipgloss.NewStyle().
-		Border(style).
-		BorderForeground(border).
-		Padding(0, 1).
-		Render(content)
-	return bubble
-}
-
-// stripTag tira o marcador "[imagem]" do começo e deixa só a legenda.
-func stripTag(s string) string {
-	if strings.HasPrefix(s, "[") {
-		if i := strings.Index(s, "]"); i >= 0 {
-			return strings.TrimSpace(s[i+1:])
-		}
-	}
-	return s
+	return mediaLabel(s)
 }
