@@ -154,7 +154,7 @@ func newModel(cli *ipc.Client) *model {
 
 func newInput() textarea.Model {
 	in := textarea.New()
-	in.Placeholder = "Digite uma mensagem"
+	in.Placeholder = "Digite uma mensagem · ctrl+v cola um print"
 	in.ShowLineNumbers = false
 	in.Prompt = ""
 	in.CharLimit = 0

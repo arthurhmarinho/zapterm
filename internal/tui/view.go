@@ -72,7 +72,7 @@ func (m *model) layout() {
 		return
 	}
 	g := m.geom()
-	m.input.SetWidth(max(10, g.chatW-10))
+	m.input.SetWidth(max(10, g.chatW-6))
 	m.search.SetWidth(max(10, g.listW-10))
 	m.vp.SetWidth(g.chatW)
 	m.vp.SetHeight(g.vpH)
@@ -120,7 +120,7 @@ func (m *model) View() tea.View {
 		}
 	case m.active != "":
 		if c := m.input.Cursor(); c != nil {
-			c.Position.X += g.chatX + 5
+			c.Position.X += g.chatX + 4 // borda, espaço e prompt
 			c.Position.Y += g.inputY + 1
 			v.Cursor = c
 		}
@@ -300,7 +300,7 @@ func (m *model) viewExtra(g geometry) string {
 		head := "  " + sText.Render(icons.attach+"  Enviar imagem") + "   " +
 			sText2.Render("escreva uma legenda e aperte enter · esc cancela")
 		body := lipgloss.JoinHorizontal(lipgloss.Top, "    ", pic)
-		return fitHeight(paint(head+"\n\n"+body, cBgPanel, w), cBgPanel, w, g.extraH)
+		return fitHeight(paint(head+"\n\n"+body, cDefault, w), cDefault, w, g.extraH)
 	}
 	r := m.replyTo
 	name := r.SenderName
@@ -310,27 +310,39 @@ func (m *model) viewExtra(g geometry) string {
 	case m.activeChat.Kind == "channel":
 		name = m.activeChat.Name
 	}
-	q := quoteBlock(&ipc.Quote{Sender: r.Sender, SenderName: name, Text: r.Text}, w-12, cBgHover)
+	q := quoteBlock(&ipc.Quote{Sender: r.Sender, SenderName: name, Text: r.Text}, w-12, cDefault)
 	closeHint := sText2.Render(icons.close + " esc")
 	row := lipgloss.JoinHorizontal(lipgloss.Top, "    ", q, "  ", closeHint)
-	return fitHeight(paint("\n"+row, cBgPanel, w), cBgPanel, w, g.extraH)
+	return fitHeight(paint("\n"+row, cDefault, w), cDefault, w, g.extraH)
 }
 
+// viewInput desenha a caixa de escrita no estilo do Claude Code: borda
+// arredondada, prompt "❯" e o fundo do terminal. A borda ganha a cor de
+// acento quando há texto, resposta ou anexo em andamento.
 func (m *model) viewInput(g geometry) string {
 	w := g.chatW
-	fieldW := w - 10
-	field := paint(m.input.View(), cDefault, fieldW)
-	lines := strings.Split(field, "\n")
+	fieldW := w - 6 // borda, espaço, prompt (2), espaço, borda
+	lines := strings.Split(m.input.View(), "\n")
 	for i, l := range lines {
-		left, right := "    ", "    "
-		if i == len(lines)-1 {
-			left = "  " + sText2.Render(icons.attach) + " "
-			right = "  " + sText2.Render(icons.send) + " "
+		prefix := "  "
+		if i == 0 {
+			prefix = sText2.Render("❯") + " "
+			if m.input.Value() != "" {
+				prefix = sGreen.Render("❯") + " "
+			}
 		}
-		lines[i] = left + " " + l + " " + right
+		l = ansi.Truncate(l, fieldW, "")
+		lines[i] = prefix + l + strings.Repeat(" ", max(0, fieldW-ansi.StringWidth(l)))
 	}
-	body := blank(cBgPanel, w, 1) + "\n" + paint(strings.Join(lines, "\n"), cBgPanel, w) + "\n" + blank(cBgPanel, w, 1)
-	return body
+	border := cText2
+	if m.input.Value() != "" || m.replyTo != nil || m.attach != nil {
+		border = cGreen
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(border).
+		Padding(0, 1).
+		Render(strings.Join(lines, "\n"))
 }
 
 func (m *model) viewFooter() string {
