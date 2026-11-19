@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -85,5 +86,38 @@ func TestFotoEmTelaCheia(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.viewing != nil {
 		t.Fatal("esc não fechou")
+	}
+}
+
+func TestOpener(t *testing.T) {
+	has := func(names ...string) func(string) (string, error) {
+		return func(n string) (string, error) {
+			for _, x := range names {
+				if x == n {
+					return "/usr/bin/" + n, nil
+				}
+			}
+			return "", os.ErrNotExist
+		}
+	}
+	cases := []struct {
+		path     string
+		look     func(string) (string, error)
+		wantProg string
+	}{
+		{"/c/a.pdf", has("zathura", "sioyek"), "zathura"},
+		{"/c/a.pdf", has("sioyek"), "sioyek"},
+		{"/c/a.pdf", has(), "xdg-open"},
+		{"/c/v.mp4", has("mpv", "gst-launch-1.0"), "mpv"},
+		{"/c/v.mp4", has("gst-launch-1.0"), "gst-launch-1.0"},
+		{"/c/v.mp4", has(), "xdg-open"},
+		{"/c/f.jpg", has("imv"), "imv"},
+		{"/c/f.jpg", has(), "xdg-open"},
+		{"/c/d.docx", has("zathura", "mpv"), "xdg-open"},
+	}
+	for _, c := range cases {
+		if got, _ := opener(c.path, c.look); got != c.wantProg {
+			t.Errorf("%s: %s, quer %s", c.path, got, c.wantProg)
+		}
 	}
 }

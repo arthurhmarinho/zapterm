@@ -53,9 +53,12 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
 	if chat.Server == types.NewsletterServer {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	if s, err := d.cli.Store.ChatSettings.GetChatSettings(ctx, chat); err == nil && s.Found && s.MutedUntil.After(time.Now()) {
+	// Silenciado ou arquivado no celular não notifica. Arquivado conta como
+	// silenciado, como no app com "manter conversas arquivadas".
+	if s, err := d.cli.Store.ChatSettings.GetChatSettings(ctx, chat); err == nil && s.Found &&
+		(s.MutedUntil.After(time.Now()) || s.Archived) {
 		return
 	}
 
@@ -83,6 +86,10 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
 	}
 
 	args := []string{"-a", "zapterm", "-c", "im.received", "-p", "-h", "string:x-zapterm-chat:" + m.Chat}
+	// Foto do chat (de quem mandou, ou do grupo) como ícone, se houver.
+	if av, err := d.avatar(ctx, chat.String()); err == nil && av != nil && av.Preview != "" {
+		args = append(args, "-i", av.Preview, "-h", "string:image-path:"+av.Preview)
+	}
 	if prevID != "" {
 		args = append(args, "-r", prevID)
 	}

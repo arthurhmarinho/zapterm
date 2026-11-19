@@ -3,8 +3,10 @@ package tui
 import (
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -147,10 +149,57 @@ func (im *images) cleanup() {
 	os.Stdout.WriteString(b.String())
 }
 
-// openExternal abre um arquivo no programa padrão (visualizador de imagem,
-// player, leitor de PDF), desligado do terminal.
+// openExternal abre um arquivo fora da TUI, desligado do terminal. Não usa
+// o xdg-open de cara porque no sistema dele imagem, vídeo e PDF caem no
+// navegador: escolhe um programa por tipo, o primeiro instalado da lista,
+// e só então cai no xdg-open.
 func openExternal(path string) error {
-	cmd := exec.Command("xdg-open", path)
+	name, args := opener(path, exec.LookPath)
+	cmd := exec.Command(name, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	return cmd.Start()
+}
+
+var (
+	videoExts = map[string]bool{".mp4": true, ".webm": true, ".mkv": true, ".3gp": true, ".mov": true, ".m4v": true}
+	imageExts = map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true}
+
+	videoPlayers = []string{"mpv", "vlc", "celluloid", "haruna"}
+	pdfViewers   = []string{"zathura", "sioyek", "mupdf", "evince", "papers", "okular"}
+	imageViewers = []string{"imv", "swayimg", "feh"}
+)
+
+// opener decide programa e argumentos para um arquivo. lookPath é
+// parâmetro para os testes não dependerem do que está instalado.
+func opener(path string, lookPath func(string) (string, error)) (string, []string) {
+	first := func(list []string) string {
+		for _, p := range list {
+			if _, err := lookPath(p); err == nil {
+				return p
+			}
+		}
+		return ""
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	switch {
+	case ext == ".pdf":
+		if p := first(pdfViewers); p != "" {
+			return p, []string{path}
+		}
+	case videoExts[ext]:
+		if p := first(videoPlayers); p != "" {
+			return p, []string{path}
+		}
+		// Sem player: o GStreamer abre o vídeo numa janela simples do
+		// Wayland (sem controles; fecha quando acaba).
+		if _, err := lookPath("gst-launch-1.0"); err == nil {
+			u := url.URL{Scheme: "file", Path: path}
+			return "gst-launch-1.0", []string{"-q", "playbin", "uri=" + u.String()}
+		}
+	case imageExts[ext]:
+		if p := first(imageViewers); p != "" {
+			return p, []string{path}
+		}
+	}
+	return "xdg-open", []string{path}
 }
