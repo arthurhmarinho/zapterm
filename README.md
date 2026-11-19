@@ -69,6 +69,17 @@ Feito e testado no Linux (Wayland, Sway), no terminal **kitty**.
 go install github.com/arthurhmarinho/zapterm/cmd/zapterm@latest
 ```
 
+O binário vai para `~/go/bin` (ou o `GOBIN`). Se `zapterm` não for
+encontrado, ponha essa pasta no PATH. No fish:
+
+```fish
+fish_add_path -g $HOME/go/bin
+```
+
+No bash/zsh: `export PATH="$HOME/go/bin:$PATH"` no `~/.bashrc` ou `~/.zshrc`.
+
+Para atualizar, rode o mesmo `go install` de novo.
+
 ## Primeiro uso
 
 ```sh
@@ -83,10 +94,12 @@ Conectar um aparelho**. Deixe o comando rodando até o log parar de mostrar
 zapterm
 ```
 
-Para o daemon subir junto com o Sway, no `~/.config/sway/config`:
+Para o daemon subir junto com o Sway (e as notificações chegarem sem
+abrir a TUI), no `~/.config/sway/config`, com o caminho completo, porque o
+Sway não lê o PATH do shell:
 
 ```
-exec zapterm daemon
+exec ~/go/bin/zapterm daemon
 ```
 
 Para ver sem conta nenhuma, com conversas inventadas:
