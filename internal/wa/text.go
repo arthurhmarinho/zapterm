@@ -24,7 +24,12 @@ func describe(m *waE2E.Message) (kind, text string) {
 	case m.GetImageMessage() != nil:
 		return "image", tag("imagem", m.GetImageMessage().GetCaption())
 	case m.GetVideoMessage() != nil:
-		return "video", tag("vídeo", m.GetVideoMessage().GetCaption())
+		v := m.GetVideoMessage()
+		label := "vídeo"
+		if s := v.GetSeconds(); s > 0 {
+			label += fmt.Sprintf(" %d:%02d", s/60, s%60)
+		}
+		return "video", tag(label, v.GetCaption())
 	case m.GetAudioMessage() != nil:
 		a := m.GetAudioMessage()
 		dur := ""

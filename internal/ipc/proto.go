@@ -112,6 +112,9 @@ type Message struct {
 	Text       string `json:"text"`
 	Quote      *Quote `json:"quote,omitempty"` // mensagem citada, se for resposta
 	Media      *Media `json:"media,omitempty"` // mídia já baixada, se houver
+	// Thumb é a miniatura que vem dentro da mensagem (foto ou vídeo ainda
+	// não baixados): borrada, mas aparece sem rede.
+	Thumb *Media `json:"thumb,omitempty"`
 	// HasRaw diz se a mensagem guarda o protobuf original, ou seja, se a
 	// mídia dela pode ser baixada.
 	HasRaw bool `json:"has_raw,omitempty"`

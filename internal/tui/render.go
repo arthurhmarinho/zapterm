@@ -37,13 +37,18 @@ func mediaLabel(s string) string {
 	}
 	tag, rest := s[1:end], strings.TrimSpace(s[end+1:])
 	icon, name := "", ""
+	// A duração vem junto do marcador: "[vídeo 0:32]", "[áudio 0:12]".
+	dur := ""
+	if m := durRe.FindStringSubmatch(tag); m != nil {
+		dur = " " + m[1] + ":" + m[2]
+	}
 	switch {
 	case tag == "imagem":
 		icon, name = icons.photo, "Foto"
-	case tag == "vídeo":
-		icon, name = icons.video, "Vídeo"
-	case tag == "áudio", tag == "arquivo de áudio":
-		icon, name = icons.audio, "Áudio"
+	case strings.HasPrefix(tag, "vídeo"):
+		icon, name = icons.video, "Vídeo"+dur
+	case strings.HasPrefix(tag, "áudio"), strings.HasPrefix(tag, "arquivo de áudio"):
+		icon, name = icons.audio, "Áudio"+dur
 	case tag == "figurinha":
 		icon, name = icons.sticker, "Figurinha"
 	case strings.HasPrefix(tag, "documento: "):
@@ -255,18 +260,38 @@ func (r msgRenderer) bubbleRow(m ipc.Message, firstOfRun, selected bool) string 
 func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) string {
 	inner := maxW - 4 // borda + padding
 
-	pic := ""
-	if md := m.Media; md != nil && md.Preview != "" && r.imgs != nil {
+	pic, thumb := "", false
+	if r.imgs != nil {
 		cols, rows := min(inner, 44), 22
 		if m.Kind == "sticker" {
 			cols, rows = min(inner, 16), 8
 		}
-		pic = r.imgs.media(md, cols, rows)
+		switch {
+		case m.Media != nil && m.Media.Preview != "":
+			pic = r.imgs.media(m.Media, cols, rows)
+		case m.Thumb != nil:
+			// Miniatura embutida: foto não baixada ou vídeo.
+			pic, thumb = r.imgs.media(m.Thumb, cols, rows), true
+		}
 	}
 	text := m.Text
 	switch {
 	case m.Kind == "audio" && (m.HasRaw || m.Media != nil):
 		text = r.audioLine(m, inner)
+	case pic != "" && thumb:
+		label := ""
+		switch {
+		case m.Kind == "video" && m.Media != nil:
+			label = videoLabel(text) + " · ctrl+o assiste"
+		case m.Kind == "video":
+			label = videoLabel(text) + " · ctrl+o baixa e assiste"
+		default:
+			label = "ctrl+o baixa a foto"
+		}
+		text = sText2.Render(label)
+		if c := stripTag(m.Text); c != "" {
+			text += "\n" + c
+		}
 	case pic != "":
 		text = stripTag(text)
 	case m.Kind != "text" && m.Kind != "other":
@@ -362,4 +387,29 @@ func (r msgRenderer) audioLine(m ipc.Message, inner int) string {
 	}
 	bar := fg(cGreen).Render(strings.Repeat("━", pos)+"●") + sText2.Render(strings.Repeat("─", barW-pos-1))
 	return fg(cGreen).Render(icons.pause) + " " + bar + " " + sText2.Render(fmtDur(r.elapsed)+" / "+fmtDur(total))
+}
+
+// tagDuration lê a duração do marcador do daemon: "[vídeo 0:32] legenda"
+// devolve "0:32"; sem duração, "".
+func tagDuration(text string) string {
+	if !strings.HasPrefix(text, "[") {
+		return ""
+	}
+	end := strings.Index(text, "]")
+	if end < 0 {
+		return ""
+	}
+	if m := durRe.FindStringSubmatch(text[1:end]); m != nil {
+		return m[1] + ":" + m[2]
+	}
+	return ""
+}
+
+// videoLabel: "▶ Vídeo 0:32", sem a legenda (que vai na linha de baixo).
+func videoLabel(text string) string {
+	l := icons.play + " Vídeo"
+	if d := tagDuration(text); d != "" {
+		l += " " + d
+	}
+	return l
 }

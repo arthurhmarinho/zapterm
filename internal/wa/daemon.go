@@ -231,8 +231,10 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	if !live || !isNew {
 		return
 	}
+	m.HasRaw = len(raw) > 0
 	one := []ipc.Message{m}
 	d.fillSenders(ctx, one)
+	d.fillThumbs(one)
 	m = one[0]
 	d.srv.Broadcast(ipc.EvMessage, m)
 	d.ensureName(chat)
@@ -485,6 +487,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 			return nil, err
 		}
 		d.fillSenders(ctx, msgs)
+		d.fillThumbs(msgs)
 		return msgs, nil
 	case ipc.OpSend:
 		return d.send(ctx, req.Chat, req.Text, req.ReplyTo)
@@ -593,6 +596,7 @@ func (d *Daemon) sendAndStore(ctx context.Context, jid types.JID, msg *waE2E.Mes
 	}
 	one := []ipc.Message{m}
 	d.fillSenders(ctx, one)
+	d.fillThumbs(one)
 	m = one[0]
 	if afterSend != nil {
 		m.Media = afterSend(m.ID)

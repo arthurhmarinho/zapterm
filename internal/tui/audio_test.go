@@ -59,3 +59,20 @@ func TestGravacaoFechaArquivo(t *testing.T) {
 	}
 	os.Remove(done.path)
 }
+
+func TestMediaLabelComDuracao(t *testing.T) {
+	cases := map[string]string{
+		"[vídeo 0:32] olha isso": icons.video + " olha isso",
+		"[vídeo 0:32]":           icons.video + " Vídeo 0:32",
+		"[áudio 1:05]":           icons.audio + " Áudio 1:05",
+		"[imagem]":               icons.photo + " Foto",
+	}
+	for in, want := range cases {
+		if got := mediaLabel(in); got != want {
+			t.Errorf("%q = %q, quer %q", in, got, want)
+		}
+	}
+	if got := videoLabel("[vídeo 0:32] olha isso"); got != icons.play+" Vídeo 0:32" {
+		t.Errorf("videoLabel: %q", got)
+	}
+}

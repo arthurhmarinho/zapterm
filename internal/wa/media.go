@@ -63,6 +63,8 @@ func cachedMedia(id string) *ipc.Media {
 		switch {
 		case strings.HasSuffix(p, ".preview.png"):
 			md.Preview = p
+		case strings.HasSuffix(p, ".thumb.png"):
+			// miniatura embutida (thumbFor), não é a mídia baixada
 		case strings.HasSuffix(p, ".anim"):
 			// pasta dos quadros, lida abaixo
 		default:
@@ -528,4 +530,68 @@ func (d *Daemon) sendSticker(ctx context.Context, chat, srcChat, srcID, replyTo 
 		cp.Preview = ""
 		return cp
 	})
+}
+
+// thumbDisplayW é a largura "de mentira" da miniatura para a TUI: a
+// imagem tem ~100px, mas deve ocupar o balão como a foto de verdade (o
+// kitty amplia, borrada, como o app antes de baixar).
+const thumbDisplayW = 360
+
+// fillThumbs põe a miniatura embutida nas fotos e vídeos ainda não
+// baixados. Gera <id>.thumb.png a partir do protobuf na primeira vez.
+func (d *Daemon) fillThumbs(msgs []ipc.Message) {
+	for i := range msgs {
+		m := &msgs[i]
+		if !m.HasRaw || (m.Kind != "image" && m.Kind != "video") {
+			continue
+		}
+		if m.Media != nil && m.Media.Preview != "" {
+			continue // já tem a prévia de verdade
+		}
+		m.Thumb = d.thumbFor(m.Chat, m.ID)
+	}
+}
+
+func (d *Daemon) thumbFor(chat, id string) *ipc.Media {
+	base, err := mediaBase(id)
+	if err != nil {
+		return nil
+	}
+	path := base + ".thumb.png"
+	if _, err := os.Stat(path); err != nil {
+		_, raw, err := d.st.Message(chat, id)
+		if err != nil || len(raw) == 0 {
+			return nil
+		}
+		var msg waE2E.Message
+		if proto.Unmarshal(raw, &msg) != nil {
+			return nil
+		}
+		jpg := msg.GetImageMessage().GetJPEGThumbnail()
+		if v := msg.GetVideoMessage(); v != nil {
+			jpg = v.GetJPEGThumbnail()
+		}
+		if len(jpg) == 0 {
+			return nil
+		}
+		src, _, err := image.Decode(bytes.NewReader(jpg))
+		if err != nil {
+			return nil
+		}
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+		if err != nil {
+			return nil
+		}
+		err = png.Encode(f, src)
+		f.Close()
+		if err != nil {
+			os.Remove(path)
+			return nil
+		}
+	}
+	w, h := pngSize(path)
+	if w == 0 || h == 0 {
+		return nil
+	}
+	return &ipc.Media{Preview: path, Width: thumbDisplayW, Height: thumbDisplayW * h / w}
 }
