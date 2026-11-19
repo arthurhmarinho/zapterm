@@ -17,15 +17,23 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 
 - **Conversas:** lista com fotos de perfil, fixados, não lidas, filtros
   (Tudo · Não lidas · Grupos · Canais), arquivadas e busca.
-- **Mensagens:** responder com citação, reagir (❤️ 👍 😂 😮 😢 🙏), ver
+- **Mensagens:** responder com citação, reagir (❤️ 👍 😂 😮 😢 🙏),
+  copiar, editar, apagar para todos e encaminhar; formatação do WhatsApp
+  (*negrito*, _itálico_, ~riscado~, `código`) e links clicáveis;
   mensagens editadas e apagadas, tracinhos de entregue e lido,
   "digitando…", online e visto por último.
+- **Grupos:** marcar alguém com `@` (lista de participantes enquanto você
+  digita) e ver as menções em destaque; menção a você notifica mesmo em
+  grupo silenciado.
+- **Organizar:** fixar, arquivar, silenciar e marcar como lida pelo
+  próprio zapterm (sincroniza com o celular); nova conversa digitando um
+  número na busca.
 - **Mídia no terminal:** fotos, figurinhas (inclusive animadas) e
   miniaturas de vídeo dentro do balão, pelo protocolo gráfico do kitty.
   Foto abre em tela cheia; vídeo e PDF abrem no seu player e leitor.
 - **Enviar:** texto, print colado com `ctrl+v`, qualquer arquivo pelo
-  seletor nativo (foto, vídeo, áudio, documento), figurinhas recentes e
-  mensagem de voz gravada no microfone.
+  seletor nativo (foto, vídeo, áudio, documento), suas figurinhas
+  favoritas do celular e mensagem de voz gravada no microfone.
 - **Notificações** com a foto do contato, respeitando chats silenciados e
   arquivados e sem avisar do chat que você está vendo.
 
@@ -119,18 +127,23 @@ O mouse também funciona (clique, botão direito para responder, roda).
 | `tab` | troca entre lista e conversa |
 | `enter` | envia (com o campo vazio na lista, abre o chat) |
 | `shift+enter` | nova linha |
-| `ctrl+p` | pesquisar conversa |
+| `ctrl+p` | pesquisar conversa (ou digite um número para conversa nova) |
 | `alt+1`…`alt+4`, `alt+a` | filtros e arquivadas |
 | `ctrl+r` | responder a mensagem selecionada |
 | `ctrl+e` | reagir |
-| `ctrl+o` | abrir foto, vídeo, documento, ou tocar áudio |
+| `ctrl+o` | abrir foto, vídeo, documento, link, ou tocar áudio |
+| `alt+c` `alt+e` | copiar / editar (sua, até 15 min) |
+| `alt+d` `alt+w` | apagar para todos (duas vezes) / encaminhar |
+| `alt+m` | menu do chat: fixar, arquivar, silenciar (ou botão direito) |
+| `@` | marcar alguém num grupo |
 | `ctrl+v` | colar print para enviar |
 | `alt+f` | anexar arquivo |
-| `ctrl+s` | figurinhas recentes |
+| `ctrl+s` | figurinhas (favoritas do celular; `tab` troca para as recentes) |
 | `ctrl+t` | gravar mensagem de voz |
 | `pgup` `pgdn` | rolar a conversa |
 | `esc` | cancela o que estiver aberto |
 | `ctrl+c` | limpa o campo; vazio, duas vezes, sai |
+| `F1` | todos os atalhos |
 
 ## Limitações
 
@@ -138,8 +151,9 @@ O mouse também funciona (clique, botão direito para responder, roda).
 - Status (stories) ficam de fora.
 - Mídia, citações e reações das mensagens que vieram no pareamento (o
   histórico inicial) não estão disponíveis; só as que chegam depois.
-- Figurinhas do seletor são as que passaram pelas suas conversas; os
-  pacotes e favoritas do celular não ficam acessíveis.
+- Figurinhas favoritas antigas costumam ter expirado no servidor do
+  WhatsApp (o celular guarda cópia local); só as que ainda existem lá, ou
+  que passaram por uma conversa, aparecem.
 - Em grupo, o tracinho azul aparece quando pelo menos uma pessoa leu.
 
 ## Comandos de depuração
