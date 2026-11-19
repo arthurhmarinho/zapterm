@@ -319,7 +319,7 @@ func (m *model) viewExtra(g geometry) string {
 func (m *model) viewInput(g geometry) string {
 	w := g.chatW
 	fieldW := w - 10
-	field := paint(m.input.View(), cBgHover, fieldW)
+	field := paint(m.input.View(), cDefault, fieldW)
 	lines := strings.Split(field, "\n")
 	for i, l := range lines {
 		left, right := "    ", "    "

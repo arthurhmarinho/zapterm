@@ -10,32 +10,37 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Paleta do WhatsApp Web no tema escuro. A TUI imita o app de propósito,
-// então não herda as cores do terminal.
+// Cores do tema do terminal: o fundo e o texto padrão (os do kitty, com a
+// transparência e o papel de parede) e a paleta ANSI 0–15. O layout imita o
+// WhatsApp Web; as cores, não.
 var (
-	cBgList       = lipgloss.Color("#111b21") // lista de chats
-	cBgChat       = lipgloss.Color("#0b141a") // fundo da conversa
-	cBgPanel      = lipgloss.Color("#202c33") // cabeçalho, busca, barra de escrita
-	cBgHover      = lipgloss.Color("#2a3942") // item selecionado, campo de texto
-	cDivider      = lipgloss.Color("#222d34")
-	cText         = lipgloss.Color("#e9edef")
-	cText2        = lipgloss.Color("#8696a0")
-	cGreen        = lipgloss.Color("#00a884")
-	cBadge        = lipgloss.Color("#25d366")
-	cChipOnBg     = lipgloss.Color("#0a332c")
-	cChipOnFg     = lipgloss.Color("#d9fdd3")
-	cBubbleIn     = lipgloss.Color("#202c33")
-	cBubbleOut    = lipgloss.Color("#005c4b")
-	cBubbleInSel  = lipgloss.Color("#33444f")
-	cBubbleOutSel = lipgloss.Color("#0a7a65")
-	cQuoteIn      = lipgloss.Color("#1d282f")
-	cQuoteOut     = lipgloss.Color("#025144")
-	cTimeOut      = lipgloss.Color("#a3cfc5")
-	cDayPill      = lipgloss.Color("#182229")
-	cDanger       = lipgloss.Color("#f15c6d")
+	cDefault      color.Color = lipgloss.NoColor{}
+	cBgList                   = cDefault            // lista de chats
+	cBgChat                   = cDefault            // fundo da conversa
+	cBgPanel                  = lipgloss.Color("0") // cabeçalho, busca, barra de escrita, pílulas
+	cBgHover                  = lipgloss.Color("0") // item selecionado (com a barra de destaque)
+	cDivider                  = lipgloss.Color("8")
+	cText                     = cDefault
+	cText2                    = lipgloss.Color("8")
+	cGreen                    = lipgloss.Color("5") // destaque: o acento do tema
+	cBadge                    = lipgloss.Color("5")
+	cChipOnBg                 = lipgloss.Color("5")
+	cChipOnFg                 = lipgloss.Color("0")
+	cBubbleIn                 = lipgloss.Color("0")
+	cBubbleOut                = lipgloss.Color("8")
+	cBubbleInSel              = cBubbleIn // seleção é a barra ▌ ao lado do balão
+	cBubbleOutSel             = cBubbleOut
+	cQuoteIn                  = cDefault
+	cQuoteOut                 = lipgloss.Color("0")
+	cTimeOut                  = lipgloss.Color("7")
+	cDayPill                  = lipgloss.Color("0")
+	cDanger                   = lipgloss.Color("1")
 
-	// Nomes em grupo: cores vivas como as do app.
-	senderColors = []string{"#53bdeb", "#fc9775", "#a5b337", "#e26ab6", "#25d366",
+	// Nomes em grupo: cores da paleta do terminal.
+	senderColors = []string{"1", "2", "3", "4", "5", "6", "9", "10", "11", "12", "13", "14"}
+	// Círculos com iniciais são imagens: precisam de RGB de verdade, então
+	// usam tons suaves fixos.
+	avatarColors = []string{"#53bdeb", "#fc9775", "#a5b337", "#e26ab6", "#25d366",
 		"#ffd279", "#7f66ff", "#06cf9c", "#ff8a8c", "#5fc9ff", "#d3a4ff", "#ffbc38"}
 )
 
@@ -112,7 +117,20 @@ func paint(block string, bg color.Color, w int) string {
 	return strings.Join(lines, "\n")
 }
 
+// bgSeq devolve o SGR de fundo: padrão do terminal, cor ANSI do tema ou,
+// só se vier uma cor RGB, truecolor.
 func bgSeq(c color.Color) string {
+	switch v := c.(type) {
+	case nil, lipgloss.NoColor:
+		return "\x1b[49m"
+	case ansi.BasicColor:
+		if v < 8 {
+			return fmt.Sprintf("\x1b[%dm", 40+int(v))
+		}
+		return fmt.Sprintf("\x1b[%dm", 100+int(v)-8)
+	case ansi.IndexedColor:
+		return fmt.Sprintf("\x1b[48;5;%dm", int(v))
+	}
 	r, g, b, _ := c.RGBA()
 	return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r>>8, g>>8, b>>8)
 }

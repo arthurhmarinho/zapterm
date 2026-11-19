@@ -181,7 +181,11 @@ func renderChatItem(c ipc.Chat, w int, selected bool, av string) string {
 	l3 := fg(cDivider).Render(strings.Repeat("─", tw))
 
 	text := l1 + "\n" + l2 + "\n" + l3
-	row := lipgloss.JoinHorizontal(lipgloss.Top, " ", av, "  ", text)
+	marker := " \n \n "
+	if selected {
+		marker = strings.Repeat(fg(cGreen).Render("▌")+"\n", 2) + fg(cGreen).Render("▌")
+	}
+	row := lipgloss.JoinHorizontal(lipgloss.Top, marker, av, "  ", text)
 	return paint(row, bg, w)
 }
 
@@ -243,15 +247,22 @@ func (r msgRenderer) bubbleRow(m ipc.Message, firstOfRun, selected bool) string 
 		}
 	}
 	b := r.bubble(m, maxW, firstOfRun && r.isGroup && !m.FromMe, selected)
+	if selected {
+		// Barra de destaque na cor de acento do tema, colada ao balão.
+		bar := strings.TrimSuffix(strings.Repeat(fg(cGreen).Render("▌")+"\n", lipgloss.Height(b)), "\n")
+		b = lipgloss.JoinHorizontal(lipgloss.Top, bar, b)
+	} else {
+		b = lipgloss.JoinHorizontal(lipgloss.Top, " ", b)
+	}
 	bw := lipgloss.Width(b)
 	var row string
 	switch {
 	case m.FromMe:
 		row = lipgloss.JoinHorizontal(lipgloss.Top, strings.Repeat(" ", max(0, r.w-bw-2)), b)
 	case left != "":
-		row = lipgloss.JoinHorizontal(lipgloss.Top, "  ", left, " ", b)
+		row = lipgloss.JoinHorizontal(lipgloss.Top, " ", left, " ", b)
 	default:
-		row = lipgloss.JoinHorizontal(lipgloss.Top, "  ", b)
+		row = lipgloss.JoinHorizontal(lipgloss.Top, " ", b)
 	}
 	return paint(row, cBgChat, r.w)
 }

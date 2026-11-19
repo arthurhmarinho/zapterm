@@ -43,7 +43,7 @@ func colorFor(jid string) color.RGBA {
 	h := fnv.New32a()
 	h.Write([]byte(jid))
 	var c color.RGBA
-	fmt.Sscanf(senderColors[h.Sum32()%uint32(len(senderColors))], "#%02x%02x%02x", &c.R, &c.G, &c.B)
+	fmt.Sscanf(avatarColors[h.Sum32()%uint32(len(avatarColors))], "#%02x%02x%02x", &c.R, &c.G, &c.B)
 	c.A = 255
 	return c
 }
