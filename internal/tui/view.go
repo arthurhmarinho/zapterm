@@ -75,6 +75,8 @@ func (m *model) extraHeight() int {
 	switch {
 	case m.rec != nil:
 		return 3
+	case m.mention.open:
+		return len(m.mention.list) + 2
 	case m.reacting:
 		return 3
 	case m.editing != nil:
@@ -351,6 +353,9 @@ func (m *model) viewExtra(g geometry) string {
 	w := g.chatW
 	if m.picking {
 		return fitHeight(m.viewStickers(w), cDefault, w, g.extraH)
+	}
+	if m.mention.open {
+		return fitHeight("\n"+m.viewMentions(w), cDefault, w, g.extraH)
 	}
 	if e := m.editing; e != nil {
 		q := quoteBlock(&ipc.Quote{Sender: e.Sender, SenderName: "Editando mensagem  (enter salva · esc cancela)",

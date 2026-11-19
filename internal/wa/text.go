@@ -60,6 +60,17 @@ func describe(m *waE2E.Message) (kind, text string) {
 // quoteOf extrai a citação de uma resposta. Toda mensagem com conteúdo pode
 // carregar ContextInfo; o WhatsApp só preenche StanzaID quando é resposta.
 func quoteOf(m *waE2E.Message) *ipc.Quote {
+	ci := contextInfo(m)
+	if ci.GetStanzaID() == "" {
+		return nil
+	}
+	_, text := describe(ci.GetQuotedMessage())
+	return &ipc.Quote{ID: ci.GetStanzaID(), Sender: ci.GetParticipant(), Text: text}
+}
+
+// contextInfo devolve o ContextInfo do conteúdo da mensagem (citação,
+// menções, encaminhada), seja qual for o tipo.
+func contextInfo(m *waE2E.Message) *waE2E.ContextInfo {
 	var ci *waE2E.ContextInfo
 	switch {
 	case m.GetExtendedTextMessage() != nil:
@@ -75,11 +86,7 @@ func quoteOf(m *waE2E.Message) *ipc.Quote {
 	case m.GetStickerMessage() != nil:
 		ci = m.GetStickerMessage().GetContextInfo()
 	}
-	if ci.GetStanzaID() == "" {
-		return nil
-	}
-	_, text := describe(ci.GetQuotedMessage())
-	return &ipc.Quote{ID: ci.GetStanzaID(), Sender: ci.GetParticipant(), Text: text}
+	return ci
 }
 
 func tag(label, caption string) string {

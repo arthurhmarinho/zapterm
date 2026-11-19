@@ -27,6 +27,7 @@ const (
 	OpRevoke      = "revoke"       // apaga para todos a sua mensagem Msg
 	OpEdit        = "edit"         // troca o texto da sua mensagem Msg por Text
 	OpForward     = "forward"      // encaminha SrcChat/Msg para Chat
+	OpMembers     = "members"      // participantes de um grupo, para o "@"
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -55,6 +56,8 @@ type Request struct {
 	Path string `json:"path,omitempty"`
 	// SrcChat é o chat da mensagem de origem (OpSendSticker).
 	SrcChat string `json:"src_chat,omitempty"`
+	// Mentions são os JIDs marcados com "@" no texto (OpSend).
+	Mentions []string `json:"mentions,omitempty"`
 	// Seconds é a duração do áudio gravado (OpSendAudio).
 	Seconds int `json:"seconds,omitempty"`
 }
@@ -142,6 +145,9 @@ type Message struct {
 	// (✓✓), 3 lida, 4 ouvida (áudio).
 	Status    int        `json:"status,omitempty"`
 	Reactions []Reaction `json:"reactions,omitempty"`
+	// MentionsMe: a mensagem marca você (o texto já vem com os nomes no
+	// lugar dos números, entre U+2068 e U+2069).
+	MentionsMe bool `json:"mentions_me,omitempty"`
 }
 
 // Presence é o estado de alguém num chat. Typing/Recording valem por
@@ -153,6 +159,12 @@ type Presence struct {
 	Recording bool   `json:"recording,omitempty"`
 	Online    *bool  `json:"online,omitempty"` // nil = sem informação nova
 	LastSeen  int64  `json:"last_seen,omitempty"`
+}
+
+// Member é um participante de grupo, para o autocompletar do "@".
+type Member struct {
+	JID  string `json:"jid"`
+	Name string `json:"name"`
 }
 
 // Reaction agrupa as reações de um emoji numa mensagem.

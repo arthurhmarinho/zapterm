@@ -22,6 +22,7 @@ const (
 	fItalic
 	fStrike
 	fMono
+	fMention
 )
 
 type cell struct {
@@ -93,7 +94,7 @@ func markPairs(cells []cell, marker string, bit fmtBits) {
 	n := len(cells)
 	for i := 0; i < n; i++ {
 		c := cells[i]
-		if c.s != marker || c.hidden || c.url != "" || c.bits&fMono != 0 {
+		if c.s != marker || c.hidden || c.url != "" || c.bits&(fMono|fMention) != 0 {
 			continue
 		}
 		if i > 0 && isWordCell(cells[i-1]) {
@@ -151,8 +152,32 @@ func markCodeBlocks(cells []cell) {
 	}
 }
 
+// markMentions: o daemon manda menções como "@" + U+2068 nome U+2069; o
+// nome (com o @) fica em destaque e os isolantes somem.
+func markMentions(cells []cell) {
+	for i := 0; i < len(cells); i++ {
+		if cells[i].s != "\u2068" {
+			continue
+		}
+		for j := i + 1; j < len(cells); j++ {
+			if cells[j].s == "\u2069" {
+				cells[i].hidden, cells[j].hidden = true, true
+				if i > 0 && cells[i-1].s == "@" {
+					cells[i-1].bits |= fMention
+				}
+				for k := i + 1; k < j; k++ {
+					cells[k].bits |= fMention
+				}
+				i = j
+				break
+			}
+		}
+	}
+}
+
 func parseFormatted(s string) []cell {
 	cells := cellsOf(s)
+	markMentions(cells)
 	markCodeBlocks(cells)
 	markPairs(cells, "`", fMono)
 	markPairs(cells, "*", fBold)
@@ -266,6 +291,9 @@ func renderCells(cells []cell, base lipgloss.Style) string {
 		}
 		if bits&fMono != 0 {
 			st = st.Foreground(lipgloss.Color("6")) // o terminal já é mono: cor marca o código
+		}
+		if bits&fMention != 0 {
+			st = st.Foreground(cGreen).Bold(true)
 		}
 		if u := cells[i].url; u != "" {
 			st = st.Foreground(cGreen).Underline(true).Hyperlink(u)

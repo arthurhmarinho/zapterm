@@ -42,6 +42,11 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.reacting {
 		return m.keyReact(s)
 	}
+	if m.mention.open {
+		if cmd, ok := m.keyMention(s); ok {
+			return cmd
+		}
+	}
 	if m.rec != nil {
 		switch s {
 		case "enter", "ctrl+t":
@@ -186,7 +191,7 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	m.input, cmd = m.input.Update(k)
 	m.layout() // a altura do campo acompanha o texto
 	if m.input.Value() != before {
-		return tea.Batch(cmd, m.noteTyping())
+		return tea.Batch(cmd, m.noteTyping(), m.updateMention())
 	}
 	return cmd
 }
@@ -303,7 +308,8 @@ func (m *model) onEnter() tea.Cmd {
 		m.setFlash("abra um chat antes de enviar")
 		return nil
 	}
-	req := ipc.Request{Op: ipc.OpSend, Chat: m.active, Text: text}
+	text, mentions := m.resolveMentions(text)
+	req := ipc.Request{Op: ipc.OpSend, Chat: m.active, Text: text, Mentions: mentions}
 	if m.replyTo != nil {
 		req.ReplyTo = m.replyTo.ID
 	}

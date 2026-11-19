@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,11 +16,18 @@ import (
 
 const me = "5500000000000@s.whatsapp.net"
 
+var demoNames = map[string]string{
+	"5511900000011@s.whatsapp.net": "Lu",
+	"5511900000001@s.whatsapp.net": "Marina Alves",
+	"5511900000010@s.whatsapp.net": "Rafa",
+}
+
 type server struct {
-	srv   *ipc.Server
-	mu    sync.Mutex
-	chats []ipc.Chat
-	msgs  map[string][]ipc.Message
+	lastSent ipc.Request // para os testes conferirem o que a TUI mandou
+	srv      *ipc.Server
+	mu       sync.Mutex
+	chats    []ipc.Chat
+	msgs     map[string][]ipc.Message
 }
 
 // Serve abre o socket do modo demonstração e responde em segundo plano.
@@ -31,6 +39,7 @@ func Serve(path string) (*ipc.Server, error) {
 		return nil, err
 	}
 	d.srv = srv
+	servers[srv] = d
 	go srv.Serve()
 	return srv, nil
 }
@@ -58,8 +67,15 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		return nil, nil
 	case ipc.OpSend:
 		// Enviar funciona dentro da demonstração: a mensagem aparece com ✓✓.
+		// Como o daemon real: "@<número>" marcado vira o nome, entre isolantes.
+		text := req.Text
+		for _, j := range req.Mentions {
+			user, _, _ := strings.Cut(j, "@")
+			text = strings.ReplaceAll(text, "@"+user, "@\u2068"+demoNames[j]+"\u2069")
+		}
 		m := ipc.Message{ID: time.Now().Format("150405.000"), Chat: req.Chat, Sender: me, SenderName: "você",
-			FromMe: true, TS: time.Now().UnixMilli(), Kind: "text", Text: req.Text, Status: 2}
+			FromMe: true, TS: time.Now().UnixMilli(), Kind: "text", Text: text, Status: 2}
+		d.lastSent = req
 		d.msgs[req.Chat] = append(d.msgs[req.Chat], m)
 		for i := range d.chats {
 			if d.chats[i].JID == req.Chat {
@@ -69,6 +85,15 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		}
 		go d.srv.Broadcast(ipc.EvMessage, m)
 		return m, nil
+	case ipc.OpMembers:
+		if req.Chat == "120000000000000001@g.us" {
+			return []ipc.Member{
+				{JID: "5511900000011@s.whatsapp.net", Name: "Lu"},
+				{JID: "5511900000001@s.whatsapp.net", Name: "Marina Alves"},
+				{JID: "5511900000010@s.whatsapp.net", Name: "Rafa"},
+			}, nil
+		}
+		return []ipc.Member{}, nil
 	case ipc.OpViewing, ipc.OpTyping, ipc.OpAvatar:
 		return nil, nil // sem foto: a TUI desenha as iniciais
 	case ipc.OpStickers:
@@ -115,3 +140,8 @@ func (d *server) seed(now time.Time) {
 		},
 	}
 }
+
+// LastSent é o último pedido de envio recebido (para testes).
+func LastSent(srv *ipc.Server) ipc.Request { return servers[srv].lastSent }
+
+var servers = map[*ipc.Server]*server{}

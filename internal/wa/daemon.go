@@ -253,8 +253,10 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 		return
 	}
 	m.HasRaw = len(raw) > 0
+	m.MentionsMe = d.mentionsMe(e.Message)
 	one := []ipc.Message{m}
 	d.fillSenders(ctx, one)
+	d.fillMentions(ctx, one)
 	d.fillThumbs(one)
 	d.fillReactions(one)
 	m = one[0]
@@ -546,11 +548,14 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 			return nil, err
 		}
 		d.fillSenders(ctx, msgs)
+		d.fillMentions(ctx, msgs)
 		d.fillThumbs(msgs)
 		d.fillReactions(msgs)
 		return msgs, nil
 	case ipc.OpSend:
-		return d.send(ctx, req.Chat, req.Text, req.ReplyTo)
+		return d.send(ctx, req.Chat, req.Text, req.ReplyTo, req.Mentions)
+	case ipc.OpMembers:
+		return d.groupMembers(ctx, req.Chat)
 	case ipc.OpRead:
 		return nil, d.markRead(ctx, req.Chat)
 	case ipc.OpViewing:
@@ -608,7 +613,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 	return nil, fmt.Errorf("operação desconhecida: %q", req.Op)
 }
 
-func (d *Daemon) send(ctx context.Context, chat, text, replyTo string) (any, error) {
+func (d *Daemon) send(ctx context.Context, chat, text, replyTo string, mentions []string) (any, error) {
 	text = strings.TrimRight(text, " \n")
 	if text == "" {
 		return nil, errors.New("mensagem vazia")
@@ -620,6 +625,12 @@ func (d *Daemon) send(ctx context.Context, chat, text, replyTo string) (any, err
 	ci, quote, err := d.replyContext(chat, replyTo)
 	if err != nil {
 		return nil, err
+	}
+	if len(mentions) > 0 {
+		if ci == nil {
+			ci = &waE2E.ContextInfo{}
+		}
+		ci.MentionedJID = mentions
 	}
 	msg := &waE2E.Message{Conversation: proto.String(text)}
 	if ci != nil {
@@ -680,6 +691,7 @@ func (d *Daemon) sendAndStore(ctx context.Context, jid types.JID, msg *waE2E.Mes
 	_ = d.st.SetStatus(m.Chat, []string{m.ID}, 1)
 	one := []ipc.Message{m}
 	d.fillSenders(ctx, one)
+	d.fillMentions(ctx, one)
 	d.fillThumbs(one)
 	d.fillReactions(one)
 	m = one[0]

@@ -102,6 +102,10 @@ type model struct {
 	delArmedAt time.Time
 	help       bool // tela de ajuda (F1)
 
+	mention   mentionState
+	members   map[string][]ipc.Member // participantes por grupo (nil = pedido)
+	mentioned map[string]string       // \"@Nome\" escolhido → JID
+
 	presence     map[string]*presenceState // digitando/online por chat
 	typingSentAt time.Time                 // último "digitando" seu enviado
 	typingChat   string                    // chat que recebeu esse aviso
@@ -188,7 +192,8 @@ func newModel(cli *ipc.Client) *model {
 	m := &model{cli: cli, input: newInput(), search: newSearch(), vp: viewport.New(),
 		status: "conectando", termFocused: true, msgSel: -1, imgs: newImages(),
 		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}, fallbacks: map[string]string{},
-		autoAsked: map[string]bool{}, presence: map[string]*presenceState{}}
+		autoAsked: map[string]bool{}, presence: map[string]*presenceState{},
+		members: map[string][]ipc.Member{}, mentioned: map[string]string{}}
 	m.vp.MouseWheelEnabled = false // a roda é tratada em input.go
 	m.input.Focus()
 	return m
@@ -413,6 +418,10 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case membersMsg:
+		m.members[msg.chat] = msg.list
+		return m, m.updateMention()
+
 	case presenceTickMsg:
 		return m, nil // só redesenhar: o aviso de digitando venceu
 
@@ -618,6 +627,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.active, m.activeChat = c.JID, c
 	m.msgs = nil
 	m.msgSel, m.replyTo, m.attach = -1, nil, nil
+	m.mention, m.mentioned = mentionState{}, map[string]string{}
 	m.loadingOld, m.noMoreOld = false, false
 	m.layout()
 	m.refreshMessages(true)

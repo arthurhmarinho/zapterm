@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -103,5 +104,73 @@ func TestAcoesNaMensagem(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: tea.KeyF1})
 	if !m.help || !strings.Contains(ansi.Strip(m.View().Content), "apagar para todos") {
 		t.Fatal("ajuda não abriu")
+	}
+}
+
+// "@ra" num grupo abre a lista, tab marca o Rafa e o envio leva o número
+// no texto e o JID na lista de marcados, como o WhatsApp espera.
+func TestMencaoEmGrupo(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	m.Update(m.loadChats()())
+	g, _ := m.chatByJID("120000000000000001@g.us")
+	m.active, m.activeChat, m.focus = g.JID, g, paneChat
+	m.layout()
+	typ := func(s string) {
+		for _, r := range s {
+			_, cmd := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+			runCmd(m, cmd)
+		}
+	}
+	typ("valeu @ra")
+	if !m.mention.open || m.mention.list[0].Name != "Rafa" {
+		t.Fatalf("lista de menção: %+v", m.mention)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.input.Value() != "valeu @Rafa " {
+		t.Fatalf("inserção: %q", m.input.Value())
+	}
+	typ("!")
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(m, cmd)
+	sent := demo.LastSent(srv)
+	if sent.Text != "valeu @5511900000010 !" || len(sent.Mentions) != 1 || sent.Mentions[0] != "5511900000010@s.whatsapp.net" {
+		t.Fatalf("enviado: %+v", sent)
+	}
+}
+
+// runCmd executa os comandos (e lotes) que pedem ao daemon, devolvendo as
+// respostas ao modelo; ignora os que esperam eventos ou tempo.
+func runCmd(m *model, cmd tea.Cmd) {
+	if cmd == nil {
+		return
+	}
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+	select {
+	case msg := <-done:
+		switch v := msg.(type) {
+		case tea.BatchMsg:
+			for _, c := range v {
+				runCmd(m, c)
+			}
+		case nil:
+		default:
+			_, next := m.Update(v)
+			runCmd(m, next)
+		}
+	case <-time.After(300 * time.Millisecond):
 	}
 }

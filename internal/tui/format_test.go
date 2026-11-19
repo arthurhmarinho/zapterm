@@ -46,3 +46,17 @@ func TestFormatQuebraELarguras(t *testing.T) {
 		t.Errorf("firstURL: %q", firstURL("oi www.site.com.br/x."))
 	}
 }
+
+func TestMencaoDestacada(t *testing.T) {
+	in := "oi @\u2068Ana Souza\u2069, tudo bem?"
+	if got := plainText(in); got != "oi @Ana Souza, tudo bem?" {
+		t.Fatalf("plainText: %q", got)
+	}
+	out := formatText(in, 40, lipgloss.NewStyle())
+	if strings.ContainsAny(out, "\u2068\u2069") {
+		t.Fatal("isolante apareceu")
+	}
+	if ansi.Strip(out) != "oi @Ana Souza, tudo bem?" {
+		t.Fatalf("texto: %q", ansi.Strip(out))
+	}
+}

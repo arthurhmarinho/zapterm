@@ -91,6 +91,7 @@ func (d *Daemon) pushUpdate(chat, id string) {
 	one := []ipc.Message{m}
 	ctx := context.Background()
 	d.fillSenders(ctx, one)
+	d.fillMentions(ctx, one)
 	d.fillThumbs(one)
 	d.fillReactions(one)
 	d.srv.Broadcast(ipc.EvUpdate, one[0])
