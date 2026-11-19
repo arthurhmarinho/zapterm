@@ -16,6 +16,17 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if s != "ctrl+c" {
 		m.quitArmed = false
 	}
+	if m.viewing != nil {
+		switch s {
+		case "o":
+			if err := openExternal(m.viewing.media.Path); err != nil {
+				m.setFlash("xdg-open: " + err.Error())
+			}
+		case "esc", "enter", "q", "ctrl+o", "ctrl+c", "space":
+			m.viewing = nil
+		}
+		return nil
+	}
 	if m.searching {
 		return m.keySearch(k)
 	}
@@ -280,6 +291,10 @@ func fuzzyChats(q string, chats []ipc.Chat) []int {
 // ---------- mouse ----------
 
 func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
+	if m.viewing != nil {
+		m.viewing = nil
+		return nil
+	}
 	g := m.geom()
 	x, y := c.X, c.Y
 	if x < g.listW {
@@ -347,6 +362,9 @@ func (m *model) clickList(g geometry, x, y int) tea.Cmd {
 }
 
 func (m *model) onWheel(w tea.MouseWheelMsg) tea.Cmd {
+	if m.viewing != nil {
+		return nil
+	}
 	g := m.geom()
 	d := 3
 	switch w.Button {

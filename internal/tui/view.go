@@ -103,6 +103,10 @@ func (m *model) View() tea.View {
 		v.SetContent("janela pequena demais para o zapterm")
 		return v
 	}
+	if m.viewing != nil {
+		v.SetContent(m.viewPhoto())
+		return v
+	}
 	g := m.geom()
 
 	left := m.viewList(g)
@@ -454,4 +458,27 @@ func (m *model) stickerAt(g geometry, x, y int) int {
 		return i
 	}
 	return -1
+}
+
+// viewer é a foto aberta em tela cheia (ctrl+o numa foto já baixada).
+type viewer struct {
+	media   *ipc.Media
+	caption string
+}
+
+// viewPhoto ocupa a tela inteira com a foto centralizada, a legenda e os
+// atalhos.
+func (m *model) viewPhoto() string {
+	v := m.viewing
+	pic := m.imgs.media(v.media, m.w-4, m.h-4)
+	if pic == "" {
+		pic = sText2.Render("não deu para desenhar a foto")
+	}
+	body := pic
+	if v.caption != "" {
+		body += "\n" + sText.Render(ansi.Truncate(oneLine(v.caption), m.w-4, "…"))
+	}
+	screen := lipgloss.Place(m.w, m.h-1, lipgloss.Center, lipgloss.Center, body)
+	help := sText2.Render(" esc fecha · o abre no programa externo")
+	return screen + "\n" + help
 }

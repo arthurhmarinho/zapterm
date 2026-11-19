@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -58,5 +60,30 @@ func TestAnimacaoKitty(t *testing.T) {
 	im.media(md, 10, 5)
 	if len(im.pending) != 0 {
 		t.Fatal("retransmitiu a animação")
+	}
+}
+
+// ctrl+o numa foto baixada abre em tela cheia (sem xdg-open) e a imagem é
+// transmitida no mesmo Update, não só na próxima tecla.
+func TestFotoEmTelaCheia(t *testing.T) {
+	m := newModel(nil)
+	m.imgs.enabled = true
+	m.w, m.h = 120, 40
+	m.active = "x@s.whatsapp.net"
+	m.msgs = []ipc.Message{{ID: "f", Kind: "image", Text: "[imagem] praia",
+		Media: &ipc.Media{Path: "/x/f.jpg", Preview: "/x/f.preview.png", Width: 720, Height: 480}}}
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+	if m.viewing == nil {
+		t.Fatal("não abriu em tela cheia")
+	}
+	if cmd == nil {
+		t.Fatal("a transmissão da foto não saiu neste Update")
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "praia") {
+		t.Fatal("legenda não apareceu")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.viewing != nil {
+		t.Fatal("esc não fechou")
 	}
 }

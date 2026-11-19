@@ -87,6 +87,7 @@ type model struct {
 	stickTop  int             // primeira linha visível da grade
 	autoAsked map[string]bool // figurinhas já pedidas para baixar sozinhas
 
+	viewing    *viewer    // foto aberta em tela cheia
 	play       *playback  // áudio tocando
 	rec        *recording // gravação em andamento
 	loadingOld bool
@@ -289,6 +290,9 @@ func reconnect() tea.Cmd {
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.update(msg)
 	m.prepareAvatars()
+	if v := m.viewing; v != nil && m.w > 0 {
+		m.imgs.media(v.media, m.w-4, m.h-4) // mesma chamada do viewPhoto
+	}
 	if q := m.avQueue; len(q) > 0 {
 		m.avQueue = nil
 		cmds := []tea.Cmd{cmd}
@@ -579,7 +583,14 @@ func (m *model) openMedia(i int) tea.Cmd {
 	if msg.Kind == "audio" {
 		return m.toggleAudio(i)
 	}
+	isPic := msg.Kind == "image" || msg.Kind == "sticker"
 	if msg.Media != nil {
+		// Foto no kitty abre em tela cheia dentro do zapterm; o resto (e
+		// fora do kitty) vai para o programa padrão.
+		if isPic && m.imgs.enabled && msg.Media.Preview != "" {
+			m.viewing = &viewer{media: msg.Media, caption: stripTag(msg.Text)}
+			return nil
+		}
 		if err := openExternal(msg.Media.Path); err != nil {
 			m.setFlash("xdg-open: " + err.Error())
 		}
@@ -591,7 +602,6 @@ func (m *model) openMedia(i int) tea.Cmd {
 	}
 	m.setFlash("baixando…")
 	chat, id := m.active, msg.ID
-	isPic := msg.Kind == "image" || msg.Kind == "sticker"
 	open := !(isPic && m.imgs.enabled)
 	var md ipc.Media
 	return m.call(ipc.Request{Op: ipc.OpMedia, Chat: chat, Msg: id}, &md,
