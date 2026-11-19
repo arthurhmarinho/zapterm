@@ -33,6 +33,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		m.help = false // qualquer tecla fecha a ajuda
 		return nil
 	}
+	if m.menu != nil {
+		return m.keyChatMenu(s)
+	}
 	if m.searching {
 		return m.keySearch(k)
 	}
@@ -80,6 +83,15 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return m.openStickers()
 	case "ctrl+t":
 		return m.startRec()
+	case "alt+m":
+		c, ok := m.selected()
+		if m.focus == paneChat && m.active != "" {
+			c, ok = m.activeChat, true
+		}
+		if ok {
+			m.openChatMenu(c)
+		}
+		return nil
 	case "f1", "alt+h":
 		m.help = true
 		return nil
@@ -360,6 +372,10 @@ func fuzzyChats(q string, chats []ipc.Chat) []int {
 // ---------- mouse ----------
 
 func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
+	if m.menu != nil {
+		m.menu = nil // clique fora fecha o menu
+		return nil
+	}
 	if m.viewing != nil {
 		m.viewing = nil
 		return nil
@@ -367,7 +383,7 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 	g := m.geom()
 	x, y := c.X, c.Y
 	if x < g.listW {
-		return m.clickList(g, x, y)
+		return m.clickList(g, x, y, c)
 	}
 	if m.searching {
 		m.stopSearch(false)
@@ -455,7 +471,7 @@ func (m *model) openChooser() tea.Cmd {
 	return chooseFile()
 }
 
-func (m *model) clickList(g geometry, x, y int) tea.Cmd {
+func (m *model) clickList(g geometry, x, y int, c tea.MouseClickMsg) tea.Cmd {
 	m.focus = paneList
 	switch {
 	case y == g.titleY && m.archived:
@@ -475,6 +491,10 @@ func (m *model) clickList(g geometry, x, y int) tea.Cmd {
 		i := m.offset + (y-g.itemsY)/itemH
 		if i < len(m.list) {
 			m.cursor = i
+			if c.Button == tea.MouseRight {
+				m.openChatMenu(m.list[i]) // botão direito: menu do chat
+				return nil
+			}
 			return m.open(m.list[i])
 		}
 	}

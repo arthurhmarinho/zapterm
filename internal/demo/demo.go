@@ -85,6 +85,27 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		}
 		go d.srv.Broadcast(ipc.EvMessage, m)
 		return m, nil
+	case ipc.OpChatAction:
+		for i := range d.chats {
+			c := &d.chats[i]
+			if c.JID != req.Chat {
+				continue
+			}
+			switch req.Text {
+			case "pin", "unpin":
+				c.Pinned = req.Text == "pin"
+			case "archive", "unarchive":
+				c.Archived = req.Text == "archive"
+			case "unmute":
+				c.Muted = false
+			case "mute8h", "mute1w", "muteforever":
+				c.Muted = true
+			case "read":
+				c.Unread = 0
+			}
+			go d.srv.Broadcast(ipc.EvChat, *c)
+		}
+		return nil, nil
 	case ipc.OpMembers:
 		if req.Chat == "120000000000000001@g.us" {
 			return []ipc.Member{

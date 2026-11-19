@@ -144,6 +144,12 @@ func (m *model) View() tea.View {
 		right = strings.Join(parts, "\n")
 	}
 	screen := lipgloss.JoinHorizontal(lipgloss.Top, left, divider, right) + "\n" + m.viewFooter()
+	if m.menu != nil {
+		pop := m.viewChatMenu()
+		y := max(1, min(g.itemsY+(m.cursor-m.offset)*itemH, m.h-lipgloss.Height(pop)-2))
+		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
+			lipgloss.NewLayer(pop).X(4).Y(y).Z(1)).Render()
+	}
 	v.SetContent(screen)
 
 	// Cursor real do terminal no campo em uso.
@@ -612,6 +618,9 @@ func (m *model) viewHelp() string {
 			{"enter", "envia"}, {"shift+enter", "nova linha"}, {"ctrl+v", "cola print (ou texto)"},
 			{"alt+f", "anexar arquivo"}, {"ctrl+s", "figurinhas (tab: favoritas/recentes)"},
 			{"ctrl+t", "gravar mensagem de voz"},
+		}},
+		{"Chat", [][2]string{
+			{"alt+m", "menu do chat: fixar, arquivar, silenciar, marcar como lida (ou botão direito na lista)"},
 		}},
 		{"Mensagem selecionada", [][2]string{
 			{"ctrl+r", "responder (ou botão direito)"}, {"ctrl+e", "reagir"},

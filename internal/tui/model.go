@@ -102,6 +102,7 @@ type model struct {
 	delArmedAt time.Time
 	help       bool // tela de ajuda (F1)
 
+	menu      *chatMenu // menu do chat (alt+m)
 	mention   mentionState
 	members   map[string][]ipc.Member // participantes por grupo (nil = pedido)
 	mentioned map[string]string       // \"@Nome\" escolhido → JID
@@ -416,6 +417,10 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if c, ok := m.chatByJID(m.active); ok {
 			m.activeChat = c
 		}
+		return m, nil
+
+	case flashMsg:
+		m.setFlash(string(msg))
 		return m, nil
 
 	case membersMsg:

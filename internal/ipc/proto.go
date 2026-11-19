@@ -28,6 +28,7 @@ const (
 	OpEdit        = "edit"         // troca o texto da sua mensagem Msg por Text
 	OpForward     = "forward"      // encaminha SrcChat/Msg para Chat
 	OpMembers     = "members"      // participantes de um grupo, para o "@"
+	OpChatAction  = "chat_action"  // Text: pin, unpin, archive, unarchive, mute8h, mute1w, muteforever, unmute, read
 )
 
 // Eventos empurrados pelo daemon sem pedido.

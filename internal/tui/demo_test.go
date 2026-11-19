@@ -174,3 +174,36 @@ func runCmd(m *model, cmd tea.Cmd) {
 	case <-time.After(300 * time.Millisecond):
 	}
 }
+
+func TestMenuDoChat(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	m.Update(m.loadChats()())
+	if !m.list[0].Pinned {
+		t.Fatal("a primeira da demonstração devia estar fixada")
+	}
+	m.Update(tea.KeyPressMsg{Code: 'm', Mod: tea.ModAlt})
+	if m.menu == nil || m.menu.opts[0].action != "unpin" {
+		t.Fatalf("menu: %+v", m.menu)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "Desafixar") {
+		t.Fatal("menu não apareceu na tela")
+	}
+	_, cmd := m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
+	runCmd(m, cmd)
+	if m.menu != nil || !strings.Contains(m.flash, "desafixado") {
+		t.Fatalf("ação: menu=%v flash=%q", m.menu, m.flash)
+	}
+}
