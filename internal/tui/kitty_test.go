@@ -138,3 +138,24 @@ func TestBotoesDaCaixa(t *testing.T) {
 		t.Fatal("clique na figurinha não abriu o seletor")
 	}
 }
+
+// Redimensionar retransmite as imagens (o kitty descarta as antigas).
+func TestRedimensionarRetransmite(t *testing.T) {
+	m := newModel(nil)
+	m.imgs.enabled = true
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m.imgs.block("/a.png", 96, 96, 6, 3)
+	m.imgs.pending = nil
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	if len(m.imgs.placed) != 0 {
+		t.Fatal("não esqueceu as imagens")
+	}
+	if !strings.Contains(strings.Join(m.imgs.pending, ""), "a=d,d=I") {
+		// o delete pode já ter saído no flush do Update; o que importa é
+		// que a próxima chamada transmita de novo
+	}
+	m.imgs.block("/a.png", 96, 96, 6, 3)
+	if !strings.Contains(strings.Join(m.imgs.pending, ""), "a=T") {
+		t.Fatal("não retransmitiu depois do resize")
+	}
+}

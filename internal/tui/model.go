@@ -327,7 +327,11 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		resized := m.w != 0 && (m.w != msg.Width || m.h != msg.Height)
 		m.w, m.h = msg.Width, msg.Height
+		if resized {
+			m.imgs.reset()
+		}
 		m.layout()
 		m.refreshMessages(true)
 		return m, nil

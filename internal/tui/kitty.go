@@ -126,6 +126,21 @@ func placeholder(k *kimage) string {
 	return b.String()
 }
 
+// reset esquece as imagens já transmitidas, para o próximo quadro mandar
+// tudo de novo. Necessário no redimensionamento: o kitty descarta as
+// imagens transmitidas antes dele, e os placeholders ficariam vazios.
+func (im *images) reset() {
+	if !im.enabled || len(im.placed) == 0 {
+		return
+	}
+	var b strings.Builder
+	for _, k := range im.placed {
+		fmt.Fprintf(&b, "\x1b_Ga=d,d=I,i=%d,q=2\x1b\\", k.id)
+	}
+	im.pending = append([]string{b.String()}, im.pending...)
+	im.placed = map[string]*kimage{}
+}
+
 // flush manda ao terminal as transmissões pendentes.
 func (im *images) flush() tea.Cmd {
 	if len(im.pending) == 0 {
