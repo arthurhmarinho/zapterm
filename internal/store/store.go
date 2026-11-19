@@ -7,6 +7,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -44,6 +45,16 @@ var migrations = []string{
 	 ALTER TABLE messages ADD COLUMN quote_sender TEXT NOT NULL DEFAULT '';
 	 ALTER TABLE messages ADD COLUMN quote_text TEXT NOT NULL DEFAULT '';
 	 ALTER TABLE messages ADD COLUMN raw BLOB;`,
+	// 2: edição e reações. Uma reação por pessoa por mensagem, como no app.
+	`ALTER TABLE messages ADD COLUMN edited INTEGER NOT NULL DEFAULT 0;
+	 CREATE TABLE reactions (
+		chat   TEXT NOT NULL,
+		msg_id TEXT NOT NULL,
+		sender TEXT NOT NULL,
+		emoji  TEXT NOT NULL,
+		ts     INTEGER NOT NULL,
+		PRIMARY KEY (chat, msg_id, sender)
+	 );`,
 }
 
 func migrate(db *sql.DB) error {
@@ -220,12 +231,12 @@ func (s *Store) Messages(chat string, limit int, before int64) ([]ipc.Message, e
 	return out, rows.Err()
 }
 
-const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw IS NOT NULL`
+const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw IS NOT NULL, edited`
 
 func scanMessage(r interface{ Scan(...any) error }) (ipc.Message, error) {
 	var m ipc.Message
 	var q ipc.Quote
-	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw)
+	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited)
 	if q.ID != "" {
 		m.Quote = &q
 	}
@@ -260,11 +271,87 @@ func (s *Store) Message(chat, id string) (ipc.Message, []byte, error) {
 	row := s.db.QueryRow(`SELECT `+msgCols+`, raw FROM messages WHERE chat = ? AND id = ?`, chat, id)
 	var m ipc.Message
 	var q ipc.Quote
-	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &raw)
+	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &raw)
 	if q.ID != "" {
 		m.Quote = &q
 	}
 	return m, raw, err
+}
+
+// UpdateMessage troca tipo e texto de uma mensagem (edição ou remoção) e,
+// se ela for a última do chat, a prévia da lista também. Devolve false se a
+// mensagem não existe no banco.
+func (s *Store) UpdateMessage(chat, id, kind, text string, edited bool) (bool, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(`UPDATE messages SET kind = ?, text = ?, edited = ? WHERE chat = ? AND id = ?`,
+		kind, text, edited, chat, id)
+	if err != nil {
+		return false, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return false, tx.Commit()
+	}
+	var m ipc.Message
+	var isGroup bool
+	err = tx.QueryRow(`SELECT m.sender_name, m.from_me, m.ts, c.is_group FROM messages m
+		JOIN chats c ON c.jid = m.chat WHERE m.chat = ? AND m.id = ?`, chat, id).
+		Scan(&m.SenderName, &m.FromMe, &m.TS, &isGroup)
+	if err == nil {
+		m.Chat, m.Text = chat, text
+		if _, err := tx.Exec(`UPDATE chats SET last_text = ? WHERE jid = ? AND last_ts = ?`,
+			preview(m, isGroup), chat, m.TS); err != nil {
+			return false, err
+		}
+	}
+	return true, tx.Commit()
+}
+
+// SetReaction grava (ou, com emoji vazio, remove) a reação de sender.
+func (s *Store) SetReaction(chat, msgID, sender, emoji string, ts int64) error {
+	if emoji == "" {
+		_, err := s.db.Exec(`DELETE FROM reactions WHERE chat = ? AND msg_id = ? AND sender = ?`, chat, msgID, sender)
+		return err
+	}
+	_, err := s.db.Exec(`INSERT INTO reactions (chat, msg_id, sender, emoji, ts) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (chat, msg_id, sender) DO UPDATE SET emoji = excluded.emoji, ts = excluded.ts
+		WHERE excluded.ts >= reactions.ts`, chat, msgID, sender, emoji, ts)
+	return err
+}
+
+// Reactions agrupa as reações das mensagens pedidas, por emoji, na ordem
+// em que o emoji apareceu primeiro. me marca as suas.
+func (s *Store) Reactions(chat string, ids []string, me string) (map[string][]ipc.Reaction, error) {
+	out := map[string][]ipc.Reaction{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := []any{me, chat}
+	marks := make([]string, len(ids))
+	for i, id := range ids {
+		marks[i] = "?"
+		args = append(args, id)
+	}
+	rows, err := s.db.Query(`SELECT msg_id, emoji, COUNT(*), MAX(sender = ?), MIN(ts) FROM reactions
+		WHERE chat = ? AND msg_id IN (`+strings.Join(marks, ",")+`)
+		GROUP BY msg_id, emoji ORDER BY msg_id, MIN(ts)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var r ipc.Reaction
+		var first int64
+		if err := rows.Scan(&id, &r.Emoji, &r.Count, &r.Mine, &first); err != nil {
+			return nil, err
+		}
+		out[id] = append(out[id], r)
+	}
+	return out, rows.Err()
 }
 
 func preview(m ipc.Message, isGroup bool) string {

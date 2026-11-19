@@ -91,6 +91,7 @@ type model struct {
 	autoAsked map[string]bool // figurinhas já pedidas para baixar sozinhas
 
 	viewing    *viewer    // foto aberta em tela cheia
+	reacting   bool       // barra de reações (ctrl+e) aberta
 	play       *playback  // áudio tocando
 	rec        *recording // gravação em andamento
 	loadingOld bool
@@ -495,6 +496,19 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 		m.applyFilter()
 		if c.JID == m.active {
 			m.activeChat = c
+		}
+	case ipc.EvUpdate:
+		// Mensagem editada, apagada ou com reação nova: troca no lugar.
+		var msg ipc.Message
+		if json.Unmarshal(f.Data, &msg) != nil || msg.Chat != m.active {
+			return nil
+		}
+		for i := range m.msgs {
+			if m.msgs[i].ID == msg.ID {
+				m.msgs[i] = msg
+				m.rerenderKeepingPlace()
+				break
+			}
 		}
 	case ipc.EvMessage:
 		var msg ipc.Message

@@ -33,6 +33,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.picking {
 		return m.keyStickers(k)
 	}
+	if m.reacting {
+		return m.keyReact(s)
+	}
 	if m.rec != nil {
 		switch s {
 		case "enter", "ctrl+t":
@@ -66,6 +69,12 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return m.openStickers()
 	case "ctrl+t":
 		return m.startRec()
+	case "ctrl+e":
+		if m.active != "" && m.sel() >= 0 && m.msgs[m.sel()].Kind != "revoked" {
+			m.reacting, m.picking = true, false
+			m.layout()
+		}
+		return nil
 	case "alt+f":
 		return m.openChooser()
 	case "ctrl+v":
@@ -350,6 +359,32 @@ func abs(n int) int {
 		return -n
 	}
 	return n
+}
+
+// keyReact: 1–6 escolhem a reação, 0 tira a sua, esc fecha.
+func (m *model) keyReact(s string) tea.Cmd {
+	close := func() {
+		m.reacting = false
+		m.layout()
+	}
+	switch {
+	case s == "esc" || s == "ctrl+e" || s == "ctrl+c":
+		close()
+		return nil
+	case len(s) == 1 && s[0] >= '0' && s[0] <= '6':
+		i := m.sel()
+		if i < 0 {
+			close()
+			return nil
+		}
+		emoji := ""
+		if s[0] != '0' {
+			emoji = quickReactions[s[0]-'1']
+		}
+		close()
+		return m.call(ipc.Request{Op: ipc.OpReact, Chat: m.active, Msg: m.msgs[i].ID, Text: emoji}, nil, nil)
+	}
+	return nil
 }
 
 func (m *model) openChooser() tea.Cmd {

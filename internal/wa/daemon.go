@@ -192,6 +192,9 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	if e.Info.Chat == types.StatusBroadcastJID {
 		return // status (stories) fica fora do zapterm
 	}
+	if d.onChange(ctx, e, live) {
+		return // edição, remoção ou reação: muda outra mensagem
+	}
 	kind, text := describe(e.Message)
 	if kind == "" {
 		return
@@ -236,6 +239,7 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	one := []ipc.Message{m}
 	d.fillSenders(ctx, one)
 	d.fillThumbs(one)
+	d.fillReactions(one)
 	m = one[0]
 	d.srv.Broadcast(ipc.EvMessage, m)
 	d.ensureName(chat)
@@ -266,6 +270,7 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 				continue
 			}
 			d.onMessage(ctx, evt, false)
+			d.historyReactions(ctx, jid, hm.GetMessage())
 			n++
 		}
 	}
@@ -520,6 +525,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		}
 		d.fillSenders(ctx, msgs)
 		d.fillThumbs(msgs)
+		d.fillReactions(msgs)
 		return msgs, nil
 	case ipc.OpSend:
 		return d.send(ctx, req.Chat, req.Text, req.ReplyTo)
@@ -541,6 +547,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		sctx, scancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer scancel()
 		return d.sendSticker(sctx, req.Chat, req.SrcChat, req.Msg, req.ReplyTo)
+	case ipc.OpReact:
+		return nil, d.react(ctx, req.Chat, req.Msg, req.Text)
 	case ipc.OpSendFile:
 		fctx, fcancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer fcancel()
@@ -633,6 +641,7 @@ func (d *Daemon) sendAndStore(ctx context.Context, jid types.JID, msg *waE2E.Mes
 	one := []ipc.Message{m}
 	d.fillSenders(ctx, one)
 	d.fillThumbs(one)
+	d.fillReactions(one)
 	m = one[0]
 	if afterSend != nil {
 		m.Media = afterSend(m.ID)

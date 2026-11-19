@@ -241,18 +241,44 @@ func (r msgRenderer) render(msgs []ipc.Message) (string, [][2]int) {
 func (r msgRenderer) bubbleRow(m ipc.Message, firstOfRun, selected bool) string {
 	maxW := max(20, r.w*3/4)
 	if m.FromMe {
-		return lipgloss.PlaceHorizontal(r.w, lipgloss.Right, r.bubble(m, maxW, false, selected))
+		b := withReactions(r.bubble(m, maxW, false, selected), m.Reactions, lipgloss.Right)
+		return lipgloss.PlaceHorizontal(r.w, lipgloss.Right, b)
 	}
 	if !r.isGroup {
-		return r.bubble(m, maxW, false, selected)
+		return withReactions(r.bubble(m, maxW, false, selected), m.Reactions, lipgloss.Left)
 	}
 	left := strings.TrimSuffix(strings.Repeat(strings.Repeat(" ", avatarSmallCols)+"\n", avatarSmallRows), "\n")
 	if firstOfRun && r.avatar != nil {
 		left = r.avatar(m.Sender, m.SenderName)
 	}
-	b := r.bubble(m, maxW-avatarSmallCols-1, firstOfRun, selected)
+	b := withReactions(r.bubble(m, maxW-avatarSmallCols-1, firstOfRun, selected), m.Reactions, lipgloss.Left)
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, " ", b)
 }
+
+// withReactions põe as reações numa linha logo abaixo do balão, do lado
+// dele: "❤️ 2  👍". As suas ficam na cor de acento.
+func withReactions(bubble string, rs []ipc.Reaction, align lipgloss.Position) string {
+	if len(rs) == 0 {
+		return bubble
+	}
+	var parts []string
+	for _, r := range rs {
+		t := r.Emoji
+		if r.Count > 1 {
+			t += " " + fmt.Sprint(r.Count)
+		}
+		if r.Mine {
+			parts = append(parts, sGreen.Bold(true).Render(t))
+		} else {
+			parts = append(parts, sText2.Render(t))
+		}
+	}
+	line := " " + strings.Join(parts, "  ") + " "
+	return lipgloss.JoinVertical(align, bubble, line)
+}
+
+// quickReactions são as reações da barra do ctrl+e, as mesmas do app.
+var quickReactions = []string{"❤️", "👍", "😂", "😮", "😢", "🙏"}
 
 // bubble desenha o balão com borda arredondada, no estilo de terminal:
 // seus em ciano, dos outros em cinza, o selecionado com borda grossa na
@@ -261,7 +287,7 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 	inner := maxW - 4 // borda + padding
 
 	pic, thumb := "", false
-	if r.imgs != nil {
+	if r.imgs != nil && m.Kind != "revoked" {
 		cols, rows := min(inner, 44), 22
 		if m.Kind == "sticker" {
 			cols, rows = min(inner, 16), 8
@@ -276,6 +302,12 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 	}
 	text := m.Text
 	switch {
+	case m.Kind == "revoked":
+		t := "Mensagem apagada"
+		if m.FromMe {
+			t = "Você apagou esta mensagem"
+		}
+		text = sText2.Italic(true).Render("🚫 " + t)
 	case m.Kind == "audio" && (m.HasRaw || m.Media != nil):
 		text = r.audioLine(m, inner)
 	case pic != "" && thumb:
@@ -321,7 +353,11 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 		lines = append(lines, ansi.Wrap(text, inner, " "))
 	}
 	content := strings.Join(lines, "\n")
-	stamp := sText2.Render(time.UnixMilli(m.TS).Format("15:04"))
+	stampText := time.UnixMilli(m.TS).Format("15:04")
+	if m.Edited && m.Kind != "revoked" {
+		stampText = "editada " + stampText
+	}
+	stamp := sText2.Render(stampText)
 	cw := min(inner, max(lipgloss.Width(content), lipgloss.Width(stamp)))
 	content += "\n" + lipgloss.PlaceHorizontal(cw, lipgloss.Right, stamp)
 

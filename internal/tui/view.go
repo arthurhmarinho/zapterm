@@ -75,6 +75,8 @@ func (m *model) extraHeight() int {
 	switch {
 	case m.rec != nil:
 		return 3
+	case m.reacting:
+		return 3
 	case m.picking:
 		return 1 + 2*stickCellH
 	case m.attach != nil && m.attach.image:
@@ -335,6 +337,15 @@ func (m *model) viewExtra(g geometry) string {
 	if m.picking {
 		return fitHeight(m.viewStickers(w), cDefault, w, g.extraH)
 	}
+	if m.reacting {
+		var opts []string
+		for i, e := range quickReactions {
+			opts = append(opts, sText2.Render(fmt.Sprint(i+1))+" "+e)
+		}
+		line := "  " + sText.Render("Reagir:") + "  " + strings.Join(opts, "   ") + "    " +
+			sText2.Render("0 tira a sua · esc fecha")
+		return fitHeight("\n"+line, cDefault, w, g.extraH)
+	}
 	if r := m.rec; r != nil {
 		secs := int(time.Since(r.started).Seconds())
 		line := "  " + fg(cDanger).Render(icons.rec+" gravando") + " " + sText.Render(fmtDur(secs)) + "   " +
@@ -427,10 +438,12 @@ func (m *model) viewFooter() string {
 		help = "setas escolhem · enter ou clique envia · esc fecha"
 	case m.rec != nil:
 		help = "gravando pelo microfone · enter envia · esc descarta"
+	case m.reacting:
+		help = "1–6 reage · 0 tira a sua reação · esc fecha"
 	case m.focus == paneList:
 		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pesquisar · alt+1..4 filtros · alt+a arquivadas · ctrl+c sair"
 	default:
-		help = "↑/↓ mensagem · ctrl+r responder · ctrl+o abrir/ouvir · ctrl+t gravar · ctrl+v print · ctrl+s figurinha · alt+f anexar"
+		help = "↑/↓ mensagem · ctrl+r responder · ctrl+e reagir · ctrl+o abrir/ouvir · ctrl+t gravar · ctrl+v print · ctrl+s figurinha · alt+f anexar"
 	}
 	left := sText2.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {

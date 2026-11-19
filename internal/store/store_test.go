@@ -81,3 +81,54 @@ func TestCitacaoERaw(t *testing.T) {
 	}
 	s2.Close()
 }
+
+func TestEdicaoRemocaoReacoes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "t.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	const c = "1@s.whatsapp.net"
+	s.SaveMessage(ipc.Message{ID: "a", Chat: c, Sender: c, TS: 1, Kind: "text", Text: "oi"}, nil, false, false)
+	s.SaveMessage(ipc.Message{ID: "b", Chat: c, Sender: c, TS: 2, Kind: "text", Text: "tudo bem?"}, nil, false, false)
+
+	// Editar a última muda a prévia; editar a anterior não.
+	if ok, _ := s.UpdateMessage(c, "b", "text", "tudo certo?", true); !ok {
+		t.Fatal("não achou a mensagem")
+	}
+	if ch, _ := s.Chat(c); ch.LastText != "tudo certo?" {
+		t.Fatalf("prévia: %q", ch.LastText)
+	}
+	s.UpdateMessage(c, "a", "revoked", "", false)
+	if ch, _ := s.Chat(c); ch.LastText != "tudo certo?" {
+		t.Fatalf("apagar a anterior mexeu na prévia: %q", ch.LastText)
+	}
+	msgs, _ := s.Messages(c, 10, 0)
+	if msgs[0].Kind != "revoked" || !msgs[1].Edited || msgs[1].Text != "tudo certo?" {
+		t.Fatalf("mensagens: %+v", msgs)
+	}
+	if ok, _ := s.UpdateMessage(c, "nao-existe", "text", "x", true); ok {
+		t.Fatal("atualizou mensagem inexistente")
+	}
+
+	// Reações: uma por pessoa; trocar substitui; vazio remove.
+	s.SetReaction(c, "b", "eu", "❤️", 10)
+	s.SetReaction(c, "b", "ana", "❤️", 11)
+	s.SetReaction(c, "b", "bia", "😂", 12)
+	s.SetReaction(c, "b", "bia", "👍", 13)
+	s.SetReaction(c, "b", "ana", "", 14)
+	rs, err := s.Reactions(c, []string{"a", "b"}, "eu")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := rs["b"]
+	if len(got) != 2 || got[0].Emoji != "❤️" || got[0].Count != 1 || !got[0].Mine || got[1].Emoji != "👍" || got[1].Mine {
+		t.Fatalf("reações: %+v", got)
+	}
+	// Reação antiga chegando atrasada não sobrescreve a nova.
+	s.SetReaction(c, "b", "bia", "😢", 5)
+	if rs, _ := s.Reactions(c, []string{"b"}, "eu"); rs["b"][1].Emoji != "👍" {
+		t.Fatalf("reação velha venceu: %+v", rs["b"])
+	}
+}

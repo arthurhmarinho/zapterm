@@ -22,6 +22,7 @@ const (
 	OpSendSticker = "send_sticker" // reenvia a figurinha da mensagem SrcChat/Msg em Chat
 	OpSendAudio   = "send_audio"   // envia o OGG/Opus em Path como mensagem de voz
 	OpSendFile    = "send_file"    // envia o arquivo em Path (foto, vídeo, áudio ou documento)
+	OpReact       = "react"        // reage à mensagem Msg com o emoji em Text ("" remove)
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -30,6 +31,7 @@ const (
 	EvChat    = "chat"    // chat mudou (nome, não lidas, última mensagem)
 	EvStatus  = "status"  // conectou, desconectou, sincronizando
 	EvReload  = "reload"  // muita coisa mudou (history sync): recarregue a lista
+	EvUpdate  = "update"  // mensagem existente mudou (editada, apagada, reação)
 )
 
 // Request vai da TUI para o daemon.
@@ -119,6 +121,16 @@ type Message struct {
 	// HasRaw diz se a mensagem guarda o protobuf original, ou seja, se a
 	// mídia dela pode ser baixada.
 	HasRaw bool `json:"has_raw,omitempty"`
+	// Edited: o autor editou depois de enviar. Kind "revoked" = apagada.
+	Edited    bool       `json:"edited,omitempty"`
+	Reactions []Reaction `json:"reactions,omitempty"`
+}
+
+// Reaction agrupa as reações de um emoji numa mensagem.
+type Reaction struct {
+	Emoji string `json:"emoji"`
+	Count int    `json:"count"`
+	Mine  bool   `json:"mine,omitempty"`
 }
 
 // Quote é o trecho citado de uma resposta.

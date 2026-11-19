@@ -47,7 +47,7 @@ func TestGravacaoFechaArquivo(t *testing.T) {
 	time.Sleep(1500 * time.Millisecond)
 	done, ok := m.finishRec(true)().(recDoneMsg)
 	if !ok || done.err != nil || !done.send {
-		t.Fatalf("finishRec: %+v", done)
+		t.Fatalf("finishRec: %+v (%v)", done, done.err)
 	}
 	if done.seconds < 1 {
 		t.Fatalf("duração %d", done.seconds)
@@ -74,5 +74,20 @@ func TestMediaLabelComDuracao(t *testing.T) {
 	}
 	if got := videoLabel("[vídeo 0:32] olha isso"); got != icons.play+" Vídeo 0:32" {
 		t.Errorf("videoLabel: %q", got)
+	}
+}
+
+func TestApagadaEditadaReacoes(t *testing.T) {
+	r := msgRenderer{w: 80, sel: -2}
+	content, _ := r.render([]ipc.Message{
+		{ID: "a", Kind: "revoked", TS: 1},
+		{ID: "b", Kind: "text", Text: "oi de novo", Edited: true, TS: 2,
+			Reactions: []ipc.Reaction{{Emoji: "👍", Count: 2, Mine: true}, {Emoji: "😂", Count: 1}}},
+	})
+	out := ansi.Strip(content)
+	for _, want := range []string{"Mensagem apagada", "editada", "oi de novo", "👍 2", "😂"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("faltou %q em:\n%s", want, out)
+		}
 	}
 }

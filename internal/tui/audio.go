@@ -183,6 +183,20 @@ func (m *model) finishRec(send bool) tea.Cmd {
 	m.layout()
 	secs := int(time.Since(r.started).Round(time.Second).Seconds())
 	return func() tea.Msg {
+		// O gst-launch só trata o SIGINT (fechando o arquivo) depois que o
+		// pipeline está rodando; antes disso o sinal mata o processo e a
+		// gravação some. Espera o cabeçalho do OGG aparecer no disco (sinal
+		// de que está rodando), por até 3s, e só então para.
+		for wait := 0; wait < 60; wait++ {
+			if st, err := os.Stat(r.path); err == nil && st.Size() > 0 {
+				break
+			}
+			select {
+			case <-r.done:
+				return recDoneMsg{err: fmt.Errorf("o gravador parou sozinho (microfone?)")}
+			case <-time.After(50 * time.Millisecond):
+			}
+		}
 		syscall.Kill(-r.cmd.Process.Pid, syscall.SIGINT)
 		var err error
 		select {
