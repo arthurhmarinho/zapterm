@@ -57,8 +57,7 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
 	defer cancel()
 	// Silenciado ou arquivado no celular não notifica. Arquivado conta como
 	// silenciado, como no app com "manter conversas arquivadas".
-	if s, err := d.cli.Store.ChatSettings.GetChatSettings(ctx, chat); err == nil && s.Found &&
-		(s.MutedUntil.After(time.Now()) || s.Archived) {
+	if s := d.chatSettings(ctx, chat); s.MutedUntil.After(time.Now()) || s.Archived {
 		return
 	}
 

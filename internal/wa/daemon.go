@@ -393,11 +393,42 @@ func (d *Daemon) decorate(ctx context.Context, c *ipc.Chat) {
 	default:
 		c.Kind = "dm"
 	}
-	if s, err := d.cli.Store.ChatSettings.GetChatSettings(ctx, jid); err == nil && s.Found {
-		c.Archived = s.Archived
-		c.Pinned = s.Pinned
-		c.Muted = s.MutedUntil.After(time.Now())
+	s := d.chatSettings(ctx, jid)
+	c.Archived = s.Archived
+	c.Pinned = s.Pinned
+	c.Muted = s.MutedUntil.After(time.Now())
+}
+
+// chatSettings junta as configurações do celular gravadas pelo número e
+// pelo LID: o WhatsApp grava a maioria pelo LID (314 de 435 na conta dele),
+// e o zapterm guarda os chats pelo número. Procurar só pelo número perdia
+// fixados, arquivados e silenciados.
+func (d *Daemon) chatSettings(ctx context.Context, jid types.JID) types.LocalChatSettings {
+	var out types.LocalChatSettings
+	merge := func(j types.JID) {
+		s, err := d.cli.Store.ChatSettings.GetChatSettings(ctx, j)
+		if err != nil || !s.Found {
+			return
+		}
+		out.Found = true
+		out.Archived = out.Archived || s.Archived
+		out.Pinned = out.Pinned || s.Pinned
+		if s.MutedUntil.After(out.MutedUntil) {
+			out.MutedUntil = s.MutedUntil
+		}
 	}
+	merge(jid)
+	switch jid.Server {
+	case types.DefaultUserServer:
+		if lid, err := d.cli.Store.LIDs.GetLIDForPN(ctx, jid); err == nil && !lid.IsEmpty() {
+			merge(lid)
+		}
+	case types.HiddenUserServer:
+		if pn, err := d.cli.Store.LIDs.GetPNForLID(ctx, jid); err == nil && !pn.IsEmpty() {
+			merge(pn)
+		}
+	}
+	return out
 }
 
 func (d *Daemon) fillName(ctx context.Context, c *ipc.Chat) {
