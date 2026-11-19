@@ -3,9 +3,11 @@ package wa
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"go.mau.fi/whatsmeow/types"
@@ -13,18 +15,18 @@ import (
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
 
-// notifier mostra notificações pelo notify-send (o servidor no Sway é o do
-// Noctalia). Cada chat tem uma única notificação, substituída a cada
-// mensagem nova, com a contagem desde a última vez que você olhou.
+// notifier decide quando notificar; quem mostra é o desktop (D-Bus). Cada
+// chat tem uma única notificação, substituída a cada mensagem nova, com a
+// contagem desde a última vez que você olhou.
 type notifier struct {
 	mu      sync.Mutex
-	ids     map[string]string // chat -> id da notificação no servidor
+	ids     map[string]uint32 // chat -> id da notificação no servidor
 	pending map[string]int    // chat -> mensagens desde que você olhou
 	viewing map[uint64]string // conexão da TUI -> chat aberto com foco
 }
 
 func newNotifier() *notifier {
-	return &notifier{ids: map[string]string{}, pending: map[string]int{}, viewing: map[uint64]string{}}
+	return &notifier{ids: map[string]uint32{}, pending: map[string]int{}, viewing: map[uint64]string{}}
 }
 
 // setViewing registra o chat que uma TUI está mostrando com o terminal em
@@ -93,23 +95,56 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
 		body = string(r[:199]) + "…"
 	}
 
-	args := []string{"-a", "zapterm", "-c", "im.received", "-p", "-h", "string:x-zapterm-chat:" + m.Chat}
 	// Foto do chat (de quem mandou, ou do grupo) como ícone, se houver.
+	icon := ""
 	if av, err := d.avatar(ctx, chat.String()); err == nil && av != nil && av.Preview != "" {
-		args = append(args, "-i", av.Preview, "-h", "string:image-path:"+av.Preview)
+		icon = av.Preview
 	}
-	if prevID != "" {
-		args = append(args, "-r", prevID)
-	}
-	args = append(args, "--", title, body)
-	out, err := exec.CommandContext(ctx, "notify-send", args...).Output()
-	if err != nil {
-		d.log.Warn("notify-send", "err", err)
+	if d.desk == nil {
+		d.log.Warn("sem servidor de notificações no D-Bus")
 		return
 	}
-	if id := strings.TrimSpace(string(out)); id != "" {
-		n.mu.Lock()
-		n.ids[m.Chat] = id
-		n.mu.Unlock()
+	id, err := d.desk.show(m.Chat, title, body, icon, prevID)
+	if err != nil {
+		d.log.Warn("notificação", "err", err)
+		return
 	}
+	n.mu.Lock()
+	n.ids[m.Chat] = id
+	n.mu.Unlock()
+}
+
+// openFromNotification: clicou na notificação. Com uma TUI aberta, ela
+// abre o chat e põe a janela em foco; sem nenhuma, abre um kitty novo já
+// nesse chat.
+func (d *Daemon) openFromNotification(chat string) {
+	if d.srv.Clients() > 0 {
+		d.srv.Broadcast(ipc.EvOpen, ipc.Open{Chat: chat})
+		return
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	cmd := exec.Command("kitty", "--class", "zapterm", exe)
+	cmd.Env = append(os.Environ(), "ZAPTERM_OPEN="+chat)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		d.log.Warn("abrindo o zapterm pela notificação", "err", err)
+	}
+}
+
+// replyFromNotification envia o texto digitado na própria notificação e
+// marca o chat como lido (você respondeu, então viu).
+func (d *Daemon) replyFromNotification(chat, text string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if _, err := d.send(ctx, chat, text, "", nil); err != nil {
+		d.log.Warn("resposta pela notificação", "err", err)
+		return
+	}
+	d.notif.mu.Lock()
+	delete(d.notif.pending, chat)
+	d.notif.mu.Unlock()
+	_ = d.markRead(ctx, chat)
 }

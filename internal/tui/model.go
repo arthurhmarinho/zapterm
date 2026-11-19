@@ -103,7 +103,8 @@ type model struct {
 	delArmedAt time.Time
 	help       bool // tela de ajuda (F1)
 
-	menu *chatMenu // menu do chat (alt+m)
+	menu        *chatMenu // menu do chat (alt+m)
+	pendingOpen ipc.Chat  // chat a abrir assim que possível (notificação, ZAPTERM_OPEN)
 
 	hits       []ipc.SearchHit // resultados da busca no texto
 	hitsQuery  string
@@ -188,6 +189,9 @@ func Run() error {
 	}
 	m := newModel(cli)
 	m.autoOpen = os.Getenv("ZAPTERM_DEMO") != ""
+	if jid := os.Getenv("ZAPTERM_OPEN"); jid != "" {
+		m.pendingOpen = ipc.Chat{JID: jid, Name: jid, LastStatus: -1}
+	}
 	defer func() { m.cli.Close() }()
 	_, err = tea.NewProgram(m).Run()
 	m.cleanupAudio()
@@ -416,6 +420,9 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chats = msg
 		m.sortChats()
 		m.applyFilter()
+		if m.pendingOpen.JID != "" {
+			return m, m.flushPendingOpen()
+		}
 		if m.autoOpen && m.active == "" && len(m.list) > 0 {
 			m.autoOpen = false
 			return m, m.open(m.list[0])
@@ -581,6 +588,12 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 		m.applyFilter()
 		if c.JID == m.active {
 			m.activeChat = c
+		}
+	case ipc.EvOpen:
+		var o ipc.Open
+		if json.Unmarshal(f.Data, &o) == nil && o.Chat != "" {
+			m.openRequested(o.Chat)
+			return m.flushPendingOpen()
 		}
 	case ipc.EvPresence:
 		return m.onPresence(f)
@@ -1211,4 +1224,22 @@ func (m *model) refreshMessages(toBottom bool) {
 	if toBottom {
 		m.vp.GotoBottom()
 	}
+}
+
+// flushPendingOpen abre o chat pendente, com o nome da lista se ela já
+// tiver chegado.
+func (m *model) flushPendingOpen() tea.Cmd {
+	c := m.pendingOpen
+	if c.JID == "" {
+		return nil
+	}
+	m.pendingOpen = ipc.Chat{}
+	if cur, ok := m.chatByJID(c.JID); ok {
+		c = cur
+	}
+	if m.searching {
+		m.stopSearch(true)
+	}
+	m.active = "" // força recarregar mesmo se for o chat já aberto
+	return m.open(c)
 }

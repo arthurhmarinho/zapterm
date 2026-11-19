@@ -41,6 +41,7 @@ const (
 	EvReload   = "reload"   // muita coisa mudou (history sync): recarregue a lista
 	EvUpdate   = "update"   // mensagem existente mudou (editada, apagada, reação, recibo)
 	EvPresence = "presence" // digitando, gravando, online, visto por último
+	EvOpen     = "open"     // abra este chat (clique na notificação)
 )
 
 // Request vai da TUI para o daemon.
@@ -164,6 +165,11 @@ type Presence struct {
 	Recording bool   `json:"recording,omitempty"`
 	Online    *bool  `json:"online,omitempty"` // nil = sem informação nova
 	LastSeen  int64  `json:"last_seen,omitempty"`
+}
+
+// Open pede à TUI que abra um chat.
+type Open struct {
+	Chat string `json:"chat"`
 }
 
 // SearchHit é um resultado da busca no texto das mensagens.

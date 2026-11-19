@@ -75,6 +75,13 @@ func (s *Server) Serve() error {
 
 func (s *Server) Close() error { return s.ln.Close() }
 
+// Clients diz quantas TUIs estão conectadas.
+func (s *Server) Clients() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.clients)
+}
+
 // Broadcast manda um evento para todas as TUIs conectadas. Cliente lento
 // demais (fila cheia) é desconectado em vez de travar o daemon.
 func (s *Server) Broadcast(event string, data any) {

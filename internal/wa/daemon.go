@@ -43,6 +43,7 @@ type Daemon struct {
 	groupNameFetch sync.Map // jid -> struct{}: evita buscar o mesmo grupo duas vezes
 	notif          *notifier
 	avatars        *avatars
+	desk           *desktop // servidor de notificações (D-Bus); nil sem sessão gráfica
 }
 
 // Run sobe o daemon e só volta quando ctx for cancelado ou algo fatal ocorrer.
@@ -87,6 +88,11 @@ func Run(ctx context.Context, opt Options) error {
 		return err
 	}
 	defer d.srv.Close()
+	if desk, err := newDesktop(d.openFromNotification, d.replyFromNotification); err != nil {
+		log.Warn("notificações desligadas: sem D-Bus da sessão", "err", err)
+	} else {
+		d.desk = desk
+	}
 	d.srv.OnClose = func(conn uint64) {
 		d.notif.setViewing(conn, "")
 		d.syncAvailability()
