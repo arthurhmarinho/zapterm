@@ -29,6 +29,7 @@ const (
 	OpForward     = "forward"      // encaminha SrcChat/Msg para Chat
 	OpMembers     = "members"      // participantes de um grupo, para o "@"
 	OpChatAction  = "chat_action"  // Text: pin, unpin, archive, unarchive, mute8h, mute1w, muteforever, unmute, read
+	OpCheckNumber = "check_number" // Text: telefone com DDI; devolve o chat se tiver WhatsApp
 )
 
 // Eventos empurrados pelo daemon sem pedido.

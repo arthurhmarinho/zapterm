@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -419,6 +420,17 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case checkedMsg:
+		c := *msg.chat
+		if c.Name == "" {
+			c.Name = c.JID
+		}
+		if m.chatIndex(c.JID) < 0 {
+			m.chats = append(m.chats, c)
+		}
+		m.flash = ""
+		return m, m.open(c)
+
 	case flashMsg:
 		m.setFlash(string(msg))
 		return m, nil
@@ -617,7 +629,21 @@ func (m *model) onMessages(msg msgsMsg) tea.Cmd {
 
 // ---------- ações ----------
 
+// newChatMarker prefixa o JID da entrada "Nova conversa com…" da busca.
+const newChatMarker = "novo:"
+
+var phoneRe = regexp.MustCompile(`^\+?[\d\s().-]{10,}$`)
+
+type checkedMsg struct{ chat *ipc.Chat }
+
 func (m *model) open(c ipc.Chat) tea.Cmd {
+	if strings.HasPrefix(c.JID, newChatMarker) {
+		// Confere o número antes; a resposta abre o chat (checkedMsg).
+		var out ipc.Chat
+		m.setFlash("conferindo o número…")
+		return m.call(ipc.Request{Op: ipc.OpCheckNumber, Text: strings.TrimPrefix(c.JID, newChatMarker)}, &out,
+			func() tea.Msg { return checkedMsg{&out} })
+	}
 	m.focus = paneChat
 	stop := m.stopTyping()
 	if m.searching {
@@ -951,6 +977,11 @@ func (m *model) applyFilter() {
 	sel := m.selectedJID()
 	var list []ipc.Chat
 	if q := m.searchQuery(); q != "" {
+		// Telefone com DDI: primeira opção é abrir conversa nova com ele.
+		if phoneRe.MatchString(q) {
+			list = append(list, ipc.Chat{JID: newChatMarker + q, Name: "Nova conversa com " + q, Kind: "dm",
+				LastText: "enter confere se o número tem WhatsApp e abre", LastStatus: -1})
+		}
 		for _, i := range fuzzyChats(q, m.chats) {
 			list = append(list, m.chats[i])
 		}

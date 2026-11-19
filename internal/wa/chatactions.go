@@ -3,12 +3,15 @@ package wa
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
 
 // chatAction fixa, arquiva, silencia ou marca como lida uma conversa, pelo
@@ -63,4 +66,32 @@ func (d *Daemon) chatAction(ctx context.Context, chat, action string) error {
 	}
 	d.pushChat(chat)
 	return nil
+}
+
+// checkNumber confere se um telefone tem WhatsApp e devolve o chat dele
+// (existente ou novo), para abrir uma conversa nova pela busca.
+func (d *Daemon) checkNumber(ctx context.Context, phone string) (*ipc.Chat, error) {
+	digits := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, phone)
+	if len(digits) < 10 {
+		return nil, fmt.Errorf("número curto demais: use DDI e DDD (ex.: +55 84 9…)")
+	}
+	res, err := d.cli.IsOnWhatsApp(ctx, []string{"+" + digits})
+	if err != nil {
+		return nil, err
+	}
+	if len(res) == 0 || !res[0].IsIn {
+		return nil, fmt.Errorf("+%s não tem WhatsApp", digits)
+	}
+	jid := res[0].JID.ToNonAD()
+	c, err := d.st.Chat(jid.String())
+	if err != nil {
+		c = ipc.Chat{JID: jid.String(), LastStatus: -1}
+	}
+	d.decorate(ctx, &c)
+	return &c, nil
 }

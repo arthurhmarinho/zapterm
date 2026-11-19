@@ -554,6 +554,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return msgs, nil
 	case ipc.OpSend:
 		return d.send(ctx, req.Chat, req.Text, req.ReplyTo, req.Mentions)
+	case ipc.OpCheckNumber:
+		return d.checkNumber(ctx, req.Text)
 	case ipc.OpChatAction:
 		return nil, d.chatAction(ctx, req.Chat, req.Text)
 	case ipc.OpMembers:
