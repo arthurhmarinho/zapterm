@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os/exec"
 	"strings"
 	"time"
 
@@ -28,6 +29,10 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	}
+	if m.help {
+		m.help = false // qualquer tecla fecha a ajuda
+		return nil
+	}
 	if m.searching {
 		return m.keySearch(k)
 	}
@@ -51,9 +56,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	case "ctrl+c":
 		// Como no Claude Code: limpa o que está escrito; com tudo vazio, o
 		// segundo ctrl+c sai.
-		if m.input.Value() != "" || m.replyTo != nil || m.attach != nil {
+		if m.input.Value() != "" || m.replyTo != nil || m.attach != nil || m.editing != nil {
 			m.input.Reset()
-			m.replyTo, m.attach = nil, nil
+			m.replyTo, m.attach, m.editing = nil, nil, nil
 			m.layout()
 			return nil
 		}
@@ -70,6 +75,17 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return m.openStickers()
 	case "ctrl+t":
 		return m.startRec()
+	case "f1", "alt+h":
+		m.help = true
+		return nil
+	case "alt+c":
+		return m.copySelected()
+	case "alt+e":
+		return m.startEdit()
+	case "alt+d":
+		return m.revokeSelected()
+	case "alt+w":
+		return m.startForward()
 	case "ctrl+e":
 		if m.active != "" && m.sel() >= 0 && m.msgs[m.sel()].Kind != "revoked" {
 			m.reacting, m.picking = true, false
@@ -99,6 +115,10 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case "esc":
 		switch {
+		case m.editing != nil:
+			m.editing = nil
+			m.input.Reset()
+			m.layout()
 		case m.attach != nil:
 			m.attach = nil
 			m.layout()
@@ -216,13 +236,24 @@ func (m *model) keyStickers(k tea.KeyPressMsg) tea.Cmd {
 func (m *model) keySearch(k tea.KeyPressMsg) tea.Cmd {
 	switch k.String() {
 	case "esc", "ctrl+c":
+		if m.forwarding != nil {
+			m.forwarding = nil
+			m.setFlash("encaminhamento cancelado")
+		}
 		m.stopSearch(true)
 		return nil
 	case "enter":
-		if c, ok := m.selected(); ok {
-			return m.open(c)
+		c, ok := m.selected()
+		if !ok {
+			return nil
 		}
-		return nil
+		if f := m.forwarding; f != nil {
+			m.forwarding = nil
+			m.stopSearch(true)
+			m.setFlash("encaminhando para " + c.Name + "…")
+			return m.send(ipc.Request{Op: ipc.OpForward, Chat: c.JID, SrcChat: f.Chat, Msg: f.ID})
+		}
+		return m.open(c)
 	case "up", "ctrl+k":
 		m.moveCursor(-1)
 		return nil
@@ -242,6 +273,12 @@ func (m *model) keySearch(k tea.KeyPressMsg) tea.Cmd {
 
 func (m *model) onEnter() tea.Cmd {
 	text := strings.TrimSpace(m.input.Value())
+	if e := m.editing; e != nil {
+		m.editing = nil
+		m.input.Reset()
+		m.layout()
+		return m.call(ipc.Request{Op: ipc.OpEdit, Chat: e.Chat, Msg: e.ID, Text: text}, nil, nil)
+	}
 	if a := m.attach; a != nil {
 		// send_file decide pelo tipo: foto, vídeo, áudio ou documento.
 		req := ipc.Request{Op: ipc.OpSendFile, Chat: m.active, Path: a.path, Text: text}
@@ -466,4 +503,90 @@ func (m *model) onWheel(w tea.MouseWheelMsg) tea.Cmd {
 		m.vp.ScrollDown(d)
 	}
 	return m.maybeLoadOlder()
+}
+
+// ---------- ações na mensagem selecionada ----------
+
+func (m *model) selectedMsg() (ipc.Message, bool) {
+	i := m.sel()
+	if m.active == "" || i < 0 {
+		return ipc.Message{}, false
+	}
+	return m.msgs[i], true
+}
+
+// copySelected copia o texto da mensagem (com a formatação do WhatsApp,
+// como o app copia) para a área de transferência.
+func (m *model) copySelected() tea.Cmd {
+	msg, ok := m.selectedMsg()
+	if !ok || msg.Kind == "revoked" {
+		return nil
+	}
+	text := msg.Text
+	if msg.Kind != "text" {
+		text = stripTag(text) // legenda, sem o marcador "[imagem]"
+	}
+	if text == "" {
+		m.setFlash("essa mensagem não tem texto")
+		return nil
+	}
+	cmd := exec.Command("wl-copy")
+	cmd.Stdin = strings.NewReader(text)
+	if err := cmd.Run(); err != nil {
+		m.setFlash("wl-copy: " + err.Error())
+		return nil
+	}
+	m.setFlash("copiado")
+	return nil
+}
+
+func (m *model) startEdit() tea.Cmd {
+	msg, ok := m.selectedMsg()
+	switch {
+	case !ok:
+		return nil
+	case !msg.FromMe || msg.Kind != "text":
+		m.setFlash("só dá para editar mensagem de texto sua")
+		return nil
+	case time.Since(time.UnixMilli(msg.TS)) > 15*time.Minute:
+		m.setFlash("o WhatsApp só deixa editar até 15 minutos depois")
+		return nil
+	}
+	m.editing, m.replyTo, m.attach = &msg, nil, nil
+	m.input.SetValue(msg.Text)
+	m.layout()
+	return nil
+}
+
+// revokeSelected apaga para todos; pede o alt+d duas vezes.
+func (m *model) revokeSelected() tea.Cmd {
+	msg, ok := m.selectedMsg()
+	switch {
+	case !ok || msg.Kind == "revoked":
+		return nil
+	case !msg.FromMe:
+		m.setFlash("só dá para apagar para todos as suas mensagens")
+		return nil
+	case time.Since(time.UnixMilli(msg.TS)) > 60*time.Hour:
+		m.setFlash("o WhatsApp só deixa apagar para todos até ~60 horas depois")
+		return nil
+	}
+	if m.delArmed != msg.ID || time.Since(m.delArmedAt) > 4*time.Second {
+		m.delArmed, m.delArmedAt = msg.ID, time.Now()
+		m.setFlash("alt+d de novo para apagar para todos")
+		return nil
+	}
+	m.delArmed = ""
+	return m.call(ipc.Request{Op: ipc.OpRevoke, Chat: msg.Chat, Msg: msg.ID}, nil, nil)
+}
+
+func (m *model) startForward() tea.Cmd {
+	msg, ok := m.selectedMsg()
+	if !ok || msg.Kind == "revoked" {
+		return nil
+	}
+	m.forwarding = &msg
+	m.startSearch()
+	m.setFlash("escolha o chat e aperte enter para encaminhar")
+	return nil
 }

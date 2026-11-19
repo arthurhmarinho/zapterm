@@ -77,6 +77,8 @@ func (m *model) extraHeight() int {
 		return 3
 	case m.reacting:
 		return 3
+	case m.editing != nil:
+		return 4
 	case m.picking:
 		return 1 + 2*stickCellH
 	case m.attach != nil && m.attach.image:
@@ -118,6 +120,10 @@ func (m *model) View() tea.View {
 	}
 	if m.viewing != nil {
 		v.SetContent(m.viewPhoto())
+		return v
+	}
+	if m.help {
+		v.SetContent(m.viewHelp())
 		return v
 	}
 	g := m.geom()
@@ -346,6 +352,11 @@ func (m *model) viewExtra(g geometry) string {
 	if m.picking {
 		return fitHeight(m.viewStickers(w), cDefault, w, g.extraH)
 	}
+	if e := m.editing; e != nil {
+		q := quoteBlock(&ipc.Quote{Sender: e.Sender, SenderName: "Editando mensagem  (enter salva · esc cancela)",
+			Text: e.Text}, w-12, cDefault)
+		return fitHeight(paint("\n"+lipgloss.JoinHorizontal(lipgloss.Top, "    ", q), cDefault, w), cDefault, w, g.extraH)
+	}
 	if m.reacting {
 		var opts []string
 		for i, e := range quickReactions {
@@ -439,6 +450,8 @@ func (m *model) viewInput(g geometry) string {
 func (m *model) viewFooter() string {
 	var help string
 	switch {
+	case m.searching && m.forwarding != nil:
+		help = "encaminhar: digite para filtrar · ↑/↓ escolher · enter encaminha · esc cancela"
 	case m.searching:
 		help = "digite para filtrar · ↑/↓ escolher · enter abrir · esc sair da busca"
 	case m.attach != nil:
@@ -450,9 +463,9 @@ func (m *model) viewFooter() string {
 	case m.reacting:
 		help = "1–6 reage · 0 tira a sua reação · esc fecha"
 	case m.focus == paneList:
-		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pesquisar · alt+1..4 filtros · alt+a arquivadas · ctrl+c sair"
+		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pesquisar · alt+1..4 filtros · alt+a arquivadas · F1 ajuda"
 	default:
-		help = "↑/↓ mensagem · ctrl+r responder · ctrl+e reagir · ctrl+o abrir/ouvir/link · ctrl+t gravar · ctrl+v print · ctrl+s figurinha · alt+f anexar"
+		help = "↑/↓ mensagem · ctrl+r responder · ctrl+e reagir · ctrl+o abrir · alt+c copiar · alt+e editar · alt+d apagar · alt+w encaminhar · F1 ajuda"
 	}
 	left := sText2.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {
@@ -576,4 +589,41 @@ func lastSeenText(ms int64) string {
 		return "ontem às " + t.Format("15:04")
 	}
 	return "em " + t.Format("02/01 às 15:04")
+}
+
+// viewHelp: todos os atalhos numa tela só (F1 ou alt+h; qualquer tecla fecha).
+func (m *model) viewHelp() string {
+	sections := []struct {
+		title string
+		keys  [][2]string
+	}{
+		{"Navegar", [][2]string{
+			{"↑ ↓", "chats na lista, ou mensagens na conversa"}, {"tab", "troca entre lista e conversa"},
+			{"pgup pgdn", "rolar a conversa"}, {"ctrl+p", "pesquisar conversa"},
+			{"alt+1…4", "filtros (Tudo, Não lidas, Grupos, Canais)"}, {"alt+a", "arquivadas"},
+			{"esc", "cancela o que estiver aberto"}, {"ctrl+c", "limpa o campo; vazio, duas vezes, sai"},
+		}},
+		{"Escrever", [][2]string{
+			{"enter", "envia"}, {"shift+enter", "nova linha"}, {"ctrl+v", "cola print (ou texto)"},
+			{"alt+f", "anexar arquivo"}, {"ctrl+s", "figurinhas (tab: favoritas/recentes)"},
+			{"ctrl+t", "gravar mensagem de voz"},
+		}},
+		{"Mensagem selecionada", [][2]string{
+			{"ctrl+r", "responder (ou botão direito)"}, {"ctrl+e", "reagir"},
+			{"ctrl+o", "abrir foto, vídeo, documento, link, ou tocar áudio"},
+			{"alt+c", "copiar texto"}, {"alt+e", "editar (sua, até 15 min)"},
+			{"alt+d", "apagar para todos (sua, duas vezes)"}, {"alt+w", "encaminhar"},
+		}},
+	}
+	var b strings.Builder
+	b.WriteString(sBold.Render("zapterm · atalhos") + "\n")
+	for _, sec := range sections {
+		b.WriteString("\n" + sGreen.Bold(true).Render(sec.title) + "\n")
+		for _, k := range sec.keys {
+			b.WriteString("  " + sText.Bold(true).Render(fmt.Sprintf("%-12s", k[0])) + "  " + sText2.Render(k[1]) + "\n")
+		}
+	}
+	b.WriteString("\n" + sText2.Render("mouse: clique abre e seleciona · botão direito responde · shift+clique abre link") + "\n")
+	b.WriteString(sText2.Render("qualquer tecla fecha"))
+	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, b.String())
 }

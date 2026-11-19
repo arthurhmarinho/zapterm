@@ -577,6 +577,14 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		sctx, scancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer scancel()
 		return d.sendSticker(sctx, req.Chat, req.SrcChat, req.Msg, req.ReplyTo)
+	case ipc.OpRevoke:
+		return nil, d.revoke(ctx, req.Chat, req.Msg)
+	case ipc.OpEdit:
+		return nil, d.edit(ctx, req.Chat, req.Msg, req.Text)
+	case ipc.OpForward:
+		fctx, fcancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer fcancel()
+		return d.forward(fctx, req.Chat, req.SrcChat, req.Msg)
 	case ipc.OpReact:
 		return nil, d.react(ctx, req.Chat, req.Msg, req.Text)
 	case ipc.OpSendFile:

@@ -24,6 +24,9 @@ const (
 	OpSendFile    = "send_file"    // envia o arquivo em Path (foto, vídeo, áudio ou documento)
 	OpReact       = "react"        // reage à mensagem Msg com o emoji em Text ("" remove)
 	OpTyping      = "typing"       // Text: "composing", "recording" ou "paused" em Chat
+	OpRevoke      = "revoke"       // apaga para todos a sua mensagem Msg
+	OpEdit        = "edit"         // troca o texto da sua mensagem Msg por Text
+	OpForward     = "forward"      // encaminha SrcChat/Msg para Chat
 )
 
 // Eventos empurrados pelo daemon sem pedido.

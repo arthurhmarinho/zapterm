@@ -96,6 +96,12 @@ type model struct {
 	viewing  *viewer // foto aberta em tela cheia
 	reacting bool    // barra de reações (ctrl+e) aberta
 
+	editing    *ipc.Message // mensagem sua sendo editada (alt+e)
+	forwarding *ipc.Message // mensagem a encaminhar (alt+w): a busca escolhe o destino
+	delArmed   string       // alt+d apertado uma vez nesta mensagem
+	delArmedAt time.Time
+	help       bool // tela de ajuda (F1)
+
 	presence     map[string]*presenceState // digitando/online por chat
 	typingSentAt time.Time                 // último "digitando" seu enviado
 	typingChat   string                    // chat que recebeu esse aviso
