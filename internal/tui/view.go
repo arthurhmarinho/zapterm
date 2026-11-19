@@ -530,6 +530,6 @@ func (m *model) viewPhoto() string {
 	return screen + "\n" + help
 }
 
-// listWidth: 38 colunas no mínimo, para os filtros caberem com os nomes
+// listWidth: 40 colunas no mínimo, para os filtros caberem com os nomes
 // completos ("Tudo  Não lidas 14  Grupos 7  Canais").
-func listWidth(w int) int { return max(38, min(52, w*32/100)) }
+func listWidth(w int) int { return max(40, min(52, w*32/100)) }
