@@ -78,6 +78,14 @@ type model struct {
 	msgSel     int      // mensagem sob o cursor; -1 = seguir a última
 	replyTo    *ipc.Message
 	attach     *attachment
+
+	// Seletor de figurinhas (ctrl+s)
+	picking    bool
+	stickers   []ipc.Sticker
+	stickLoad  bool
+	stickSel   int
+	stickTop   int             // primeira linha visível da grade
+	autoAsked  map[string]bool // figurinhas já pedidas para baixar sozinhas
 	loadingOld bool
 	noMoreOld  bool
 	vp         viewport.Model
@@ -126,9 +134,11 @@ type (
 		chat, id string
 		media    *ipc.Media
 		open     bool // abrir no programa externo quando chegar
+		auto     bool // download automático (figurinha), sem mexer no aviso
 	}
 	attachMsg    attachment
 	pasteTextMsg string
+	stickersMsg  []ipc.Sticker
 )
 
 func Run() error {
@@ -146,7 +156,8 @@ func Run() error {
 func newModel(cli *ipc.Client) *model {
 	m := &model{cli: cli, input: newInput(), search: newSearch(), vp: viewport.New(),
 		status: "conectando", termFocused: true, msgSel: -1, imgs: newImages(),
-		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}, fallbacks: map[string]string{}}
+		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}, fallbacks: map[string]string{},
+		autoAsked: map[string]bool{}}
 	m.vp.MouseWheelEnabled = false // a roda é tratada em input.go
 	m.input.Focus()
 	return m
@@ -394,6 +405,12 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case mediaMsg:
 		return m, m.onMedia(msg)
 
+	case stickersMsg:
+		m.stickers, m.stickLoad = msg, false
+		m.stickSel, m.stickTop = 0, 0
+		m.layout()
+		return m, nil
+
 	case avatarMsg:
 		m.avatars[msg.jid] = msg.media
 		if msg.media != nil && m.activeChat.Kind == "group" {
@@ -463,10 +480,12 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 			m.msgSel = -1
 		}
 		m.refreshMessages(m.vp.AtBottom() || msg.FromMe)
+		cmds := []tea.Cmd{m.autoStickers([]ipc.Message{msg})}
 		if !msg.FromMe && m.termFocused {
 			// Chat aberto na tela = lido, como no app.
-			return m.markRead(m.active)
+			cmds = append(cmds, m.markRead(m.active))
 		}
+		return tea.Batch(cmds...)
 	}
 	return nil
 }
@@ -479,7 +498,7 @@ func (m *model) onMessages(msg msgsMsg) tea.Cmd {
 		m.msgs = msg.msgs
 		m.noMoreOld = len(msg.msgs) < pageSize
 		m.refreshMessages(true)
-		return nil
+		return m.autoStickers(msg.msgs)
 	}
 	m.loadingOld = false
 	if len(msg.msgs) == 0 {
@@ -495,7 +514,7 @@ func (m *model) onMessages(msg msgsMsg) tea.Cmd {
 	m.msgs = append(msg.msgs, m.msgs...)
 	m.refreshMessages(false)
 	m.vp.SetYOffset(off + m.vp.TotalLineCount() - before)
-	return nil
+	return m.autoStickers(msg.msgs)
 }
 
 // ---------- ações ----------
@@ -568,8 +587,65 @@ func (m *model) openMedia(i int) tea.Cmd {
 		func() tea.Msg { return mediaMsg{chat: chat, id: id, media: &md, open: open} })
 }
 
+// autoStickers baixa sozinho as figurinhas das mensagens (são pequenas),
+// sem esperar o ctrl+o.
+func (m *model) autoStickers(msgs []ipc.Message) tea.Cmd {
+	var cmds []tea.Cmd
+	for _, msg := range msgs {
+		if msg.Kind != "sticker" || !msg.HasRaw || msg.Media != nil || m.autoAsked[msg.ID] {
+			continue
+		}
+		m.autoAsked[msg.ID] = true
+		chat, id := msg.Chat, msg.ID
+		cli := m.cli
+		cmds = append(cmds, func() tea.Msg {
+			var md ipc.Media
+			if err := cli.Call(ipc.Request{Op: ipc.OpMedia, Chat: chat, Msg: id}, &md); err != nil {
+				return nil // figurinha expirada: fica como texto, sem alarde
+			}
+			return mediaMsg{chat: chat, id: id, media: &md, auto: true}
+		})
+	}
+	return tea.Batch(cmds...)
+}
+
+// ---------- figurinhas ----------
+
+func (m *model) openStickers() tea.Cmd {
+	if m.active == "" {
+		m.setFlash("abra um chat antes de escolher uma figurinha")
+		return nil
+	}
+	m.picking, m.attach = true, nil
+	m.stickLoad = true
+	m.layout()
+	var out []ipc.Sticker
+	return m.call(ipc.Request{Op: ipc.OpStickers}, &out, func() tea.Msg { return stickersMsg(out) })
+}
+
+func (m *model) closeStickers() {
+	m.picking = false
+	m.layout()
+}
+
+func (m *model) sendSticker(i int) tea.Cmd {
+	if i < 0 || i >= len(m.stickers) {
+		return nil
+	}
+	st := m.stickers[i]
+	req := ipc.Request{Op: ipc.OpSendSticker, Chat: m.active, SrcChat: st.Chat, Msg: st.ID}
+	if m.replyTo != nil {
+		req.ReplyTo = m.replyTo.ID
+	}
+	m.replyTo, m.msgSel = nil, -1
+	m.closeStickers()
+	return m.send(req)
+}
+
 func (m *model) onMedia(msg mediaMsg) tea.Cmd {
-	m.flash = ""
+	if !msg.auto {
+		m.flash = ""
+	}
 	if msg.open {
 		if err := openExternal(msg.media.Path); err != nil {
 			m.setFlash("xdg-open: " + err.Error())

@@ -232,6 +232,27 @@ func scanMessage(r interface{ Scan(...any) error }) (ipc.Message, error) {
 	return m, err
 }
 
+// RecentStickers devolve chat, id e protobuf das figurinhas mais recentes
+// que têm o original guardado (as únicas que dá para baixar e reenviar).
+func (s *Store) RecentStickers(limit int) ([][3]any, error) {
+	rows, err := s.db.Query(`SELECT chat, id, raw FROM messages
+		WHERE kind = 'sticker' AND raw IS NOT NULL ORDER BY ts DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out [][3]any
+	for rows.Next() {
+		var chat, id string
+		var raw []byte
+		if err := rows.Scan(&chat, &id, &raw); err != nil {
+			return nil, err
+		}
+		out = append(out, [3]any{chat, id, raw})
+	}
+	return out, rows.Err()
+}
+
 // Message busca uma mensagem e o protobuf original (nil se for do history
 // sync antigo).
 func (s *Store) Message(chat, id string) (ipc.Message, []byte, error) {

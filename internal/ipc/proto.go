@@ -9,15 +9,17 @@ import "encoding/json"
 
 // Operações aceitas pelo daemon.
 const (
-	OpStatus    = "status"     // estado da conexão
-	OpChats     = "chats"      // lista de chats, mais recente primeiro
-	OpMessages  = "messages"   // mensagens de um chat
-	OpSend      = "send"       // envia texto
-	OpRead      = "read"       // marca o chat como lido
-	OpViewing   = "viewing"    // chat aberto numa TUI em foco ("" = nenhum); suprime notificação
-	OpMedia     = "media"      // baixa a mídia da mensagem Msg (ou devolve do cache)
-	OpAvatar    = "avatar"     // foto de perfil de Chat (pessoa ou grupo); null = sem foto
-	OpSendImage = "send_image" // envia a imagem em Path com legenda Text
+	OpStatus      = "status"       // estado da conexão
+	OpChats       = "chats"        // lista de chats, mais recente primeiro
+	OpMessages    = "messages"     // mensagens de um chat
+	OpSend        = "send"         // envia texto
+	OpRead        = "read"         // marca o chat como lido
+	OpViewing     = "viewing"      // chat aberto numa TUI em foco ("" = nenhum); suprime notificação
+	OpMedia       = "media"        // baixa a mídia da mensagem Msg (ou devolve do cache)
+	OpAvatar      = "avatar"       // foto de perfil de Chat (pessoa ou grupo); null = sem foto
+	OpSendImage   = "send_image"   // envia a imagem em Path com legenda Text
+	OpStickers    = "stickers"     // figurinhas recentes (já baixadas), para o seletor
+	OpSendSticker = "send_sticker" // reenvia a figurinha da mensagem SrcChat/Msg em Chat
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -42,6 +44,18 @@ type Request struct {
 	Msg string `json:"msg,omitempty"`
 	// Path é o arquivo local a enviar (OpSendImage).
 	Path string `json:"path,omitempty"`
+	// SrcChat é o chat da mensagem de origem (OpSendSticker).
+	SrcChat string `json:"src_chat,omitempty"`
+}
+
+// Sticker é uma figurinha do seletor: a mensagem de onde ela veio e a
+// prévia já baixada.
+type Sticker struct {
+	Chat    string `json:"chat"`
+	ID      string `json:"id"`
+	Preview string `json:"preview"`
+	Width   int    `json:"width"`
+	Height  int    `json:"height"`
 }
 
 // Media é um arquivo de mídia baixado. Preview (PNG reduzido) só existe

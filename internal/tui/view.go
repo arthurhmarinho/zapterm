@@ -55,8 +55,17 @@ func (m *model) geom() geometry {
 
 func (m *model) listRows() int { return m.geom().listRows }
 
+// Célula da grade de figurinhas: imagem 10×5 dentro de uma borda.
+const stickCellW, stickCellH = 12, 7
+
+func (m *model) stickPerRow() int { return max(1, (m.geom0chatW()-2)/(stickCellW+1)) }
+
+func (m *model) geom0chatW() int { return m.w - max(34, min(52, m.w*32/100)) - 1 }
+
 func (m *model) extraHeight() int {
 	switch {
+	case m.picking:
+		return 1 + 2*stickCellH
 	case m.attach != nil:
 		return m.attachRows() + 3
 	case m.replyTo != nil:
@@ -292,6 +301,9 @@ func (m *model) viewHeader(g geometry) string {
 // barra de escrita.
 func (m *model) viewExtra(g geometry) string {
 	w := g.chatW
+	if m.picking {
+		return fitHeight(m.viewStickers(w), cDefault, w, g.extraH)
+	}
 	if a := m.attach; a != nil {
 		pic := m.imgs.block(a.preview, a.w, a.h, min(48, w-8), m.attachRows())
 		if pic == "" {
@@ -352,10 +364,12 @@ func (m *model) viewFooter() string {
 		help = "digite para filtrar · ↑/↓ escolher · enter abrir · esc sair da busca"
 	case m.attach != nil:
 		help = "enter envia a imagem · esc cancela"
+	case m.picking:
+		help = "setas escolhem · enter ou clique envia · esc fecha"
 	case m.focus == paneList:
 		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pesquisar · alt+1..4 filtros · alt+a arquivadas · ctrl+c sair"
 	default:
-		help = "↑/↓ mensagem · ctrl+r responder · ctrl+o mídia · ctrl+v colar print · pgup/pgdn rolar · tab lista"
+		help = "↑/↓ mensagem · ctrl+r responder · ctrl+o mídia · ctrl+v colar print · ctrl+s figurinha · tab lista"
 	}
 	left := sText2.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {
@@ -372,4 +386,61 @@ func (m *model) viewFooter() string {
 	left = ansi.Truncate(" "+left, m.w-lipgloss.Width(right)-1, "…")
 	gap := max(1, m.w-lipgloss.Width(left)-lipgloss.Width(right))
 	return paint(left+strings.Repeat(" ", gap)+right, cBgList, m.w)
+}
+
+func (m *model) viewStickers(w int) string {
+	head := "  " + sText.Render(icons.sticker+"  Figurinhas recentes") + "   " +
+		sText2.Render("setas escolhem · enter envia · esc fecha")
+	switch {
+	case m.stickLoad:
+		return head + "\n\n  " + sText2.Render("carregando…")
+	case len(m.stickers) == 0:
+		return head + "\n\n  " + sText2.Render("nenhuma figurinha ainda: as que chegarem nas conversas aparecem aqui")
+	}
+	per := m.stickPerRow()
+	var rows []string
+	for r := m.stickTop; r < m.stickTop+2; r++ {
+		var cells []string
+		for c := 0; c < per; c++ {
+			i := r*per + c
+			if i >= len(m.stickers) {
+				break
+			}
+			st := m.stickers[i]
+			pic := m.imgs.block(st.Preview, st.Width, st.Height, stickCellW-2, stickCellH-2)
+			if pic == "" {
+				pic = sText2.Render(icons.sticker)
+			}
+			border := cText2
+			if i == m.stickSel {
+				border = cGreen
+			}
+			// Place centraliza num espaço fixo de 10×5; a borda vem por fora
+			// (Width/Height do lipgloss v2 contam a borda e quebrariam a imagem).
+			inner := lipgloss.Place(stickCellW-2, stickCellH-2, lipgloss.Center, lipgloss.Center, pic)
+			cell := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(border).Render(inner)
+			cells = append(cells, cell, " ")
+		}
+		if len(cells) > 0 {
+			rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, append([]string{" "}, cells...)...))
+		}
+	}
+	return head + "\n" + strings.Join(rows, "\n")
+}
+
+// stickerAt devolve a figurinha sob o clique (coordenadas da tela), ou -1.
+func (m *model) stickerAt(g geometry, x, y int) int {
+	if !m.picking || y < g.extraY+1 || x < g.chatX+1 {
+		return -1
+	}
+	r := (y-g.extraY-1)/stickCellH + m.stickTop
+	c := (x - g.chatX - 1) / (stickCellW + 1)
+	per := m.stickPerRow()
+	if c >= per {
+		return -1
+	}
+	if i := r*per + c; i < len(m.stickers) {
+		return i
+	}
+	return -1
 }

@@ -19,6 +19,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.searching {
 		return m.keySearch(k)
 	}
+	if m.picking {
+		return m.keyStickers(k)
+	}
 
 	switch s {
 	case "ctrl+c":
@@ -39,6 +42,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	case "ctrl+p", "ctrl+f":
 		m.startSearch()
 		return nil
+	case "ctrl+s":
+		return m.openStickers()
 	case "ctrl+v":
 		if m.active == "" {
 			m.setFlash("abra um chat antes de colar")
@@ -126,6 +131,41 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	m.input, cmd = m.input.Update(k)
 	m.layout() // a altura do campo acompanha o texto
 	return cmd
+}
+
+func (m *model) keyStickers(k tea.KeyPressMsg) tea.Cmd {
+	per := m.stickPerRow()
+	n := len(m.stickers)
+	switch k.String() {
+	case "esc", "ctrl+s", "ctrl+c":
+		m.closeStickers()
+		return nil
+	case "enter":
+		return m.sendSticker(m.stickSel)
+	case "left":
+		m.stickSel--
+	case "right":
+		m.stickSel++
+	case "up":
+		m.stickSel -= per
+	case "down":
+		m.stickSel += per
+	default:
+		return nil
+	}
+	if n == 0 {
+		m.stickSel = 0
+		return nil
+	}
+	m.stickSel = max(0, min(m.stickSel, n-1))
+	// Duas linhas visíveis: rola a grade para manter a escolhida à vista.
+	row := m.stickSel / per
+	if row < m.stickTop {
+		m.stickTop = row
+	} else if row > m.stickTop+1 {
+		m.stickTop = row - 1
+	}
+	return nil
 }
 
 func (m *model) keySearch(k tea.KeyPressMsg) tea.Cmd {
@@ -238,6 +278,12 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 		m.stopSearch(false)
 	}
 	if m.active == "" {
+		return nil
+	}
+	if m.picking && y >= g.extraY && y < g.inputY {
+		if i := m.stickerAt(g, x, y); i >= 0 {
+			return m.sendSticker(i)
+		}
 		return nil
 	}
 	switch {

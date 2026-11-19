@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -326,4 +327,122 @@ func scaleJPEG(src image.Image, maxSide, quality int) ([]byte, int, int) {
 	var buf bytes.Buffer
 	_ = jpeg.Encode(&buf, dst, &jpeg.Options{Quality: quality})
 	return buf.Bytes(), w, h
+}
+
+// recentStickers monta o seletor: figurinhas recentes sem repetir (mesmo
+// arquivo = mesmo SHA-256), baixando as que ainda não estão no cache.
+func (d *Daemon) recentStickers(ctx context.Context) ([]ipc.Sticker, error) {
+	rows, err := d.st.RecentStickers(300)
+	if err != nil {
+		return nil, err
+	}
+	type cand struct{ chat, id string }
+	seen := map[string]bool{}
+	var cands []cand
+	for _, r := range rows {
+		var msg waE2E.Message
+		if proto.Unmarshal(r[2].([]byte), &msg) != nil || msg.GetStickerMessage() == nil {
+			continue
+		}
+		key := string(msg.GetStickerMessage().GetFileSHA256())
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		cands = append(cands, cand{r[0].(string), r[1].(string)})
+		if len(cands) == 48 {
+			break
+		}
+	}
+
+	// Baixa em paralelo (4 por vez); quem falhar (mídia expirada) fica de fora.
+	out := make([]*ipc.Sticker, len(cands))
+	sem := make(chan struct{}, 4)
+	var wg sync.WaitGroup
+	for i, c := range cands {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			md, err := d.downloadMedia(ctx, c.chat, c.id)
+			if err != nil || md.Preview == "" {
+				return
+			}
+			out[i] = &ipc.Sticker{Chat: c.chat, ID: c.id, Preview: md.Preview, Width: md.Width, Height: md.Height}
+		}()
+	}
+	wg.Wait()
+	list := []ipc.Sticker{}
+	for _, st := range out {
+		if st != nil {
+			list = append(list, *st)
+		}
+	}
+	return list, nil
+}
+
+// sendSticker reenvia uma figurinha já vista. Sobe o arquivo de novo em vez
+// de reaproveitar URL e chave da mensagem original, que podem ter expirado.
+func (d *Daemon) sendSticker(ctx context.Context, chat, srcChat, srcID, replyTo string) (any, error) {
+	jid, err := types.ParseJID(chat)
+	if err != nil {
+		return nil, fmt.Errorf("chat inválido: %w", err)
+	}
+	md, err := d.downloadMedia(ctx, srcChat, srcID)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(md.Path)
+	if err != nil {
+		return nil, err
+	}
+	_, raw, err := d.st.Message(srcChat, srcID)
+	if err != nil {
+		return nil, err
+	}
+	var orig waE2E.Message
+	if err := proto.Unmarshal(raw, &orig); err != nil || orig.GetStickerMessage() == nil {
+		return nil, errors.New("a mensagem de origem não é uma figurinha")
+	}
+	o := orig.GetStickerMessage()
+
+	up, err := d.cli.Upload(ctx, data, whatsmeow.MediaImage)
+	if err != nil {
+		return nil, fmt.Errorf("upload: %w", err)
+	}
+	ci, quote, err := d.replyContext(chat, replyTo)
+	if err != nil {
+		return nil, err
+	}
+	sm := &waE2E.StickerMessage{
+		Mimetype:      proto.String("image/webp"),
+		URL:           proto.String(up.URL),
+		DirectPath:    proto.String(up.DirectPath),
+		MediaKey:      up.MediaKey,
+		FileEncSHA256: up.FileEncSHA256,
+		FileSHA256:    up.FileSHA256,
+		FileLength:    proto.Uint64(up.FileLength),
+		Width:         proto.Uint32(o.GetWidth()),
+		Height:        proto.Uint32(o.GetHeight()),
+		IsAnimated:    proto.Bool(o.GetIsAnimated()),
+		ContextInfo:   ci,
+	}
+	m := ipc.Message{Kind: "sticker", Text: "[figurinha]", Quote: quote}
+	return d.sendAndStore(ctx, jid, &waE2E.Message{StickerMessage: sm}, m, func(id string) *ipc.Media {
+		// Mesma prévia no cache com o ID novo: aparece no balão na hora.
+		base, err := mediaBase(id)
+		if err != nil {
+			return nil
+		}
+		cp := &ipc.Media{Mime: "image/webp", Path: base + ".webp", Preview: base + ".preview.png", Width: md.Width, Height: md.Height}
+		if os.WriteFile(cp.Path, data, 0o600) != nil {
+			return nil
+		}
+		if pv, err := os.ReadFile(md.Preview); err == nil && os.WriteFile(cp.Preview, pv, 0o600) == nil {
+			return cp
+		}
+		cp.Preview = ""
+		return cp
+	})
 }

@@ -498,6 +498,14 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		actx, acancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer acancel()
 		return d.avatar(actx, req.Chat)
+	case ipc.OpStickers:
+		sctx, scancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer scancel()
+		return d.recentStickers(sctx)
+	case ipc.OpSendSticker:
+		sctx, scancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer scancel()
+		return d.sendSticker(sctx, req.Chat, req.SrcChat, req.Msg, req.ReplyTo)
 	case ipc.OpSendImage:
 		ictx, icancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer icancel()

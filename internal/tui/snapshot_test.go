@@ -61,4 +61,11 @@ func TestSnapshotLive(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 	dump("conversa: texto digitado, ↑, ctrl+r")
+
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if cmd := m.openStickers(); cmd != nil {
+		m.Update(cmd())
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	dump("seletor de figurinhas (ctrl+s, →)")
 }
