@@ -66,6 +66,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return m.openStickers()
 	case "ctrl+t":
 		return m.startRec()
+	case "alt+f":
+		return m.openChooser()
 	case "ctrl+v":
 		if m.active == "" {
 			m.setFlash("abra um chat antes de colar")
@@ -219,15 +221,16 @@ func (m *model) keySearch(k tea.KeyPressMsg) tea.Cmd {
 
 func (m *model) onEnter() tea.Cmd {
 	text := strings.TrimSpace(m.input.Value())
-	if m.attach != nil {
-		req := ipc.Request{Op: ipc.OpSendImage, Chat: m.active, Path: m.attach.path, Text: text}
+	if a := m.attach; a != nil {
+		// send_file decide pelo tipo: foto, vídeo, áudio ou documento.
+		req := ipc.Request{Op: ipc.OpSendFile, Chat: m.active, Path: a.path, Text: text}
 		if m.replyTo != nil {
 			req.ReplyTo = m.replyTo.ID
 		}
 		m.attach, m.replyTo, m.msgSel = nil, nil, -1
 		m.input.Reset()
 		m.layout()
-		m.setFlash("enviando imagem…")
+		m.setFlash("enviando " + a.name + "…")
 		return m.send(req)
 	}
 	if text == "" {
@@ -331,8 +334,33 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 		m.setSel(i)
 	case y >= g.inputY:
 		m.focus = paneChat
+		// Botões dentro da caixa: figurinha e clipe.
+		switch {
+		case abs(x-g.stickerBtnX) <= 1:
+			return m.openStickers()
+		case abs(x-g.clipBtnX) <= 1:
+			return m.openChooser()
+		}
 	}
 	return nil
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
+func (m *model) openChooser() tea.Cmd {
+	if m.active == "" {
+		m.setFlash("abra um chat antes de anexar")
+		return nil
+	}
+	m.picking = false
+	m.layout()
+	m.setFlash("escolha o arquivo na janela que abriu…")
+	return chooseFile()
 }
 
 func (m *model) clickList(g geometry, x, y int) tea.Cmd {

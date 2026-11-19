@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,6 +23,9 @@ type geometry struct {
 	headerH, vpY, vpH   int
 	extraY, extraH      int // painel de resposta/anexo acima da escrita
 	inputY, inputH      int
+	fieldW              int // largura do texto na caixa de escrita
+	stickerBtnX         int // botões dentro da caixa de escrita
+	clipBtnX            int
 	footerY             int
 }
 
@@ -34,17 +38,22 @@ func (m *model) geom() geometry {
 	g.chatW = m.w - g.chatX
 	g.footerY = m.h - 1
 
-	g.titleY, g.searchY, g.chipsY = 0, 1, 2
+	// título com sua foto (2 linhas), busca, pílulas, linha vazia
+	g.titleY, g.searchY, g.chipsY = 0, 2, 3
 	g.archRowY = -1
-	g.itemsY = 4 // título, busca, pílulas, linha vazia
+	g.itemsY = 5
 	if m.showArchivedRow() {
-		g.archRowY = 4
-		g.itemsY = 6
+		g.archRowY = 5
+		g.itemsY = 7
 	}
 	g.listRows = max(0, (g.footerY-g.itemsY)/itemH)
 
 	g.inputH = m.input.Height() + 2
 	g.inputY = g.footerY - g.inputH
+	// Caixa: borda+espaço, "❯ ", texto, "  󰞅  󰏢", espaço+borda.
+	g.fieldW = max(10, g.chatW-12)
+	g.stickerBtnX = g.chatX + 2 + 2 + g.fieldW + 2
+	g.clipBtnX = g.stickerBtnX + 3
 	g.extraH = m.extraHeight()
 	g.extraY = g.inputY - g.extraH
 	g.headerH = headerH
@@ -68,8 +77,10 @@ func (m *model) extraHeight() int {
 		return 3
 	case m.picking:
 		return 1 + 2*stickCellH
-	case m.attach != nil:
+	case m.attach != nil && m.attach.image:
 		return m.attachRows() + 3
+	case m.attach != nil:
+		return 4
 	case m.replyTo != nil:
 		return 4
 	}
@@ -83,7 +94,7 @@ func (m *model) layout() {
 		return
 	}
 	g := m.geom()
-	m.input.SetWidth(max(10, g.chatW-6))
+	m.input.SetWidth(g.fieldW)
 	m.search.SetWidth(max(10, g.listW-10))
 	m.vp.SetWidth(g.chatW)
 	m.vp.SetHeight(g.vpH)
@@ -157,11 +168,21 @@ func (m *model) viewList(g geometry) string {
 	w := g.listW
 	var rows []string
 
-	// Título (ou "← Arquivadas")
+	// Título em 2 linhas: sua foto, "zapterm" e seu nome (ou "← Arquivadas")
 	if m.archived {
-		rows = append(rows, paint("  "+sText.Render(icons.back)+"  "+sBold.Render("Arquivadas"), cBgList, w))
+		rows = append(rows, paint("  "+sText.Render(icons.back)+"  "+sBold.Render("Arquivadas"), cBgList, w), blank(cBgList, w, 1))
 	} else {
-		rows = append(rows, paint("  "+lipgloss.NewStyle().Foreground(cText).Bold(true).Render("zapterm"), cBgList, w))
+		name := m.myName
+		if name == "" {
+			name = "conectando…"
+		}
+		text := lipgloss.NewStyle().Foreground(cText).Bold(true).Render("zapterm") + "\n" +
+			sText2.Render(ansi.Truncate(name, w-10, "…"))
+		av := strings.TrimSuffix(strings.Repeat(strings.Repeat(" ", avatarSmallCols)+"\n", avatarSmallRows), "\n")
+		if m.me != "" {
+			av = m.smallAvatar(m.me, m.myName)
+		}
+		rows = append(rows, paint(lipgloss.JoinHorizontal(lipgloss.Top, "  ", av, "  ", text), cBgList, w))
 	}
 
 	// Busca
@@ -317,12 +338,23 @@ func (m *model) viewExtra(g geometry) string {
 		return fitHeight("\n"+line, cDefault, w, g.extraH)
 	}
 	if a := m.attach; a != nil {
+		hint := sText2.Render("escreva uma legenda e aperte enter · esc cancela")
+		if !a.image {
+			icon := icons.doc
+			switch strings.ToLower(filepath.Ext(a.name)) {
+			case ".mp4", ".mkv", ".webm", ".mov":
+				icon = icons.video
+			case ".mp3", ".ogg", ".m4a", ".opus", ".wav", ".flac":
+				icon = icons.audio
+			}
+			line := "  " + sText.Render(icon+"  "+ansi.Truncate(a.name, w-30, "…")) + "  " + sText2.Render(humanSize(a.size))
+			return fitHeight(paint("\n"+line+"\n  "+hint, cDefault, w), cDefault, w, g.extraH)
+		}
 		pic := m.imgs.block(a.preview, a.w, a.h, min(48, w-8), m.attachRows())
 		if pic == "" {
-			pic = sText.Render(icons.photo + " imagem colada")
+			pic = sText.Render(icons.photo + " " + a.name)
 		}
-		head := "  " + sText.Render(icons.attach+"  Enviar imagem") + "   " +
-			sText2.Render("escreva uma legenda e aperte enter · esc cancela")
+		head := "  " + sText.Render(icons.attach+"  Enviar foto") + "   " + hint
 		body := lipgloss.JoinHorizontal(lipgloss.Top, "    ", pic)
 		return fitHeight(paint(head+"\n\n"+body, cDefault, w), cDefault, w, g.extraH)
 	}
@@ -344,8 +376,7 @@ func (m *model) viewExtra(g geometry) string {
 // arredondada, prompt "❯" e o fundo do terminal. A borda ganha a cor de
 // acento quando há texto, resposta ou anexo em andamento.
 func (m *model) viewInput(g geometry) string {
-	w := g.chatW
-	fieldW := w - 6 // borda, espaço, prompt (2), espaço, borda
+	fieldW := g.fieldW
 	lines := strings.Split(m.input.View(), "\n")
 	for i, l := range lines {
 		prefix := "  "
@@ -356,7 +387,19 @@ func (m *model) viewInput(g geometry) string {
 			}
 		}
 		l = ansi.Truncate(l, fieldW, "")
-		lines[i] = prefix + l + strings.Repeat(" ", max(0, fieldW-ansi.StringWidth(l)))
+		// Figurinha e clipe à direita, na última linha (clicáveis).
+		buttons := "      "
+		if i == len(lines)-1 {
+			st, cl := sText2, sText2
+			if m.picking {
+				st = sGreen
+			}
+			if m.attach != nil && !m.attach.image {
+				cl = sGreen
+			}
+			buttons = "  " + st.Render(icons.sticker) + "  " + cl.Render(icons.attach)
+		}
+		lines[i] = prefix + l + strings.Repeat(" ", max(0, fieldW-ansi.StringWidth(l))) + buttons
 	}
 	border := cText2
 	if m.input.Value() != "" || m.replyTo != nil || m.attach != nil {
@@ -383,7 +426,7 @@ func (m *model) viewFooter() string {
 	case m.focus == paneList:
 		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pesquisar · alt+1..4 filtros · alt+a arquivadas · ctrl+c sair"
 	default:
-		help = "↑/↓ mensagem · ctrl+r responder · ctrl+o abrir/ouvir · ctrl+t gravar áudio · ctrl+v print · ctrl+s figurinha"
+		help = "↑/↓ mensagem · ctrl+r responder · ctrl+o abrir/ouvir · ctrl+t gravar · ctrl+v print · ctrl+s figurinha · alt+f anexar"
 	}
 	left := sText2.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {

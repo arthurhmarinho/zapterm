@@ -21,6 +21,7 @@ const (
 	OpStickers    = "stickers"     // figurinhas recentes (já baixadas), para o seletor
 	OpSendSticker = "send_sticker" // reenvia a figurinha da mensagem SrcChat/Msg em Chat
 	OpSendAudio   = "send_audio"   // envia o OGG/Opus em Path como mensagem de voz
+	OpSendFile    = "send_file"    // envia o arquivo em Path (foto, vídeo, áudio ou documento)
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -132,4 +133,5 @@ type Quote struct {
 type Status struct {
 	State string `json:"state"` // connecting, online, offline, logged_out
 	Me    string `json:"me,omitempty"`
+	Name  string `json:"name,omitempty"` // seu nome de perfil
 }

@@ -78,6 +78,9 @@ func saveAttachment(data []byte, mimeType string) (attachment, error) {
 		preview: filepath.Join(dir, stamp+".preview.png"),
 		w:       src.Bounds().Dx(),
 		h:       src.Bounds().Dy(),
+		image:   true,
+		name:    "print colado",
+		size:    int64(len(data)),
 	}
 	if err := os.WriteFile(a.path, data, 0o600); err != nil {
 		return attachment{}, err

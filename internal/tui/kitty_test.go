@@ -121,3 +121,20 @@ func TestOpener(t *testing.T) {
 		}
 	}
 }
+
+// Os botões da caixa de escrita respondem ao clique na posição desenhada.
+func TestBotoesDaCaixa(t *testing.T) {
+	m := newModel(nil)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.active, m.activeChat = "x@s.whatsapp.net", ipc.Chat{JID: "x@s.whatsapp.net", Name: "X", Kind: "dm"}
+	m.layout()
+	g := m.geom()
+	line := strings.Split(ansi.Strip(m.View().Content), "\n")[g.inputY+1]
+	if r := []rune(line); string(r[g.stickerBtnX]) != icons.sticker || string(r[g.clipBtnX]) != icons.attach {
+		t.Fatalf("botões fora do lugar: %q (x=%d,%d)", line, g.stickerBtnX, g.clipBtnX)
+	}
+	m.Update(tea.MouseClickMsg{X: g.stickerBtnX, Y: g.inputY + 1, Button: tea.MouseLeft})
+	if !m.picking {
+		t.Fatal("clique na figurinha não abriu o seletor")
+	}
+}

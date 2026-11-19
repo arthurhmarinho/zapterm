@@ -51,8 +51,11 @@ const (
 )
 
 type attachment struct {
-	path, preview string // original e PNG para o kitty
+	path, preview string // original e PNG para o kitty (só foto)
 	w, h          int
+	image         bool // foto (prévia e legenda) ou arquivo qualquer
+	name          string
+	size          int64
 }
 
 type model struct {
@@ -102,6 +105,8 @@ type model struct {
 	fallbacks map[string]string // jid -> PNG com iniciais
 
 	status  string
+	me      string // seu JID e nome de perfil, para a foto no topo
+	myName  string
 	flash   string
 	flashAt time.Time
 
@@ -381,7 +386,17 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case statusMsg:
-		m.status = msg.State
+		m.status, m.me, m.myName = msg.State, msg.Me, msg.Name
+		return m, nil
+
+	case chosenMsg:
+		a, err := fileAttachment(string(msg))
+		if err != nil {
+			m.setFlash(err.Error())
+			return m, nil
+		}
+		m.attach, m.picking = &a, false
+		m.layout()
 		return m, nil
 
 	case msgsMsg:
@@ -460,6 +475,9 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 		var st ipc.Status
 		if json.Unmarshal(f.Data, &st) == nil {
 			m.status = st.State
+			if st.Me != "" {
+				m.me, m.myName = st.Me, st.Name
+			}
 		}
 	case ipc.EvReload:
 		return m.loadChats()
@@ -739,6 +757,9 @@ func (m *model) prepareAvatars() {
 	}
 	if m.active != "" {
 		m.bigAvatar(m.active, m.activeChat.Name)
+	}
+	if m.me != "" {
+		m.smallAvatar(m.me, m.myName)
 	}
 }
 

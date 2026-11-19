@@ -142,6 +142,7 @@ func (d *Daemon) setStatus(state string) {
 	d.status.State = state
 	if id := d.cli.Store.ID; id != nil {
 		d.status.Me = id.ToNonAD().String()
+		d.status.Name = d.cli.Store.PushName
 	}
 	s := d.status
 	d.mu.Unlock()
@@ -540,6 +541,10 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		sctx, scancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer scancel()
 		return d.sendSticker(sctx, req.Chat, req.SrcChat, req.Msg, req.ReplyTo)
+	case ipc.OpSendFile:
+		fctx, fcancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer fcancel()
+		return d.sendFile(fctx, req.Chat, req.Path, req.Text, req.ReplyTo)
 	case ipc.OpSendAudio:
 		actx, acancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer acancel()
