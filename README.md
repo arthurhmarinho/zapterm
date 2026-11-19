@@ -16,7 +16,9 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 ## O que ele faz
 
 - **Conversas:** lista com fotos de perfil, fixados, não lidas, filtros
-  (Tudo · Não lidas · Grupos · Canais), arquivadas e busca.
+  (Tudo · Não lidas · Grupos · Canais), arquivadas e busca, inclusive no
+  texto das mensagens (sem diferenciar acento e maiúscula), pulando para a
+  mensagem achada.
 - **Mensagens:** responder com citação, reagir (❤️ 👍 😂 😮 😢 🙏),
   copiar, editar, apagar para todos e encaminhar; formatação do WhatsApp
   (*negrito*, _itálico_, ~riscado~, `código`) e links clicáveis;

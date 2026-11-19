@@ -2,6 +2,7 @@ package store
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
@@ -181,5 +182,25 @@ func TestFavoritas(t *testing.T) {
 	s.PutFavorite(FavoriteSticker{Key: "a", DirectPath: "/a3", MediaKey: []byte{1}, TS: 30})
 	if favs, _ := s.Favorites(); favs[0].Gone {
 		t.Fatal("favoritar de novo (link novo) não tirou a marca")
+	}
+}
+
+func TestBuscaEDepois(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	const c = "1@s.whatsapp.net"
+	for i, txt := range []string{"bom dia", "Não sei", "nao vou", "tchau"} {
+		s.SaveMessage(ipc.Message{ID: string(rune('a' + i)), Chat: c, Sender: c, TS: int64(i + 1), Kind: "text", Text: txt}, nil, false, false)
+	}
+	hits, _ := s.SearchMessages(func(t string) bool { return strings.Contains(strings.ToLower(t), "na") }, 10)
+	if len(hits) != 1 || hits[0].ID != "c" { // ToLower não tira acento: só "nao vou"
+		t.Fatalf("busca: %+v", hits)
+	}
+	after, _ := s.MessagesAfter(c, 10, 2)
+	if len(after) != 2 || after[0].ID != "c" || after[1].ID != "d" {
+		t.Fatalf("depois: %+v", after)
 	}
 }

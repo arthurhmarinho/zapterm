@@ -207,3 +207,44 @@ func TestMenuDoChat(t *testing.T) {
 		t.Fatalf("ação: menu=%v flash=%q", m.menu, m.flash)
 	}
 }
+
+// Busca no texto: o resultado entra na lista e abrir pula para a mensagem.
+func TestBuscaNoTexto(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	m.Update(m.loadChats()())
+	m.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	for _, r := range "endere" {
+		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+	_, cmd := m.Update(searchTickMsg{query: "endere"}) // a pausa na digitação
+	runCmd(m, cmd)
+	idx := -1
+	for i, c := range m.list {
+		if strings.HasPrefix(c.JID, hitMarker) {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("resultado não entrou na lista: %+v", m.list)
+	}
+	m.cursor = idx
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(m, cmd)
+	if m.active != "5511900000001@s.whatsapp.net" || m.sel() < 0 || !strings.Contains(m.msgs[m.sel()].Text, "endereço") {
+		t.Fatalf("não pulou para a mensagem: ativo=%s sel=%d", m.active, m.sel())
+	}
+}

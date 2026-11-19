@@ -219,6 +219,65 @@ func (s *Store) Chats() ([]ipc.Chat, error) {
 	return out, rows.Err()
 }
 
+// MessagesAfter devolve até limit mensagens posteriores a after, em ordem
+// cronológica (para descer a conversa depois de pular para uma busca).
+func (s *Store) MessagesAfter(chat string, limit int, after int64) ([]ipc.Message, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	rows, err := s.db.Query(`SELECT `+msgCols+` FROM messages WHERE chat = ? AND ts > ?
+		ORDER BY ts ASC LIMIT ?`, chat, after, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ipc.Message{}
+	for rows.Next() {
+		m, err := scanMessage(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// SearchMessages percorre as mensagens da mais nova para a mais antiga e
+// devolve as primeiras limit em que match(texto) é verdadeiro. A
+// comparação fica em Go para ignorar acento e maiúscula, o que o LIKE do
+// SQLite não faz fora do ASCII.
+func (s *Store) SearchMessages(match func(string) bool, limit int) ([]ipc.Message, error) {
+	// Varre só chat, id e texto; a mensagem completa é lida só nos achados.
+	rows, err := s.db.Query(`SELECT chat, id, text FROM messages
+		WHERE kind NOT IN ('revoked', 'sticker', 'audio') AND text != '' ORDER BY ts DESC`)
+	if err != nil {
+		return nil, err
+	}
+	var keys [][2]string
+	for rows.Next() && len(keys) < limit {
+		var chat, id, text string
+		if err := rows.Scan(&chat, &id, &text); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if match(text) {
+			keys = append(keys, [2]string{chat, id})
+		}
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ipc.Message, 0, len(keys))
+	for _, k := range keys {
+		if m, _, err := s.Message(k[0], k[1]); err == nil {
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}
+
 // Messages devolve até limit mensagens anteriores a before (0 = as mais
 // recentes), em ordem cronológica.
 func (s *Store) Messages(chat string, limit int, before int64) ([]ipc.Message, error) {

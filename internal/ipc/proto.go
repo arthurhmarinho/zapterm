@@ -30,6 +30,7 @@ const (
 	OpMembers     = "members"      // participantes de um grupo, para o "@"
 	OpChatAction  = "chat_action"  // Text: pin, unpin, archive, unarchive, mute8h, mute1w, muteforever, unmute, read
 	OpCheckNumber = "check_number" // Text: telefone com DDI; devolve o chat se tiver WhatsApp
+	OpSearch      = "search"       // procura Text no texto das mensagens (sem acento/maiúscula)
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -50,6 +51,8 @@ type Request struct {
 	Text   string `json:"text,omitempty"`
 	Limit  int    `json:"limit,omitempty"`
 	Before int64  `json:"before,omitempty"` // unix ms; 0 = mais recentes
+	// After pede as mensagens posteriores (OpMessages), em vez das anteriores.
+	After int64 `json:"after,omitempty"`
 	// ReplyTo é o ID da mensagem respondida (só em OpSend).
 	ReplyTo string `json:"reply_to,omitempty"`
 	// Msg é o ID da mensagem alvo (OpMedia).
@@ -161,6 +164,12 @@ type Presence struct {
 	Recording bool   `json:"recording,omitempty"`
 	Online    *bool  `json:"online,omitempty"` // nil = sem informação nova
 	LastSeen  int64  `json:"last_seen,omitempty"`
+}
+
+// SearchHit é um resultado da busca no texto das mensagens.
+type SearchHit struct {
+	Chat    Chat    `json:"chat"`
+	Message Message `json:"message"`
 }
 
 // Member é um participante de grupo, para o autocompletar do "@".

@@ -103,10 +103,15 @@ type model struct {
 	delArmedAt time.Time
 	help       bool // tela de ajuda (F1)
 
-	menu      *chatMenu // menu do chat (alt+m)
-	mention   mentionState
-	members   map[string][]ipc.Member // participantes por grupo (nil = pedido)
-	mentioned map[string]string       // \"@Nome\" escolhido → JID
+	menu *chatMenu // menu do chat (alt+m)
+
+	hits       []ipc.SearchHit // resultados da busca no texto
+	hitsQuery  string
+	gap        bool // há mensagens mais novas não carregadas (pulou para um resultado)
+	loadingNew bool
+	mention    mentionState
+	members    map[string][]ipc.Member // participantes por grupo (nil = pedido)
+	mentioned  map[string]string       // \"@Nome\" escolhido → JID
 
 	presence     map[string]*presenceState // digitando/online por chat
 	typingSentAt time.Time                 // último "digitando" seu enviado
@@ -420,6 +425,22 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case searchTickMsg:
+		return m, m.runSearch(msg.query)
+
+	case hitsMsg:
+		if msg.query == m.searchQuery() {
+			m.hits, m.hitsQuery = msg.hits, msg.query
+			m.applyFilter()
+		}
+		return m, nil
+
+	case aroundMsg:
+		return m, m.onAround(msg)
+
+	case newerMsg:
+		return m, m.onNewer(msg)
+
 	case checkedMsg:
 		c := *msg.chat
 		if c.Name == "" {
@@ -584,6 +605,9 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 		if slices.ContainsFunc(m.msgs, func(x ipc.Message) bool { return x.ID == msg.ID }) {
 			return nil
 		}
+		if m.gap {
+			return nil // há um buraco antes dela; chega ao descer até o fim
+		}
 		following := m.msgSel < 0 || m.msgSel == len(m.msgs)-1
 		m.msgs = append(m.msgs, msg)
 		if following {
@@ -637,6 +661,9 @@ var phoneRe = regexp.MustCompile(`^\+?[\d\s().-]{10,}$`)
 type checkedMsg struct{ chat *ipc.Chat }
 
 func (m *model) open(c ipc.Chat) tea.Cmd {
+	if strings.HasPrefix(c.JID, hitMarker) {
+		return m.openHit(c)
+	}
 	if strings.HasPrefix(c.JID, newChatMarker) {
 		// Confere o número antes; a resposta abre o chat (checkedMsg).
 		var out ipc.Chat
@@ -659,7 +686,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.msgs = nil
 	m.msgSel, m.replyTo, m.attach = -1, nil, nil
 	m.mention, m.mentioned = mentionState{}, map[string]string{}
-	m.loadingOld, m.noMoreOld = false, false
+	m.loadingOld, m.noMoreOld, m.gap = false, false, false
 	m.layout()
 	m.refreshMessages(true)
 	cmds := []tea.Cmd{m.loadMessages(c.JID, 0), stop}
@@ -985,6 +1012,9 @@ func (m *model) applyFilter() {
 		for _, i := range fuzzyChats(q, m.chats) {
 			list = append(list, m.chats[i])
 		}
+		if q == m.hitsQuery {
+			list = append(list, m.hitEntries()...)
+		}
 	} else {
 		for _, c := range m.chats {
 			if (m.archived && c.Archived) || (!m.archived && inTab(c, m.tab)) {
@@ -1032,6 +1062,7 @@ func (m *model) stopSearch(clear bool) {
 	m.search.Blur()
 	m.input.Focus()
 	if clear {
+		m.hits, m.hitsQuery = nil, ""
 		m.search.Reset()
 		m.cursor, m.offset = 0, 0
 		m.applyFilter()

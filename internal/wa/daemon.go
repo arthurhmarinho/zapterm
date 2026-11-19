@@ -542,8 +542,16 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 			d.decorate(ctx, &chats[i])
 		}
 		return chats, nil
+	case ipc.OpSearch:
+		return d.search(ctx, req.Text, req.Limit)
 	case ipc.OpMessages:
-		msgs, err := d.st.Messages(req.Chat, req.Limit, req.Before)
+		var msgs []ipc.Message
+		var err error
+		if req.After > 0 {
+			msgs, err = d.st.MessagesAfter(req.Chat, req.Limit, req.After)
+		} else {
+			msgs, err = d.st.Messages(req.Chat, req.Limit, req.Before)
+		}
 		if err != nil {
 			return nil, err
 		}

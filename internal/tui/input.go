@@ -178,6 +178,11 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 			m.moveCursor(len(m.list))
 			return nil
 		}
+		if m.gap {
+			// Pulou para um resultado antigo: ir ao fim recarrega as últimas.
+			m.gap, m.msgSel = false, -1
+			return m.loadMessages(m.active, 0)
+		}
 		m.setSel(len(m.msgs) - 1)
 		m.vp.GotoBottom()
 		return nil
@@ -193,7 +198,7 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 				return nil
 			}
 			m.setSel(m.sel() + d)
-			return m.maybeLoadOlder()
+			return tea.Batch(m.maybeLoadOlder(), m.maybeLoadNewer())
 		}
 	}
 
@@ -284,6 +289,7 @@ func (m *model) keySearch(k tea.KeyPressMsg) tea.Cmd {
 	if m.search.Value() != before {
 		m.cursor, m.offset = 0, 0
 		m.applyFilter()
+		return tea.Batch(cmd, m.scheduleSearch())
 	}
 	return cmd
 }
@@ -353,7 +359,7 @@ func (m *model) scrollChat(d int) tea.Cmd {
 	if m.focus == paneChat {
 		m.selFromViewport(d < 0)
 	}
-	return m.maybeLoadOlder()
+	return tea.Batch(m.maybeLoadOlder(), m.maybeLoadNewer())
 }
 
 type chatNames []ipc.Chat
@@ -528,7 +534,7 @@ func (m *model) onWheel(w tea.MouseWheelMsg) tea.Cmd {
 	} else {
 		m.vp.ScrollDown(d)
 	}
-	return m.maybeLoadOlder()
+	return tea.Batch(m.maybeLoadOlder(), m.maybeLoadNewer())
 }
 
 // ---------- ações na mensagem selecionada ----------

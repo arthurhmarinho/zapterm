@@ -53,10 +53,25 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpChats:
 		return d.chats, nil
 	case ipc.OpMessages:
-		if req.Before > 0 {
-			return []ipc.Message{}, nil
+		all := d.msgs[req.Chat]
+		out := []ipc.Message{}
+		for _, m := range all {
+			if (req.Before == 0 && req.After == 0) || (req.Before > 0 && m.TS < req.Before) || (req.After > 0 && m.TS > req.After) {
+				out = append(out, m)
+			}
 		}
-		return d.msgs[req.Chat], nil
+		return out, nil
+	case ipc.OpSearch:
+		q := strings.ToLower(req.Text)
+		hits := []ipc.SearchHit{}
+		for _, c := range d.chats {
+			for _, m := range d.msgs[c.JID] {
+				if m.Kind == "text" && strings.Contains(strings.ToLower(m.Text), q) {
+					hits = append(hits, ipc.SearchHit{Chat: c, Message: m})
+				}
+			}
+		}
+		return hits, nil
 	case ipc.OpRead:
 		for i := range d.chats {
 			if d.chats[i].JID == req.Chat {
