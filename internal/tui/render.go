@@ -194,7 +194,7 @@ func renderChatItem(c ipc.Chat, w int, selected bool, av string, typing string) 
 		right = append(right, pill(n, cBgList, cBadge, bg, true))
 	}
 	r := strings.Join(right, " ")
-	prev := previewLabel(oneLine(c.LastText))
+	prev := previewLabel(oneLine(plainText(c.LastText)))
 	tick := ""
 	if strings.HasPrefix(prev, "você: ") {
 		prev = strings.TrimPrefix(prev, "você: ")
@@ -377,7 +377,13 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 		lines = append(lines, pic)
 	}
 	if text != "" {
-		lines = append(lines, ansi.Wrap(text, inner, " "))
+		// Texto e legenda levam a formatação do WhatsApp; os rótulos de
+		// mídia, áudio e "apagada" já vêm estilizados.
+		if m.Kind == "text" || (pic != "" && !thumb) {
+			lines = append(lines, formatText(text, inner, sText))
+		} else {
+			lines = append(lines, ansi.Wrap(text, inner, " "))
+		}
 	}
 	content := strings.Join(lines, "\n")
 	stampText := time.UnixMilli(m.TS).Format("15:04")
@@ -410,7 +416,7 @@ func inlineQuote(q *ipc.Quote, w int) string {
 		name = "mensagem"
 	}
 	return bar + fg(c).Bold(true).Render(ansi.Truncate(name, w-1, "…")) + "\n" +
-		bar + sText2.Render(ansi.Truncate(mediaLabel(oneLine(q.Text)), w-1, "…"))
+		bar + sText2.Render(ansi.Truncate(mediaLabel(oneLine(plainText(q.Text))), w-1, "…"))
 }
 
 // quoteBlock: citação acima do campo de escrita, com barra na cor do autor.
@@ -422,7 +428,7 @@ func quoteBlock(q *ipc.Quote, w int, bg color.Color) string {
 		name = "mensagem"
 	}
 	l1 := bar + fg(c).Bold(true).Render(ansi.Truncate(name, w-2, "…"))
-	l2 := bar + sText2.Render(ansi.Truncate(mediaLabel(oneLine(q.Text)), w-2, "…"))
+	l2 := bar + sText2.Render(ansi.Truncate(mediaLabel(oneLine(plainText(q.Text))), w-2, "…"))
 	return paint(l1+"\n"+l2, bg, w)
 }
 

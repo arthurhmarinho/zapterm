@@ -452,7 +452,7 @@ func (m *model) viewFooter() string {
 	case m.focus == paneList:
 		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pesquisar · alt+1..4 filtros · alt+a arquivadas · ctrl+c sair"
 	default:
-		help = "↑/↓ mensagem · ctrl+r responder · ctrl+e reagir · ctrl+o abrir/ouvir · ctrl+t gravar · ctrl+v print · ctrl+s figurinha · alt+f anexar"
+		help = "↑/↓ mensagem · ctrl+r responder · ctrl+e reagir · ctrl+o abrir/ouvir/link · ctrl+t gravar · ctrl+v print · ctrl+s figurinha · alt+f anexar"
 	}
 	left := sText2.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {

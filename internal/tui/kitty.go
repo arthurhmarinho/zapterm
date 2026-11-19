@@ -218,3 +218,10 @@ func opener(path string, lookPath func(string) (string, error)) (string, []strin
 	}
 	return "xdg-open", []string{path}
 }
+
+// openURL abre um link no navegador padrão (aqui o xdg-open é o certo).
+func openURL(u string) error {
+	cmd := exec.Command("xdg-open", u)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	return cmd.Start()
+}

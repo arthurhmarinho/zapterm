@@ -645,6 +645,14 @@ func (m *model) openMedia(i int) tea.Cmd {
 	}
 	msg := m.msgs[i]
 	if msg.Kind == "text" || msg.Kind == "other" {
+		// Mensagem com link: ctrl+o abre o primeiro no navegador.
+		if u := firstURL(msg.Text); u != "" {
+			if err := openURL(u); err != nil {
+				m.setFlash("xdg-open: " + err.Error())
+			} else {
+				m.setFlash("abrindo " + u)
+			}
+		}
 		return nil
 	}
 	if msg.Kind == "audio" {

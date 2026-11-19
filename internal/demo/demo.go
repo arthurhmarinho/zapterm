@@ -95,11 +95,11 @@ func (d *server) seed(now time.Time) {
 	rafa, lu := "5511900000010@s.whatsapp.net", "5511900000011@s.whatsapp.net"
 	d.msgs = map[string][]ipc.Message{
 		marina: {
-			{ID: "m1", Chat: marina, Sender: marina, SenderName: "Marina Alves", TS: at(60 * 25), Kind: "text", Text: "Oi! Você vai na exposição amanhã?"},
+			{ID: "m1", Chat: marina, Sender: marina, SenderName: "Marina Alves", TS: at(60 * 25), Kind: "text", Text: "Oi! Você vai na *exposição* amanhã? A programação tá em https://museu.exemplo.org/agenda"},
 			{ID: "m2", Chat: marina, Sender: me, SenderName: "você", FromMe: true, TS: at(60 * 24), Kind: "text", Text: "Vou sim! Que horas você chega?", Status: 3},
 			{ID: "m3", Chat: marina, Sender: marina, SenderName: "Marina Alves", TS: at(20), Kind: "text", Text: "Umas 15h. Dá pra gente almoçar antes",
 				Reactions: []ipc.Reaction{{Emoji: "👍", Count: 1, Mine: true}}},
-			{ID: "m4", Chat: marina, Sender: me, SenderName: "você", FromMe: true, TS: at(15), Kind: "text", Text: "Perfeito, conheço um lugar ótimo perto do museu", Edited: true, Status: 3},
+			{ID: "m4", Chat: marina, Sender: me, SenderName: "você", FromMe: true, TS: at(15), Kind: "text", Text: "Perfeito, conheço um lugar _ótimo_ perto do museu", Edited: true, Status: 3},
 			{ID: "m5", Chat: marina, Sender: marina, SenderName: "Marina Alves", TS: at(8), Kind: "revoked"},
 			{ID: "m6", Chat: marina, Sender: marina, SenderName: "Marina Alves", TS: at(5), Kind: "text", Text: "Manda o endereço?"},
 			{ID: "m7", Chat: marina, Sender: me, SenderName: "você", FromMe: true, TS: at(3), Kind: "text", Text: "fechado, te vejo lá!", Status: 3,
