@@ -368,7 +368,7 @@ func (m *model) clickList(g geometry, x, y int) tea.Cmd {
 	switch {
 	case y == g.titleY && m.archived:
 		m.setArchived(false)
-	case y == g.searchY:
+	case y >= g.searchY && y < g.searchY+3:
 		m.startSearch()
 	case y == g.chipsY && !m.archived:
 		if t := m.chipAt(x); t >= 0 {

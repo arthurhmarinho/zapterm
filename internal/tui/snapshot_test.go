@@ -23,7 +23,7 @@ func TestSnapshotLive(t *testing.T) {
 	}
 	defer cli.Close()
 	m := newModel(cli)
-	m.Update(tea.WindowSizeMsg{Width: 150, Height: 40})
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	m.Update(m.loadChats()())
 	m.Update(m.loadStatus()())
 	dump := func(label string) {

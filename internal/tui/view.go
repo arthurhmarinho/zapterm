@@ -33,18 +33,18 @@ const headerH = 3
 
 func (m *model) geom() geometry {
 	g := geometry{}
-	g.listW = max(34, min(52, m.w*32/100))
+	g.listW = listWidth(m.w)
 	g.chatX = g.listW + 1 // uma coluna de divisor
 	g.chatW = m.w - g.chatX
 	g.footerY = m.h - 1
 
-	// título com sua foto (2 linhas), busca, pílulas, linha vazia
-	g.titleY, g.searchY, g.chipsY = 0, 2, 3
+	// título com sua foto (2 linhas), caixa de busca (3), filtros, vazia
+	g.titleY, g.searchY, g.chipsY = 0, 2, 5
 	g.archRowY = -1
-	g.itemsY = 5
+	g.itemsY = 7
 	if m.showArchivedRow() {
-		g.archRowY = 5
-		g.itemsY = 7
+		g.archRowY = 7
+		g.itemsY = 9
 	}
 	g.listRows = max(0, (g.footerY-g.itemsY)/itemH)
 
@@ -69,7 +69,7 @@ const stickCellW, stickCellH = 12, 7
 
 func (m *model) stickPerRow() int { return max(1, (m.geom0chatW()-2)/(stickCellW+1)) }
 
-func (m *model) geom0chatW() int { return m.w - max(34, min(52, m.w*32/100)) - 1 }
+func (m *model) geom0chatW() int { return m.w - listWidth(m.w) - 1 }
 
 func (m *model) extraHeight() int {
 	switch {
@@ -140,8 +140,8 @@ func (m *model) View() tea.View {
 	switch {
 	case m.searching:
 		if c := m.search.Cursor(); c != nil {
-			c.Position.X += 6
-			c.Position.Y += g.searchY
+			c.Position.X += 6 // margem, borda, espaço, lupa, dois espaços
+			c.Position.Y += g.searchY + 1
 			v.Cursor = c
 		}
 	case m.active != "":
@@ -176,8 +176,8 @@ func (m *model) viewList(g geometry) string {
 		if name == "" {
 			name = "conectando…"
 		}
-		text := lipgloss.NewStyle().Foreground(cText).Bold(true).Render("zapterm") + "\n" +
-			sText2.Render(ansi.Truncate(name, w-10, "…"))
+		// Seu nome em destaque; o nome do app, discreto, embaixo.
+		text := sBold.Render(ansi.Truncate(name, w-10, "…")) + "\n" + sText2.Render("zapterm")
 		av := strings.TrimSuffix(strings.Repeat(strings.Repeat(" ", avatarSmallCols)+"\n", avatarSmallRows), "\n")
 		if m.me != "" {
 			av = m.smallAvatar(m.me, m.myName)
@@ -185,36 +185,38 @@ func (m *model) viewList(g geometry) string {
 		rows = append(rows, paint(lipgloss.JoinHorizontal(lipgloss.Top, "  ", av, "  ", text), cBgList, w))
 	}
 
-	// Busca
+	// Busca: caixa com borda arredondada, como a de escrita.
 	field := m.search.View()
 	if !m.searching && m.searchQuery() == "" {
-		field = sText2.Render("Pesquisar ou começar uma nova conversa")
+		field = sText2.Render("Pesquisar conversa")
 	}
 	icon := sText2.Render(icons.search)
+	border := cText2
 	if m.searching {
-		icon = sGreen.Render(icons.search)
+		icon, border = sGreen.Render(icons.search), cGreen
 	}
-	inner := paint(" "+icon+"  "+ansi.Truncate(field, w-10, "…"), cBgPanel, w-4)
-	edge := lipgloss.NewStyle().Foreground(cBgPanel).Background(cBgList)
-	if icons.pillL != "" {
-		inner = edge.Render(icons.pillL) + inner + edge.Render(icons.pillR)
-	}
-	rows = append(rows, paint(" "+inner, cBgList, w))
+	boxW := w - 2 // uma coluna de margem de cada lado
+	inner := boxW - 4
+	line := icon + "  " + ansi.Truncate(field, inner-3, "…")
+	line += strings.Repeat(" ", max(0, inner-ansi.StringWidth(line)))
+	search := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(border).
+		Padding(0, 1).Render(line)
+	rows = append(rows, paint(lipgloss.JoinHorizontal(lipgloss.Top, " ", search), cBgList, w))
 
-	// Pílulas de filtro (ou explicação na vista de arquivadas)
+	// Filtros: texto simples; o ativo em destaque e sublinhado.
 	if m.archived {
 		rows = append(rows, paint("  "+sText2.Render("Conversas arquivadas · esc volta"), cBgList, w))
 	} else {
 		labels, _ := m.chipLabels()
-		var chips []string
+		var tabs []string
 		for i, l := range labels {
 			if i == m.tab && m.searchQuery() == "" {
-				chips = append(chips, pill(l, cChipOnFg, cChipOnBg, cBgList, true))
+				tabs = append(tabs, sGreen.Bold(true).Underline(true).Render(l))
 			} else {
-				chips = append(chips, pill(l, cText2, cBgPanel, cBgList, false))
+				tabs = append(tabs, sText2.Render(l))
 			}
 		}
-		rows = append(rows, paint(" "+strings.Join(chips, " "), cBgList, w))
+		rows = append(rows, paint("  "+strings.Join(tabs, "  "), cBgList, w))
 	}
 	rows = append(rows, blank(cBgList, w, 1))
 
@@ -247,36 +249,38 @@ func (m *model) viewList(g geometry) string {
 }
 
 // chipLabels devolve os rótulos das pílulas e onde cada uma começa.
+// chipLabels devolve os rótulos dos filtros e onde cada um começa. Usa
+// os nomes completos se couberem na largura da lista; senão, os curtos.
 func (m *model) chipLabels() ([]string, []int) {
-	var labels []string
-	var starts []int
-	x := 1
-	capW := 0
-	if icons.pillL != "" {
-		capW = 2
-	}
-	for i, n := range tabNames {
-		l := n
-		if i != tabAll && i != tabChannels {
-			if c := m.tabCount(i); c > 0 {
-				l += fmt.Sprintf(" %d", c)
+	short := [numTabs]string{"Tudo", "N.lidas", "Grupos", "Canais"}
+	tiny := [numTabs]string{"Tudo", "NL", "Gr", "Can"}
+	width := listWidth(m.w) - 2
+	for _, names := range [][numTabs]string{tabNames, short, tiny} {
+		var labels []string
+		var starts []int
+		x := 2 // margem
+		for i, n := range names {
+			l := n
+			if i != tabAll && i != tabChannels {
+				if c := m.tabCount(i); c > 0 {
+					l += fmt.Sprintf(" %d", c)
+				}
 			}
+			labels = append(labels, l)
+			starts = append(starts, x)
+			x += lipgloss.Width(l) + 2
 		}
-		labels = append(labels, l)
-		starts = append(starts, x)
-		x += lipgloss.Width(l) + capW + 1
+		if x-2 <= width || names == tiny {
+			return labels, starts
+		}
 	}
-	return labels, starts
+	return nil, nil
 }
 
 func (m *model) chipAt(x int) int {
 	labels, starts := m.chipLabels()
-	capW := 0
-	if icons.pillL != "" {
-		capW = 2
-	}
 	for i := range labels {
-		if x >= starts[i] && x < starts[i]+lipgloss.Width(labels[i])+capW {
+		if x >= starts[i] && x < starts[i]+lipgloss.Width(labels[i]) {
 			return i
 		}
 	}
@@ -525,3 +529,7 @@ func (m *model) viewPhoto() string {
 	help := sText2.Render(" esc fecha · o abre no programa externo")
 	return screen + "\n" + help
 }
+
+// listWidth: 38 colunas no mínimo, para os filtros caberem com os nomes
+// completos ("Tudo  Não lidas 14  Grupos 7  Canais").
+func listWidth(w int) int { return max(38, min(52, w*32/100)) }

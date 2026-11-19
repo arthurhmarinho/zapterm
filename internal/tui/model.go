@@ -201,7 +201,7 @@ func newInput() textarea.Model {
 func newSearch() textinput.Model {
 	t := textinput.New()
 	t.Prompt = ""
-	t.Placeholder = "Pesquisar ou começar uma nova conversa"
+	t.Placeholder = "Pesquisar conversa"
 	return t
 }
 
