@@ -80,12 +80,15 @@ type model struct {
 	attach     *attachment
 
 	// Seletor de figurinhas (ctrl+s)
-	picking    bool
-	stickers   []ipc.Sticker
-	stickLoad  bool
-	stickSel   int
-	stickTop   int             // primeira linha visível da grade
-	autoAsked  map[string]bool // figurinhas já pedidas para baixar sozinhas
+	picking   bool
+	stickers  []ipc.Sticker
+	stickLoad bool
+	stickSel  int
+	stickTop  int             // primeira linha visível da grade
+	autoAsked map[string]bool // figurinhas já pedidas para baixar sozinhas
+
+	play       *playback  // áudio tocando
+	rec        *recording // gravação em andamento
 	loadingOld bool
 	noMoreOld  bool
 	vp         viewport.Model
@@ -135,6 +138,7 @@ type (
 		media    *ipc.Media
 		open     bool // abrir no programa externo quando chegar
 		auto     bool // download automático (figurinha), sem mexer no aviso
+		play     bool // tocar quando chegar (áudio)
 	}
 	attachMsg    attachment
 	pasteTextMsg string
@@ -149,6 +153,7 @@ func Run() error {
 	m := newModel(cli)
 	defer func() { m.cli.Close() }()
 	_, err = tea.NewProgram(m).Run()
+	m.cleanupAudio()
 	m.imgs.cleanup()
 	return err
 }
@@ -300,6 +305,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if cmd, ok := m.onAudioMsg(msg); ok {
+		return m, cmd
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
@@ -568,6 +576,9 @@ func (m *model) openMedia(i int) tea.Cmd {
 	if msg.Kind == "text" || msg.Kind == "other" {
 		return nil
 	}
+	if msg.Kind == "audio" {
+		return m.toggleAudio(i)
+	}
 	if msg.Media != nil {
 		if err := openExternal(msg.Media.Path); err != nil {
 			m.setFlash("xdg-open: " + err.Error())
@@ -655,14 +666,18 @@ func (m *model) onMedia(msg mediaMsg) tea.Cmd {
 	if msg.chat != m.active {
 		return nil
 	}
+	var cmd tea.Cmd
 	for i := range m.msgs {
 		if m.msgs[i].ID == msg.id {
 			m.msgs[i].Media = msg.media
+			if msg.play {
+				cmd = m.startPlay(msg.media.Path, msg.id, audioSeconds(m.msgs[i].Text))
+			}
 			m.rerenderKeepingPlace()
 			m.ensureSelVisible()
 		}
 	}
-	return nil
+	return cmd
 }
 
 // ---------- fotos de perfil ----------
@@ -993,7 +1008,9 @@ func (m *model) refreshMessages(toBottom bool) {
 		if m.focus == paneChat {
 			sel = m.sel()
 		}
-		r := msgRenderer{w: w, isGroup: m.activeChat.Kind == "group", sel: sel, imgs: m.imgs, avatar: m.smallAvatar}
+		playID, elapsed := m.playState()
+		r := msgRenderer{w: w, isGroup: m.activeChat.Kind == "group", sel: sel, imgs: m.imgs, avatar: m.smallAvatar,
+			playID: playID, elapsed: elapsed}
 		content, m.spans = r.render(m.msgs)
 	}
 	m.vp.SetContent(content)

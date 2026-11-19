@@ -506,6 +506,10 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		sctx, scancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer scancel()
 		return d.sendSticker(sctx, req.Chat, req.SrcChat, req.Msg, req.ReplyTo)
+	case ipc.OpSendAudio:
+		actx, acancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer acancel()
+		return d.sendAudio(actx, req.Chat, req.Path, req.Seconds, req.ReplyTo)
 	case ipc.OpSendImage:
 		ictx, icancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer icancel()

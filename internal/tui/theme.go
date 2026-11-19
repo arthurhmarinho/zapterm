@@ -58,13 +58,15 @@ var (
 type iconSet struct {
 	search, mute, pin, archive, back, reply, send, attach, close string
 	photo, audio, video, doc, sticker, pillL, pillR, check       string
+	play, pause, rec                                             string
 }
 
 var icons = func() iconSet {
 	if os.Getenv("ZAPTERM_NERDFONT") == "0" {
 		return iconSet{search: "/", mute: "(m)", pin: "^", archive: "[A]", back: "<", reply: ">",
 			send: ">", attach: "+", close: "x", photo: "[foto]", audio: "[áudio]", video: "[vídeo]",
-			doc: "[doc]", sticker: "[fig]", pillL: "", pillR: "", check: "v"}
+			doc: "[doc]", sticker: "[fig]", pillL: "", pillR: "", check: "v",
+			play: ">", pause: "||", rec: "*"}
 	}
 	return iconSet{
 		search:  "\U000f0349", // nf-md-magnify
@@ -84,6 +86,9 @@ var icons = func() iconSet {
 		pillL:   "",          // meia-lua esquerda (powerline)
 		pillR:   "",
 		check:   "\U000f012c", // nf-md-check
+		play:    "\U000f040a", // nf-md-play
+		pause:   "\U000f03e4", // nf-md-pause
+		rec:     "\U000f044a", // nf-md-record
 	}
 }()
 

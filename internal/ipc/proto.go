@@ -20,6 +20,7 @@ const (
 	OpSendImage   = "send_image"   // envia a imagem em Path com legenda Text
 	OpStickers    = "stickers"     // figurinhas recentes (já baixadas), para o seletor
 	OpSendSticker = "send_sticker" // reenvia a figurinha da mensagem SrcChat/Msg em Chat
+	OpSendAudio   = "send_audio"   // envia o OGG/Opus em Path como mensagem de voz
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -46,6 +47,8 @@ type Request struct {
 	Path string `json:"path,omitempty"`
 	// SrcChat é o chat da mensagem de origem (OpSendSticker).
 	SrcChat string `json:"src_chat,omitempty"`
+	// Seconds é a duração do áudio gravado (OpSendAudio).
+	Seconds int `json:"seconds,omitempty"`
 }
 
 // Sticker é uma figurinha do seletor: a mensagem de onde ela veio e a

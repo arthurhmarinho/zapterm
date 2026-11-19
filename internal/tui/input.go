@@ -22,6 +22,15 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.picking {
 		return m.keyStickers(k)
 	}
+	if m.rec != nil {
+		switch s {
+		case "enter", "ctrl+t":
+			return m.finishRec(true)
+		case "esc", "ctrl+c":
+			return m.finishRec(false)
+		}
+		return nil // gravando: o resto das teclas fica de fora
+	}
 
 	switch s {
 	case "ctrl+c":
@@ -44,6 +53,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case "ctrl+s":
 		return m.openStickers()
+	case "ctrl+t":
+		return m.startRec()
 	case "ctrl+v":
 		if m.active == "" {
 			m.setFlash("abra um chat antes de colar")

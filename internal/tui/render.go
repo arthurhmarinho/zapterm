@@ -197,6 +197,8 @@ type msgRenderer struct {
 	sel     int
 	imgs    *images
 	avatar  func(jid, name string) string // 4×2, para remetentes em grupo
+	playID  string                        // áudio tocando
+	elapsed int                           // segundos tocados
 }
 
 // render monta a conversa inteira e devolve também a linha inicial e final
@@ -263,6 +265,8 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 	}
 	text := m.Text
 	switch {
+	case m.Kind == "audio" && (m.HasRaw || m.Media != nil):
+		text = r.audioLine(m, inner)
 	case pic != "":
 		text = stripTag(text)
 	case m.Kind != "text" && m.Kind != "other":
@@ -338,4 +342,24 @@ func previewLabel(s string) string {
 		return s[:i+2] + mediaLabel(s[i+2:])
 	}
 	return mediaLabel(s)
+}
+
+// audioLine: o player dentro do balão. Parado: ▶ e a duração; tocando:
+// pausa, barra de progresso e tempo decorrido.
+func (r msgRenderer) audioLine(m ipc.Message, inner int) string {
+	total := audioSeconds(m.Text)
+	barW := max(8, min(inner-16, 28))
+	if m.ID != r.playID {
+		dur := fmtDur(total)
+		if total == 0 {
+			dur = "áudio"
+		}
+		return sText.Render(icons.play) + " " + sText2.Render(strings.Repeat("─", barW)+" "+dur)
+	}
+	pos := 0
+	if total > 0 {
+		pos = min(barW-1, r.elapsed*barW/total)
+	}
+	bar := fg(cGreen).Render(strings.Repeat("━", pos)+"●") + sText2.Render(strings.Repeat("─", barW-pos-1))
+	return fg(cGreen).Render(icons.pause) + " " + bar + " " + sText2.Render(fmtDur(r.elapsed)+" / "+fmtDur(total))
 }

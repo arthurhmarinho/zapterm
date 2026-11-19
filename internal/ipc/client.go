@@ -81,7 +81,7 @@ func (cl *Client) Call(req Request, out any) error {
 
 func callTimeout(op string) time.Duration {
 	switch op {
-	case OpMedia, OpSendImage, OpStickers, OpSendSticker:
+	case OpMedia, OpSendImage, OpStickers, OpSendSticker, OpSendAudio:
 		return 4 * time.Minute
 	case OpAvatar:
 		return 3 * time.Minute

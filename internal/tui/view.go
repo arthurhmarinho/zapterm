@@ -64,6 +64,8 @@ func (m *model) geom0chatW() int { return m.w - max(34, min(52, m.w*32/100)) - 1
 
 func (m *model) extraHeight() int {
 	switch {
+	case m.rec != nil:
+		return 3
 	case m.picking:
 		return 1 + 2*stickCellH
 	case m.attach != nil:
@@ -304,6 +306,12 @@ func (m *model) viewExtra(g geometry) string {
 	if m.picking {
 		return fitHeight(m.viewStickers(w), cDefault, w, g.extraH)
 	}
+	if r := m.rec; r != nil {
+		secs := int(time.Since(r.started).Seconds())
+		line := "  " + fg(cDanger).Render(icons.rec+" gravando") + " " + sText.Render(fmtDur(secs)) + "   " +
+			sText2.Render("enter envia · esc descarta")
+		return fitHeight("\n"+line, cDefault, w, g.extraH)
+	}
 	if a := m.attach; a != nil {
 		pic := m.imgs.block(a.preview, a.w, a.h, min(48, w-8), m.attachRows())
 		if pic == "" {
@@ -366,10 +374,12 @@ func (m *model) viewFooter() string {
 		help = "enter envia a imagem · esc cancela"
 	case m.picking:
 		help = "setas escolhem · enter ou clique envia · esc fecha"
+	case m.rec != nil:
+		help = "gravando pelo microfone · enter envia · esc descarta"
 	case m.focus == paneList:
 		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pesquisar · alt+1..4 filtros · alt+a arquivadas · ctrl+c sair"
 	default:
-		help = "↑/↓ mensagem · ctrl+r responder · ctrl+o mídia · ctrl+v colar print · ctrl+s figurinha · tab lista"
+		help = "↑/↓ mensagem · ctrl+r responder · ctrl+o abrir/ouvir · ctrl+t gravar áudio · ctrl+v print · ctrl+s figurinha"
 	}
 	left := sText2.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {

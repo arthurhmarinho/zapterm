@@ -1,6 +1,7 @@
 package wa
 
 import (
+	"fmt"
 	"strings"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -25,10 +26,15 @@ func describe(m *waE2E.Message) (kind, text string) {
 	case m.GetVideoMessage() != nil:
 		return "video", tag("vídeo", m.GetVideoMessage().GetCaption())
 	case m.GetAudioMessage() != nil:
-		if m.GetAudioMessage().GetPTT() {
-			return "audio", "[áudio]"
+		a := m.GetAudioMessage()
+		dur := ""
+		if s := a.GetSeconds(); s > 0 {
+			dur = fmt.Sprintf(" %d:%02d", s/60, s%60)
 		}
-		return "audio", "[arquivo de áudio]"
+		if a.GetPTT() {
+			return "audio", "[áudio" + dur + "]"
+		}
+		return "audio", "[arquivo de áudio" + dur + "]"
 	case m.GetDocumentMessage() != nil:
 		d := m.GetDocumentMessage()
 		return "document", tag("documento: "+d.GetFileName(), d.GetCaption())
