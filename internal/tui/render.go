@@ -199,8 +199,8 @@ type msgRenderer struct {
 	avatar  func(jid, name string) string // 4×2, para remetentes em grupo
 }
 
-// render monta a conversa inteira (fundo pintado) e devolve também a linha
-// inicial e final de cada balão, para o cursor e o clique.
+// render monta a conversa inteira e devolve também a linha inicial e final
+// de cada balão, para o cursor e o clique.
 func (r msgRenderer) render(msgs []ipc.Message) (string, [][2]int) {
 	if r.w < 20 {
 		return "", nil
@@ -217,70 +217,41 @@ func (r msgRenderer) render(msgs []ipc.Message) (string, [][2]int) {
 		t := time.UnixMilli(m.TS)
 		newDay := i == 0 || !sameDay(t, lastDay)
 		if newDay {
-			add(blank(cBgChat, r.w, 1))
-			add(paint(lipgloss.PlaceHorizontal(r.w, lipgloss.Center,
-				pill(dayLabel(t), cText2, cDayPill, cBgChat, false)), cBgChat, r.w))
+			label := " " + dayLabel(t) + " "
+			add(sText2.Render(lipgloss.PlaceHorizontal(r.w, lipgloss.Center, label, lipgloss.WithWhitespaceChars("─"))))
 			lastDay = t
 		}
 		// Em grupo, avatar e nome só na primeira mensagem de uma sequência
-		// do mesmo remetente, como no app; entre sequências, uma linha vazia.
+		// do mesmo remetente, como no app.
 		firstOfRun := newDay || msgs[i-1].Sender != m.Sender || msgs[i-1].FromMe != m.FromMe
-		if firstOfRun {
-			add(blank(cBgChat, r.w, 1))
-		}
 		spans[i][0] = line
 		add(r.bubbleRow(m, firstOfRun, i == r.sel))
 		spans[i][1] = line - 1
 	}
-	add(blank(cBgChat, r.w, 1))
 	return strings.Join(out, "\n"), spans
 }
 
 func (r msgRenderer) bubbleRow(m ipc.Message, firstOfRun, selected bool) string {
-	maxW := max(20, r.w*65/100)
-	left := ""
-	if !m.FromMe && r.isGroup {
-		maxW -= avatarSmallCols + 1
-		left = strings.Repeat(" ", avatarSmallCols)
-		if firstOfRun && r.avatar != nil {
-			left = r.avatar(m.Sender, m.SenderName)
-		}
+	maxW := max(20, r.w*3/4)
+	if m.FromMe {
+		return lipgloss.PlaceHorizontal(r.w, lipgloss.Right, r.bubble(m, maxW, false, selected))
 	}
-	b := r.bubble(m, maxW, firstOfRun && r.isGroup && !m.FromMe, selected)
-	if selected {
-		// Barra de destaque na cor de acento do tema, colada ao balão.
-		bar := strings.TrimSuffix(strings.Repeat(fg(cGreen).Render("▌")+"\n", lipgloss.Height(b)), "\n")
-		b = lipgloss.JoinHorizontal(lipgloss.Top, bar, b)
-	} else {
-		b = lipgloss.JoinHorizontal(lipgloss.Top, " ", b)
+	if !r.isGroup {
+		return r.bubble(m, maxW, false, selected)
 	}
-	bw := lipgloss.Width(b)
-	var row string
-	switch {
-	case m.FromMe:
-		row = lipgloss.JoinHorizontal(lipgloss.Top, strings.Repeat(" ", max(0, r.w-bw-2)), b)
-	case left != "":
-		row = lipgloss.JoinHorizontal(lipgloss.Top, " ", left, " ", b)
-	default:
-		row = lipgloss.JoinHorizontal(lipgloss.Top, " ", b)
+	left := strings.TrimSuffix(strings.Repeat(strings.Repeat(" ", avatarSmallCols)+"\n", avatarSmallRows), "\n")
+	if firstOfRun && r.avatar != nil {
+		left = r.avatar(m.Sender, m.SenderName)
 	}
-	return paint(row, cBgChat, r.w)
+	b := r.bubble(m, maxW-avatarSmallCols-1, firstOfRun, selected)
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, " ", b)
 }
 
-// bubble desenha o balão: nome (grupo), citação, imagem, texto e hora,
-// tudo sobre o fundo verde (seu) ou cinza (dos outros), sem borda.
+// bubble desenha o balão com borda arredondada, no estilo de terminal:
+// seus em ciano, dos outros em cinza, o selecionado com borda grossa na
+// cor de acento.
 func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) string {
-	bg, qbg, timeSt := cBubbleIn, cQuoteIn, sText2
-	if m.FromMe {
-		bg, qbg, timeSt = cBubbleOut, cQuoteOut, fg(cTimeOut)
-	}
-	if selected {
-		bg = cBubbleInSel
-		if m.FromMe {
-			bg = cBubbleOutSel
-		}
-	}
-	inner := maxW - 2 // um espaço de cada lado
+	inner := maxW - 4 // borda + padding
 
 	pic := ""
 	if md := m.Media; md != nil && md.Preview != "" && r.imgs != nil {
@@ -298,57 +269,56 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 		hint := ""
 		switch {
 		case m.Media != nil:
-			hint = "  · ctrl+o abre"
+			hint = " · ctrl+o abre"
 		case m.HasRaw:
-			hint = "  · ctrl+o baixa"
+			hint = " · ctrl+o baixa"
 		}
-		text = mediaLabel(text) + sText2.Render(hint)
+		text = sText2.Render(mediaLabel(text) + hint)
+	case m.Kind == "other":
+		text = sText2.Render(text)
 	}
-	body := ""
-	if text != "" {
-		body = sText.Render(ansi.Wrap(text, inner, " "))
-	}
-	stamp := time.UnixMilli(m.TS).Format("15:04")
 
-	var parts []string
+	var lines []string
 	if showName {
-		parts = append(parts, fg(senderColor(m.Sender)).Bold(true).Render(ansi.Truncate(m.SenderName, inner, "…")))
+		lines = append(lines, fg(senderColor(m.Sender)).Bold(true).Render(ansi.Truncate(m.SenderName, inner, "…")))
 	}
-	quoteAt := -1
 	if m.Quote != nil {
-		quoteAt = len(parts)
-		parts = append(parts, "") // a citação entra depois, com a largura final
+		lines = append(lines, inlineQuote(m.Quote, inner))
 	}
 	if pic != "" {
-		parts = append(parts, pic)
+		lines = append(lines, pic)
 	}
-	if body != "" {
-		parts = append(parts, body)
+	if text != "" {
+		lines = append(lines, ansi.Wrap(text, inner, " "))
 	}
+	content := strings.Join(lines, "\n")
+	stamp := sText2.Render(time.UnixMilli(m.TS).Format("15:04"))
+	cw := min(inner, max(lipgloss.Width(content), lipgloss.Width(stamp)))
+	content += "\n" + lipgloss.PlaceHorizontal(cw, lipgloss.Right, stamp)
 
-	// Largura do balão: a do conteúdo, no mínimo a da hora.
-	cw := lipgloss.Width(stamp) + 2
-	for _, p := range parts {
-		cw = max(cw, lipgloss.Width(p))
+	border, style := cText2, lipgloss.RoundedBorder()
+	if m.FromMe {
+		border = lipgloss.Color("6")
 	}
-	if m.Quote != nil {
-		cw = max(cw, min(inner, lipgloss.Width(oneLine(m.Quote.Text))+2))
+	if selected {
+		border, style = cGreen, lipgloss.ThickBorder()
 	}
-	cw = min(cw, inner)
-	if quoteAt >= 0 {
-		parts[quoteAt] = quoteBlock(m.Quote, cw, qbg)
-	}
-
-	parts = append(parts, lipgloss.PlaceHorizontal(cw, lipgloss.Right, timeSt.Render(stamp)))
-	var padded []string
-	for _, l := range strings.Split(strings.Join(parts, "\n"), "\n") {
-		padded = append(padded, " "+l)
-	}
-	return paint(strings.Join(padded, "\n"), bg, cw+2)
+	return lipgloss.NewStyle().Border(style).BorderForeground(border).Padding(0, 1).Render(content)
 }
 
-// quoteBlock: citação dentro do balão (ou acima do campo de escrita), com
-// barra na cor do autor.
+// inlineQuote: citação dentro do balão, só com a barra colorida.
+func inlineQuote(q *ipc.Quote, w int) string {
+	c := senderColor(q.Sender)
+	bar := fg(c).Render("▎")
+	name := q.SenderName
+	if name == "" {
+		name = "mensagem"
+	}
+	return bar + fg(c).Bold(true).Render(ansi.Truncate(name, w-1, "…")) + "\n" +
+		bar + sText2.Render(ansi.Truncate(mediaLabel(oneLine(q.Text)), w-1, "…"))
+}
+
+// quoteBlock: citação acima do campo de escrita, com barra na cor do autor.
 func quoteBlock(q *ipc.Quote, w int, bg color.Color) string {
 	c := senderColor(q.Sender)
 	bar := fg(c).Render("▌")
