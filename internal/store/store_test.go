@@ -155,3 +155,31 @@ func TestStatusSoSobe(t *testing.T) {
 		t.Fatalf("última não é sua, LastStatus %d", ch.LastStatus)
 	}
 }
+
+func TestFavoritas(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	s.PutFavorite(FavoriteSticker{Key: "a", DirectPath: "/a", MediaKey: []byte{1}, TS: 10})
+	s.PutFavorite(FavoriteSticker{Key: "b", DirectPath: "/b", MediaKey: []byte{2}, TS: 20})
+	s.PutFavorite(FavoriteSticker{Key: "a", DirectPath: "/a2", MediaKey: []byte{1}, TS: 5}) // atualiza, sem regredir ts
+	favs, _ := s.Favorites()
+	if len(favs) != 2 || favs[0].Key != "b" || favs[1].DirectPath != "/a2" || favs[1].TS != 10 {
+		t.Fatalf("favoritas: %+v", favs)
+	}
+	s.RemoveFavorite("b")
+	if favs, _ := s.Favorites(); len(favs) != 1 {
+		t.Fatalf("remoção: %+v", favs)
+	}
+	// Expirada some da lista; favoritada de novo (link novo) volta.
+	s.MarkFavoriteGone("a")
+	if favs, _ := s.Favorites(); len(favs) != 1 || !favs[0].Gone {
+		t.Fatalf("expirada não marcada: %+v", favs)
+	}
+	s.PutFavorite(FavoriteSticker{Key: "a", DirectPath: "/a3", MediaKey: []byte{1}, TS: 30})
+	if favs, _ := s.Favorites(); favs[0].Gone {
+		t.Fatal("favoritar de novo (link novo) não tirou a marca")
+	}
+}

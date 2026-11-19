@@ -72,7 +72,7 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpViewing, ipc.OpTyping, ipc.OpAvatar:
 		return nil, nil // sem foto: a TUI desenha as iniciais
 	case ipc.OpStickers:
-		return []ipc.Sticker{}, nil
+		return ipc.StickerPage{Stickers: []ipc.Sticker{}, Next: -1}, nil
 	}
 	return nil, errors.New("indisponível no modo demonstração")
 }

@@ -472,11 +472,21 @@ func (m *model) viewFooter() string {
 }
 
 func (m *model) viewStickers(w int) string {
-	head := "  " + sText.Render(icons.sticker+"  Figurinhas recentes") + "   " +
-		sText2.Render("setas escolhem · enter envia · esc fecha")
+	tabs := [2]string{"Favoritas", "Recentes das conversas"}
+	for i, t := range tabs {
+		if i == m.stickTab {
+			tabs[i] = sGreen.Bold(true).Underline(true).Render(t)
+		} else {
+			tabs[i] = sText2.Render(t)
+		}
+	}
+	head := "  " + sText.Render(icons.sticker) + "  " + tabs[0] + "  " + tabs[1] + "   " +
+		sText2.Render("tab troca · setas escolhem · enter envia · esc fecha")
 	switch {
-	case m.stickLoad:
-		return head + "\n\n  " + sText2.Render("carregando…")
+	case m.stickLoad && len(m.stickers) == 0:
+		return head + "\n\n  " + sText2.Render("carregando… (a primeira vez baixa as figurinhas)")
+	case len(m.stickers) == 0 && m.stickTab == stickFav:
+		return head + "\n\n  " + sText2.Render("nenhuma favorita ainda: favorite figurinhas no celular e elas aparecem aqui")
 	case len(m.stickers) == 0:
 		return head + "\n\n  " + sText2.Render("nenhuma figurinha ainda: as que chegarem nas conversas aparecem aqui")
 	}

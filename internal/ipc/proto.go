@@ -18,7 +18,7 @@ const (
 	OpMedia       = "media"        // baixa a mídia da mensagem Msg (ou devolve do cache)
 	OpAvatar      = "avatar"       // foto de perfil de Chat (pessoa ou grupo); null = sem foto
 	OpSendImage   = "send_image"   // envia a imagem em Path com legenda Text
-	OpStickers    = "stickers"     // figurinhas recentes (já baixadas), para o seletor
+	OpStickers    = "stickers"     // favoritas do celular (Text "recent": as das conversas), para o seletor
 	OpSendSticker = "send_sticker" // reenvia a figurinha da mensagem SrcChat/Msg em Chat
 	OpSendAudio   = "send_audio"   // envia o OGG/Opus em Path como mensagem de voz
 	OpSendFile    = "send_file"    // envia o arquivo em Path (foto, vídeo, áudio ou documento)
@@ -67,6 +67,13 @@ type Sticker struct {
 	// Quadros, se for animada (como em Media).
 	Frames []string `json:"frames,omitempty"`
 	Delays []int    `json:"delays,omitempty"`
+}
+
+// StickerPage é a resposta de OpStickers: uma página e de onde continuar
+// (Next < 0: acabou).
+type StickerPage struct {
+	Stickers []Sticker `json:"stickers"`
+	Next     int       `json:"next"`
 }
 
 // Media é um arquivo de mídia baixado. Preview (PNG reduzido) só existe

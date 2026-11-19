@@ -178,6 +178,9 @@ func (m *model) keyStickers(k tea.KeyPressMsg) tea.Cmd {
 	case "esc", "ctrl+s", "ctrl+c":
 		m.closeStickers()
 		return nil
+	case "tab", "shift+tab":
+		m.stickTab = 1 - m.stickTab
+		return m.loadStickers(0)
 	case "enter":
 		return m.sendSticker(m.stickSel)
 	case "left":
@@ -202,6 +205,10 @@ func (m *model) keyStickers(k tea.KeyPressMsg) tea.Cmd {
 		m.stickTop = row
 	} else if row > m.stickTop+1 {
 		m.stickTop = row - 1
+	}
+	// Chegando na última linha carregada, busca a próxima página.
+	if m.stickNext >= 0 && !m.stickLoad && m.stickSel >= len(m.stickers)-per {
+		return m.loadStickers(m.stickNext)
 	}
 	return nil
 }

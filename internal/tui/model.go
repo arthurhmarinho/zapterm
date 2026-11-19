@@ -89,6 +89,8 @@ type model struct {
 	stickLoad bool
 	stickSel  int
 	stickTop  int             // primeira linha visível da grade
+	stickTab  int             // favoritas ou recentes
+	stickNext int             // de onde continuar a carregar (-1: acabou)
 	autoAsked map[string]bool // figurinhas já pedidas para baixar sozinhas
 
 	viewing  *viewer // foto aberta em tela cheia
@@ -155,7 +157,11 @@ type (
 	}
 	attachMsg    attachment
 	pasteTextMsg string
-	stickersMsg  []ipc.Sticker
+	stickersMsg  struct {
+		page   ipc.StickerPage
+		tab    int
+		offset int
+	}
 )
 
 func Run() error {
@@ -452,8 +458,16 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onMedia(msg)
 
 	case stickersMsg:
-		m.stickers, m.stickLoad = msg, false
-		m.stickSel, m.stickTop = 0, 0
+		if msg.tab != m.stickTab {
+			return m, nil // resposta da outra aba, chegou tarde
+		}
+		m.stickLoad = false
+		m.stickNext = msg.page.Next
+		if msg.offset == 0 {
+			m.stickers, m.stickSel, m.stickTop = msg.page.Stickers, 0, 0
+		} else {
+			m.stickers = append(m.stickers, msg.page.Stickers...)
+		}
 		m.layout()
 		return m, nil
 
@@ -692,10 +706,33 @@ func (m *model) openStickers() tea.Cmd {
 		return nil
 	}
 	m.picking, m.attach = true, nil
+	m.stickTab = stickFav
+	return m.loadStickers(0)
+}
+
+// Abas do seletor: a biblioteca do celular e as que passaram nas conversas.
+const (
+	stickFav = iota
+	stickRecent
+)
+
+// Favoritas vêm em páginas (são centenas e cada uma é baixada na hora).
+const stickPage = 28
+
+// loadStickers pede uma página da aba atual; offset 0 recomeça a lista.
+func (m *model) loadStickers(offset int) tea.Cmd {
 	m.stickLoad = true
+	if offset == 0 {
+		m.stickers = nil
+	}
 	m.layout()
-	var out []ipc.Sticker
-	return m.call(ipc.Request{Op: ipc.OpStickers}, &out, func() tea.Msg { return stickersMsg(out) })
+	tab := m.stickTab
+	req := ipc.Request{Op: ipc.OpStickers, Limit: stickPage, Before: int64(offset)}
+	if tab == stickRecent {
+		req.Text = "recent"
+	}
+	var out ipc.StickerPage
+	return m.call(req, &out, func() tea.Msg { return stickersMsg{page: out, tab: tab, offset: offset} })
 }
 
 func (m *model) closeStickers() {

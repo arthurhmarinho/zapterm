@@ -57,6 +57,23 @@ var migrations = []string{
 	 );`,
 	// 3: situação das mensagens enviadas (ver ipc.Message.Status).
 	`ALTER TABLE messages ADD COLUMN status INTEGER NOT NULL DEFAULT 0;`,
+	// 4: figurinhas favoritas, sincronizadas do celular pelo app state.
+	`CREATE TABLE favorite_stickers (
+		key          TEXT PRIMARY KEY,
+		direct_path  TEXT NOT NULL,
+		media_key    BLOB NOT NULL,
+		file_enc_sha BLOB,
+		file_sha     BLOB,
+		mimetype     TEXT NOT NULL DEFAULT 'image/webp',
+		width        INTEGER NOT NULL DEFAULT 0,
+		height       INTEGER NOT NULL DEFAULT 0,
+		file_length  INTEGER NOT NULL DEFAULT 0,
+		lottie       INTEGER NOT NULL DEFAULT 0,
+		ts           INTEGER NOT NULL
+	 );`,
+	// 5: favorita cujo arquivo expirou no servidor (403/404/410): não tenta
+	// de novo até ser favoritada de novo (link novo).
+	`ALTER TABLE favorite_stickers ADD COLUMN gone INTEGER NOT NULL DEFAULT 0;`,
 }
 
 func migrate(db *sql.DB) error {
@@ -330,6 +347,76 @@ func (s *Store) SetStatus(chat string, ids []string, status int) error {
 	_, err := s.db.Exec(`UPDATE messages SET status = MAX(status, ?)
 		WHERE chat = ? AND from_me = 1 AND id IN (`+strings.Join(marks, ",")+`)`, args...)
 	return err
+}
+
+// FavoriteSticker é uma figurinha da biblioteca do celular: o suficiente
+// para baixar (e reenviar) sem uma mensagem de origem.
+type FavoriteSticker struct {
+	Key                 string
+	DirectPath          string
+	MediaKey            []byte
+	FileEncSHA, FileSHA []byte
+	Mimetype            string
+	Width, Height       int
+	FileLength          int64
+	Lottie              bool
+	TS                  int64
+	Gone                bool // expirou no servidor
+}
+
+func (s *Store) PutFavorite(f FavoriteSticker) error {
+	_, err := s.db.Exec(`INSERT INTO favorite_stickers
+		(key, direct_path, media_key, file_enc_sha, file_sha, mimetype, width, height, file_length, lottie, ts)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (key) DO UPDATE SET direct_path = excluded.direct_path, media_key = excluded.media_key,
+			file_enc_sha = excluded.file_enc_sha, file_sha = excluded.file_sha, mimetype = excluded.mimetype,
+			width = excluded.width, height = excluded.height, file_length = excluded.file_length,
+			lottie = excluded.lottie, ts = MAX(ts, excluded.ts),
+			gone = CASE WHEN excluded.direct_path != favorite_stickers.direct_path THEN 0 ELSE gone END`,
+		f.Key, f.DirectPath, f.MediaKey, f.FileEncSHA, f.FileSHA, f.Mimetype, f.Width, f.Height, f.FileLength, f.Lottie, f.TS)
+	return err
+}
+
+func (s *Store) RemoveFavorite(key string) error {
+	_, err := s.db.Exec(`DELETE FROM favorite_stickers WHERE key = ?`, key)
+	return err
+}
+
+// MarkFavoriteGone marca a favorita como expirada no servidor.
+func (s *Store) MarkFavoriteGone(key string) error {
+	_, err := s.db.Exec(`UPDATE favorite_stickers SET gone = 1 WHERE key = ?`, key)
+	return err
+}
+
+// Favorites devolve a biblioteca toda (com as expiradas marcadas em Gone),
+// a favoritada mais recentemente primeiro. Manter as expiradas na lista
+// deixa as posições estáveis para a paginação do seletor.
+func (s *Store) Favorites() ([]FavoriteSticker, error) {
+	rows, err := s.db.Query(`SELECT key, direct_path, media_key, file_enc_sha, file_sha, mimetype,
+		width, height, file_length, lottie, ts, gone FROM favorite_stickers ORDER BY ts DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []FavoriteSticker
+	for rows.Next() {
+		var f FavoriteSticker
+		if err := rows.Scan(&f.Key, &f.DirectPath, &f.MediaKey, &f.FileEncSHA, &f.FileSHA, &f.Mimetype,
+			&f.Width, &f.Height, &f.FileLength, &f.Lottie, &f.TS, &f.Gone); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) Favorite(key string) (FavoriteSticker, error) {
+	var f FavoriteSticker
+	err := s.db.QueryRow(`SELECT key, direct_path, media_key, file_enc_sha, file_sha, mimetype,
+		width, height, file_length, lottie, ts FROM favorite_stickers WHERE key = ?`, key).
+		Scan(&f.Key, &f.DirectPath, &f.MediaKey, &f.FileEncSHA, &f.FileSHA, &f.Mimetype,
+			&f.Width, &f.Height, &f.FileLength, &f.Lottie, &f.TS)
+	return f, err
 }
 
 // SetReaction grava (ou, com emoji vazio, remove) a reação de sender.

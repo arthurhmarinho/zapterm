@@ -467,6 +467,43 @@ func (d *Daemon) recentStickers(ctx context.Context) ([]ipc.Sticker, error) {
 	return list, nil
 }
 
+// stickerSource pega bytes, prévia e metadados (tamanho, se é animada) de
+// uma figurinha da biblioteca (srcChat == favoriteChat) ou de uma mensagem.
+func (d *Daemon) stickerSource(ctx context.Context, srcChat, srcID string) (*ipc.Media, []byte, *waE2E.StickerMessage, error) {
+	if srcChat == favoriteChat {
+		md, data, err := d.downloadFavorite(ctx, srcID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		f, err := d.st.Favorite(srcID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		_, animErr := decodeAnimatedWebP(data)
+		return md, data, &waE2E.StickerMessage{
+			Width: proto.Uint32(uint32(f.Width)), Height: proto.Uint32(uint32(f.Height)),
+			IsAnimated: proto.Bool(animErr == nil),
+		}, nil
+	}
+	md, err := d.downloadMedia(ctx, srcChat, srcID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	data, err := os.ReadFile(md.Path)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	_, raw, err := d.st.Message(srcChat, srcID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	var orig waE2E.Message
+	if err := proto.Unmarshal(raw, &orig); err != nil || orig.GetStickerMessage() == nil {
+		return nil, nil, nil, errors.New("a mensagem de origem não é uma figurinha")
+	}
+	return md, data, orig.GetStickerMessage(), nil
+}
+
 // sendSticker reenvia uma figurinha já vista. Sobe o arquivo de novo em vez
 // de reaproveitar URL e chave da mensagem original, que podem ter expirado.
 func (d *Daemon) sendSticker(ctx context.Context, chat, srcChat, srcID, replyTo string) (any, error) {
@@ -474,23 +511,10 @@ func (d *Daemon) sendSticker(ctx context.Context, chat, srcChat, srcID, replyTo 
 	if err != nil {
 		return nil, fmt.Errorf("chat inválido: %w", err)
 	}
-	md, err := d.downloadMedia(ctx, srcChat, srcID)
+	md, data, o, err := d.stickerSource(ctx, srcChat, srcID)
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(md.Path)
-	if err != nil {
-		return nil, err
-	}
-	_, raw, err := d.st.Message(srcChat, srcID)
-	if err != nil {
-		return nil, err
-	}
-	var orig waE2E.Message
-	if err := proto.Unmarshal(raw, &orig); err != nil || orig.GetStickerMessage() == nil {
-		return nil, errors.New("a mensagem de origem não é uma figurinha")
-	}
-	o := orig.GetStickerMessage()
 
 	up, err := d.cli.Upload(ctx, data, whatsmeow.MediaImage)
 	if err != nil {

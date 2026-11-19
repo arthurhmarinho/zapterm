@@ -160,6 +160,7 @@ func (d *Daemon) onEvent(evt any) {
 	switch e := evt.(type) {
 	case *events.Connected:
 		d.setStatus("online")
+		d.refreshAppState()
 		// Reconectou: o servidor esqueceu a presença; manda de novo.
 		availMu.Lock()
 		availSent = nil
@@ -191,6 +192,8 @@ func (d *Daemon) onEvent(evt any) {
 		d.pushChat(d.normalize(ctx, e.JID).String())
 	case *events.Pin:
 		d.pushChat(d.normalize(ctx, e.JID).String())
+	case *events.AppState:
+		d.onAppState(e)
 	case *events.Receipt:
 		d.onReceipt(ctx, e)
 	case *events.ChatPresence:
@@ -565,7 +568,11 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 	case ipc.OpStickers:
 		sctx, scancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer scancel()
-		return d.recentStickers(sctx)
+		if req.Text == "recent" {
+			list, err := d.recentStickers(sctx)
+			return ipc.StickerPage{Stickers: list, Next: -1}, err
+		}
+		return d.favoriteStickers(sctx, int(req.Before), req.Limit)
 	case ipc.OpSendSticker:
 		sctx, scancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer scancel()
