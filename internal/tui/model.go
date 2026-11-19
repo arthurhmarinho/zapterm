@@ -90,14 +90,18 @@ type model struct {
 	stickTop  int             // primeira linha visível da grade
 	autoAsked map[string]bool // figurinhas já pedidas para baixar sozinhas
 
-	viewing    *viewer    // foto aberta em tela cheia
-	reacting   bool       // barra de reações (ctrl+e) aberta
-	play       *playback  // áudio tocando
-	rec        *recording // gravação em andamento
-	loadingOld bool
-	noMoreOld  bool
-	vp         viewport.Model
-	input      textarea.Model
+	viewing  *viewer // foto aberta em tela cheia
+	reacting bool    // barra de reações (ctrl+e) aberta
+
+	presence     map[string]*presenceState // digitando/online por chat
+	typingSentAt time.Time                 // último "digitando" seu enviado
+	typingChat   string                    // chat que recebeu esse aviso
+	play         *playback                 // áudio tocando
+	rec          *recording                // gravação em andamento
+	loadingOld   bool
+	noMoreOld    bool
+	vp           viewport.Model
+	input        textarea.Model
 
 	imgs      *images
 	avatars   map[string]*ipc.Media // jid -> foto (nil = sem foto ou buscando)
@@ -169,7 +173,7 @@ func newModel(cli *ipc.Client) *model {
 	m := &model{cli: cli, input: newInput(), search: newSearch(), vp: viewport.New(),
 		status: "conectando", termFocused: true, msgSel: -1, imgs: newImages(),
 		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}, fallbacks: map[string]string{},
-		autoAsked: map[string]bool{}}
+		autoAsked: map[string]bool{}, presence: map[string]*presenceState{}}
 	m.vp.MouseWheelEnabled = false // a roda é tratada em input.go
 	m.input.Focus()
 	return m
@@ -386,6 +390,9 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case presenceTickMsg:
+		return m, nil // só redesenhar: o aviso de digitando venceu
+
 	case statusMsg:
 		m.status, m.me, m.myName = msg.State, msg.Me, msg.Name
 		return m, nil
@@ -497,6 +504,8 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 		if c.JID == m.active {
 			m.activeChat = c
 		}
+	case ipc.EvPresence:
+		return m.onPresence(f)
 	case ipc.EvUpdate:
 		// Mensagem editada, apagada ou com reação nova: troca no lugar.
 		var msg ipc.Message
@@ -565,6 +574,7 @@ func (m *model) onMessages(msg msgsMsg) tea.Cmd {
 
 func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.focus = paneChat
+	stop := m.stopTyping()
 	if m.searching {
 		m.stopSearch(true)
 	}
@@ -580,7 +590,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.loadingOld, m.noMoreOld = false, false
 	m.layout()
 	m.refreshMessages(true)
-	cmds := []tea.Cmd{m.loadMessages(c.JID, 0)}
+	cmds := []tea.Cmd{m.loadMessages(c.JID, 0), stop}
 	if c.Unread > 0 {
 		cmds = append(cmds, m.markRead(c.JID))
 	}

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/sahilm/fuzzy"
@@ -161,8 +162,12 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 
 	// Todo o resto é texto.
 	var cmd tea.Cmd
+	before := m.input.Value()
 	m.input, cmd = m.input.Update(k)
 	m.layout() // a altura do campo acompanha o texto
+	if m.input.Value() != before {
+		return tea.Batch(cmd, m.noteTyping())
+	}
 	return cmd
 }
 
@@ -261,6 +266,8 @@ func (m *model) onEnter() tea.Cmd {
 	m.replyTo, m.msgSel = nil, -1
 	m.input.Reset()
 	m.layout()
+	// Mandar a mensagem já encerra o "digitando" do outro lado.
+	m.typingChat, m.typingSentAt = "", time.Time{}
 	return m.send(req)
 }
 

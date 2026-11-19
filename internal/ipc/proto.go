@@ -23,15 +23,17 @@ const (
 	OpSendAudio   = "send_audio"   // envia o OGG/Opus em Path como mensagem de voz
 	OpSendFile    = "send_file"    // envia o arquivo em Path (foto, vídeo, áudio ou documento)
 	OpReact       = "react"        // reage à mensagem Msg com o emoji em Text ("" remove)
+	OpTyping      = "typing"       // Text: "composing", "recording" ou "paused" em Chat
 )
 
 // Eventos empurrados pelo daemon sem pedido.
 const (
-	EvMessage = "message" // mensagem nova (recebida ou enviada por outro aparelho)
-	EvChat    = "chat"    // chat mudou (nome, não lidas, última mensagem)
-	EvStatus  = "status"  // conectou, desconectou, sincronizando
-	EvReload  = "reload"  // muita coisa mudou (history sync): recarregue a lista
-	EvUpdate  = "update"  // mensagem existente mudou (editada, apagada, reação)
+	EvMessage  = "message"  // mensagem nova (recebida ou enviada por outro aparelho)
+	EvChat     = "chat"     // chat mudou (nome, não lidas, última mensagem)
+	EvStatus   = "status"   // conectou, desconectou, sincronizando
+	EvReload   = "reload"   // muita coisa mudou (history sync): recarregue a lista
+	EvUpdate   = "update"   // mensagem existente mudou (editada, apagada, reação, recibo)
+	EvPresence = "presence" // digitando, gravando, online, visto por último
 )
 
 // Request vai da TUI para o daemon.
@@ -101,6 +103,9 @@ type Chat struct {
 	LastTS   int64  `json:"last_ts"` // unix ms
 	LastText string `json:"last_text"`
 	Unread   int    `json:"unread"`
+	// LastStatus: situação da última mensagem, se for sua (ver Message.Status);
+	// -1 se a última não é sua.
+	LastStatus int `json:"last_status"`
 }
 
 // Message é uma mensagem já reduzida ao que a TUI mostra.
@@ -122,8 +127,22 @@ type Message struct {
 	// mídia dela pode ser baixada.
 	HasRaw bool `json:"has_raw,omitempty"`
 	// Edited: o autor editou depois de enviar. Kind "revoked" = apagada.
-	Edited    bool       `json:"edited,omitempty"`
+	Edited bool `json:"edited,omitempty"`
+	// Status das suas mensagens: 0 desconhecido, 1 enviada (✓), 2 entregue
+	// (✓✓), 3 lida, 4 ouvida (áudio).
+	Status    int        `json:"status,omitempty"`
 	Reactions []Reaction `json:"reactions,omitempty"`
+}
+
+// Presence é o estado de alguém num chat. Typing/Recording valem por
+// alguns segundos; Online e LastSeen só vêm de conversas individuais.
+type Presence struct {
+	Chat      string `json:"chat"`
+	Who       string `json:"who,omitempty"` // em grupo, quem está digitando
+	Typing    bool   `json:"typing,omitempty"`
+	Recording bool   `json:"recording,omitempty"`
+	Online    *bool  `json:"online,omitempty"` // nil = sem informação nova
+	LastSeen  int64  `json:"last_seen,omitempty"`
 }
 
 // Reaction agrupa as reações de um emoji numa mensagem.

@@ -40,6 +40,13 @@ func (n *notifier) setViewing(conn uint64, chat string) {
 	delete(n.pending, chat)
 }
 
+// anyViewing: alguma TUI está aberta e em foco.
+func (n *notifier) anyViewing() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return len(n.viewing) > 0
+}
+
 func (n *notifier) isViewing(chat string) bool {
 	for _, c := range n.viewing {
 		if c == chat {

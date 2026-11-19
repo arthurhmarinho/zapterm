@@ -149,7 +149,22 @@ func textAvatar(jid, name string, cols, rows int) string {
 
 // renderChatItem desenha um chat em itemH linhas: avatar redondo à
 // esquerda; nome e hora; prévia, mudo, fixado e não lidas; um divisor.
-func renderChatItem(c ipc.Chat, w int, selected bool, av string) string {
+// ticks: ✓ enviada, ✓✓ entregue, ✓✓ azul lida/ouvida; nada se não sabemos
+// (mensagens antigas, de antes de existir o acompanhamento).
+func ticks(status int) string {
+	switch status {
+	case 1:
+		return sText2.Render("✓")
+	case 2:
+		return sText2.Render("✓✓")
+	case 3, 4:
+		return fg(lipgloss.Color("4")).Bold(true).Render("✓✓")
+	}
+	return ""
+}
+
+// renderChatItem: typing, se não vazio, substitui a prévia ("digitando…").
+func renderChatItem(c ipc.Chat, w int, selected bool, av string, typing string) string {
 	bg := cBgList
 	if selected {
 		bg = cBgHover
@@ -180,9 +195,21 @@ func renderChatItem(c ipc.Chat, w int, selected bool, av string) string {
 	}
 	r := strings.Join(right, " ")
 	prev := previewLabel(oneLine(c.LastText))
-	prev = strings.Replace(prev, "você: ", "Você: ", 1)
-	prev = ansi.Truncate(prev, tw-lipgloss.Width(r)-1, "…")
-	l2 := sText2.Render(prev) + strings.Repeat(" ", max(1, tw-lipgloss.Width(prev)-lipgloss.Width(r))) + r
+	tick := ""
+	if strings.HasPrefix(prev, "você: ") {
+		prev = strings.TrimPrefix(prev, "você: ")
+		if t := ticks(c.LastStatus); t != "" {
+			tick = t + " "
+		} else {
+			prev = "Você: " + prev
+		}
+	}
+	prevSt := sText2
+	if typing != "" {
+		prev, tick, prevSt = typing, "", sGreen
+	}
+	prev = ansi.Truncate(prev, tw-lipgloss.Width(r)-lipgloss.Width(tick)-1, "…")
+	l2 := tick + prevSt.Render(prev) + strings.Repeat(" ", max(1, tw-lipgloss.Width(tick)-lipgloss.Width(prev)-lipgloss.Width(r))) + r
 	l3 := fg(cDivider).Render(strings.Repeat("─", tw))
 
 	text := l1 + "\n" + l2 + "\n" + l3
@@ -358,6 +385,9 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 		stampText = "editada " + stampText
 	}
 	stamp := sText2.Render(stampText)
+	if m.FromMe && m.Kind != "revoked" {
+		stamp += " " + ticks(m.Status)
+	}
 	cw := min(inner, max(lipgloss.Width(content), lipgloss.Width(stamp)))
 	content += "\n" + lipgloss.PlaceHorizontal(cw, lipgloss.Right, stamp)
 

@@ -87,7 +87,10 @@ func Run(ctx context.Context, opt Options) error {
 		return err
 	}
 	defer d.srv.Close()
-	d.srv.OnClose = func(conn uint64) { d.notif.setViewing(conn, "") }
+	d.srv.OnClose = func(conn uint64) {
+		d.notif.setViewing(conn, "")
+		d.syncAvailability()
+	}
 	go func() {
 		if err := d.srv.Serve(); err != nil {
 			log.Error("socket", "err", err)
@@ -157,6 +160,11 @@ func (d *Daemon) onEvent(evt any) {
 	switch e := evt.(type) {
 	case *events.Connected:
 		d.setStatus("online")
+		// Reconectou: o servidor esqueceu a presença; manda de novo.
+		availMu.Lock()
+		availSent = nil
+		availMu.Unlock()
+		go d.syncAvailability()
 	case *events.Disconnected:
 		d.setStatus("offline")
 	case *events.StreamReplaced:
@@ -183,6 +191,12 @@ func (d *Daemon) onEvent(evt any) {
 		d.pushChat(d.normalize(ctx, e.JID).String())
 	case *events.Pin:
 		d.pushChat(d.normalize(ctx, e.JID).String())
+	case *events.Receipt:
+		d.onReceipt(ctx, e)
+	case *events.ChatPresence:
+		d.onChatPresence(ctx, e)
+	case *events.Presence:
+		d.onPresence(ctx, e)
 	case *events.OfflineSyncCompleted:
 		d.log.Info("mensagens offline recebidas", "count", e.Count)
 	}
@@ -271,6 +285,11 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 			}
 			d.onMessage(ctx, evt, false)
 			d.historyReactions(ctx, jid, hm.GetMessage())
+			if evt.Info.IsFromMe {
+				if st := historyStatus(hm.GetMessage().GetStatus()); st > 0 {
+					_ = d.st.SetStatus(jid.String(), []string{evt.Info.ID}, st)
+				}
+			}
 			n++
 		}
 	}
@@ -533,7 +552,11 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.markRead(ctx, req.Chat)
 	case ipc.OpViewing:
 		d.notif.setViewing(conn, req.Chat)
+		d.syncAvailability()
+		d.subscribePresence(req.Chat)
 		return nil, nil
+	case ipc.OpTyping:
+		return nil, d.sendTyping(ctx, req.Chat, req.Text)
 	case ipc.OpAvatar:
 		// Prazo próprio: a fila espaça os pedidos ao servidor.
 		actx, acancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -635,9 +658,11 @@ func (d *Daemon) sendAndStore(ctx context.Context, jid types.JID, msg *waE2E.Mes
 	m.ID, m.Chat, m.Sender, m.SenderName = resp.ID, jid.String(), me.String(), "você"
 	m.FromMe, m.TS = true, resp.Timestamp.UnixMilli()
 	raw, _ := proto.Marshal(msg)
+	m.Status = 1 // o servidor aceitou: um tracinho
 	if _, err := d.st.SaveMessage(m, raw, jid.Server == types.GroupServer, false); err != nil {
 		d.log.Error("gravando enviada", "err", err)
 	}
+	_ = d.st.SetStatus(m.Chat, []string{m.ID}, 1)
 	one := []ipc.Message{m}
 	d.fillSenders(ctx, one)
 	d.fillThumbs(one)

@@ -132,3 +132,26 @@ func TestEdicaoRemocaoReacoes(t *testing.T) {
 		t.Fatalf("reação velha venceu: %+v", rs["b"])
 	}
 }
+
+func TestStatusSoSobe(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	const c = "1@s.whatsapp.net"
+	s.SaveMessage(ipc.Message{ID: "m", Chat: c, Sender: "eu", FromMe: true, TS: 5, Kind: "text", Text: "oi"}, nil, false, false)
+	s.SetStatus(c, []string{"m"}, 3)
+	s.SetStatus(c, []string{"m"}, 2) // entregue atrasado
+	msgs, _ := s.Messages(c, 10, 0)
+	if msgs[0].Status != 3 {
+		t.Fatalf("status %d", msgs[0].Status)
+	}
+	if ch, _ := s.Chat(c); ch.LastStatus != 3 {
+		t.Fatalf("LastStatus %d", ch.LastStatus)
+	}
+	s.SaveMessage(ipc.Message{ID: "n", Chat: c, Sender: c, TS: 6, Kind: "text", Text: "opa"}, nil, false, false)
+	if ch, _ := s.Chat(c); ch.LastStatus != -1 {
+		t.Fatalf("última não é sua, LastStatus %d", ch.LastStatus)
+	}
+}

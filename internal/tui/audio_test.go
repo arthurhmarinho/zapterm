@@ -45,7 +45,9 @@ func TestGravacaoFechaArquivo(t *testing.T) {
 		t.Fatalf("não começou: %s", m.flash)
 	}
 	time.Sleep(1500 * time.Millisecond)
-	done, ok := m.finishRec(true)().(recDoneMsg)
+	rec := m.rec
+	m.finishRec(true)
+	done, ok := rec.stop(true, int(time.Since(rec.started).Round(time.Second).Seconds()))().(recDoneMsg)
 	if !ok || done.err != nil || !done.send {
 		t.Fatalf("finishRec: %+v (%v)", done, done.err)
 	}
@@ -88,6 +90,26 @@ func TestApagadaEditadaReacoes(t *testing.T) {
 	for _, want := range []string{"Mensagem apagada", "editada", "oi de novo", "👍 2", "😂"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("faltou %q em:\n%s", want, out)
+		}
+	}
+}
+
+func TestDigitandoETracinhos(t *testing.T) {
+	m := newModel(nil)
+	m.onPresence(ipc.Frame{Data: []byte(`{"chat":"g@g.us","who":"Ana","typing":true}`)})
+	if got := m.typingText("g@g.us", true); got != "Ana está digitando…" {
+		t.Fatalf("cabeçalho: %q", got)
+	}
+	if got := m.typingText("g@g.us", false); got != "Ana: digitando…" {
+		t.Fatalf("lista: %q", got)
+	}
+	m.presence["g@g.us"].until = time.Now().Add(-time.Second)
+	if m.typingText("g@g.us", true) != "" {
+		t.Fatal("aviso vencido continuou")
+	}
+	for st, want := range map[int]string{0: "", 1: "✓", 2: "✓✓", 3: "✓✓"} {
+		if got := ansi.Strip(ticks(st)); got != want {
+			t.Errorf("ticks(%d) = %q", st, got)
 		}
 	}
 }

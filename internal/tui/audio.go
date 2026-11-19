@@ -170,7 +170,9 @@ func (m *model) startRec() tea.Cmd {
 	m.rec = r
 	m.picking, m.attach = false, nil
 	m.layout()
-	return recTick()
+	// Do outro lado aparece "gravando áudio…", como no app.
+	m.typingChat, m.typingSentAt = m.active, time.Now()
+	return tea.Batch(recTick(), m.call(ipc.Request{Op: ipc.OpTyping, Chat: m.active, Text: "recording"}, nil, nil))
 }
 
 // finishRec para a gravação; send decide se ela vai ou é descartada.
@@ -182,6 +184,11 @@ func (m *model) finishRec(send bool) tea.Cmd {
 	m.rec = nil
 	m.layout()
 	secs := int(time.Since(r.started).Round(time.Second).Seconds())
+	return tea.Batch(m.stopTyping(), r.stop(send, secs))
+}
+
+// stop para o gravador fora do loop de UI e diz o que fazer com o arquivo.
+func (r *recording) stop(send bool, secs int) tea.Cmd {
 	return func() tea.Msg {
 		// O gst-launch só trata o SIGINT (fechando o arquivo) depois que o
 		// pipeline está rodando; antes disso o sinal mata o processo e a

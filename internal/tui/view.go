@@ -238,7 +238,7 @@ func (m *model) viewList(g geometry) string {
 	for i := m.offset; i < min(len(m.list), m.offset+g.listRows); i++ {
 		c := m.list[i]
 		sel := i == m.cursor && (m.focus == paneList || c.JID == m.active)
-		rows = append(rows, renderChatItem(c, w, sel, m.bigAvatar(c.JID, c.Name)))
+		rows = append(rows, renderChatItem(c, w, sel, m.bigAvatar(c.JID, c.Name), m.typingText(c.JID, false)))
 	}
 	if len(m.list) == 0 {
 		msg := "Nenhuma conversa aqui"
@@ -324,8 +324,17 @@ func (m *model) viewHeader(g geometry) string {
 	if c.Archived {
 		sub += " · arquivado"
 	}
+	subSt := sText2
+	switch p := m.presence[c.JID]; {
+	case m.typingText(c.JID, true) != "":
+		sub, subSt = m.typingText(c.JID, true), sGreen
+	case p != nil && p.online != nil && *p.online:
+		sub, subSt = "online", sGreen
+	case p != nil && p.lastSeen > 0:
+		sub = "visto por último " + lastSeenText(p.lastSeen)
+	}
 	tw := g.chatW - avatarCols - 6
-	text := "\n" + sText.Render(ansi.Truncate(oneLine(c.Name), tw, "…")) + "\n" + sText2.Render(sub)
+	text := "\n" + sText.Render(ansi.Truncate(oneLine(c.Name), tw, "…")) + "\n" + subSt.Render(sub)
 	row := lipgloss.JoinHorizontal(lipgloss.Top, "  ", m.bigAvatar(c.JID, c.Name), "  ", text)
 	return fitHeight(paint(row, cBgPanel, g.chatW), cBgPanel, g.chatW, headerH)
 }
@@ -546,3 +555,15 @@ func (m *model) viewPhoto() string {
 // listWidth: 40 colunas no mínimo, para os filtros caberem com os nomes
 // completos ("Tudo  Não lidas 14  Grupos 7  Canais").
 func listWidth(w int) int { return max(40, min(52, w*32/100)) }
+
+func lastSeenText(ms int64) string {
+	t := time.UnixMilli(ms)
+	now := time.Now()
+	switch {
+	case sameDay(t, now):
+		return "hoje às " + t.Format("15:04")
+	case sameDay(t, now.AddDate(0, 0, -1)):
+		return "ontem às " + t.Format("15:04")
+	}
+	return "em " + t.Format("02/01 às 15:04")
+}

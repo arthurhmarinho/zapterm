@@ -55,6 +55,8 @@ var migrations = []string{
 		ts     INTEGER NOT NULL,
 		PRIMARY KEY (chat, msg_id, sender)
 	 );`,
+	// 3: situação das mensagens enviadas (ver ipc.Message.Status).
+	`ALTER TABLE messages ADD COLUMN status INTEGER NOT NULL DEFAULT 0;`,
 }
 
 func migrate(db *sql.DB) error {
@@ -175,9 +177,8 @@ func (s *Store) MarkRead(jid string) error {
 
 func (s *Store) Chat(jid string) (ipc.Chat, error) {
 	var c ipc.Chat
-	err := s.db.QueryRow(`SELECT jid, name, is_group, last_ts, last_text, unread
-		FROM chats WHERE jid = ?`, jid).
-		Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread)
+	err := s.db.QueryRow(`SELECT `+chatCols+` FROM chats WHERE jid = ?`, jid).
+		Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread, &c.LastStatus)
 	return c, err
 }
 
@@ -185,8 +186,7 @@ func (s *Store) Chat(jid string) (ipc.Chat, error) {
 // centenas de conversas vazias (contatos com quem você nunca falou ou que
 // foram apagadas), sem timestamp; essas ficam de fora.
 func (s *Store) Chats() ([]ipc.Chat, error) {
-	rows, err := s.db.Query(`SELECT jid, name, is_group, last_ts, last_text, unread
-		FROM chats WHERE last_ts > 0 ORDER BY last_ts DESC`)
+	rows, err := s.db.Query(`SELECT ` + chatCols + ` FROM chats WHERE last_ts > 0 ORDER BY last_ts DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (s *Store) Chats() ([]ipc.Chat, error) {
 	out := []ipc.Chat{}
 	for rows.Next() {
 		var c ipc.Chat
-		if err := rows.Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread); err != nil {
+		if err := rows.Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread, &c.LastStatus); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -231,12 +231,12 @@ func (s *Store) Messages(chat string, limit int, before int64) ([]ipc.Message, e
 	return out, rows.Err()
 }
 
-const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw IS NOT NULL, edited`
+const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw IS NOT NULL, edited, status`
 
 func scanMessage(r interface{ Scan(...any) error }) (ipc.Message, error) {
 	var m ipc.Message
 	var q ipc.Quote
-	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited)
+	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &m.Status)
 	if q.ID != "" {
 		m.Quote = &q
 	}
@@ -271,7 +271,7 @@ func (s *Store) Message(chat, id string) (ipc.Message, []byte, error) {
 	row := s.db.QueryRow(`SELECT `+msgCols+`, raw FROM messages WHERE chat = ? AND id = ?`, chat, id)
 	var m ipc.Message
 	var q ipc.Quote
-	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &raw)
+	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &m.Status, &raw)
 	if q.ID != "" {
 		m.Quote = &q
 	}
@@ -308,6 +308,28 @@ func (s *Store) UpdateMessage(chat, id, kind, text string, edited bool) (bool, e
 		}
 	}
 	return true, tx.Commit()
+}
+
+// chatCols inclui a situação da última mensagem, se for sua (-1 se não).
+const chatCols = `jid, name, is_group, last_ts, last_text, unread,
+	COALESCE((SELECT m.status FROM messages m WHERE m.chat = chats.jid AND m.ts = chats.last_ts
+		AND m.from_me = 1 LIMIT 1), -1)`
+
+// SetStatus sobe a situação de mensagens suas; nunca desce (um "entregue"
+// atrasado não apaga um "lida").
+func (s *Store) SetStatus(chat string, ids []string, status int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	args := []any{status, chat}
+	marks := make([]string, len(ids))
+	for i, id := range ids {
+		marks[i] = "?"
+		args = append(args, id)
+	}
+	_, err := s.db.Exec(`UPDATE messages SET status = MAX(status, ?)
+		WHERE chat = ? AND from_me = 1 AND id IN (`+strings.Join(marks, ",")+`)`, args...)
+	return err
 }
 
 // SetReaction grava (ou, com emoji vazio, remove) a reação de sender.
