@@ -75,6 +75,10 @@ func cacheSub(name string) (string, error) {
 // Socket fica em $XDG_RUNTIME_DIR; no Void sem systemd essa variável pode
 // faltar, então cai para /tmp/zapterm-<uid>.sock.
 func Socket() string {
+	// ZAPTERM_SOCKET troca o socket (o modo demonstração usa um próprio).
+	if p := os.Getenv("ZAPTERM_SOCKET"); p != "" {
+		return p
+	}
 	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
 		return filepath.Join(dir, "zapterm.sock")
 	}

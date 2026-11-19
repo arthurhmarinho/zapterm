@@ -8,6 +8,7 @@
 //	zapterm send <jid> <txt> envia texto
 //	zapterm tail             mostra os eventos ao vivo
 //	zapterm media <jid> <id> baixa a mídia de uma mensagem e mostra o caminho
+//	zapterm demo             abre a TUI com conversas fictícias (para prints)
 package main
 
 import (
@@ -18,11 +19,13 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/arthurhmarinho/zapterm/internal/demo"
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 	"github.com/arthurhmarinho/zapterm/internal/paths"
 	"github.com/arthurhmarinho/zapterm/internal/tui"
@@ -56,10 +59,12 @@ func run(args []string) error {
 		return tail()
 	case "media":
 		return media(args)
+	case "demo":
+		return demoRun()
 	case "":
 		return tui.Run()
 	case "help", "-h", "--help":
-		fmt.Println("uso: zapterm [login | daemon | chats | msgs <jid> [n] | send <jid> <texto> | tail | media <jid> <id>]")
+		fmt.Println("uso: zapterm [login | daemon | chats | msgs <jid> [n] | send <jid> <texto> | tail | media <jid> <id> | demo]")
 		return nil
 	}
 	return fmt.Errorf("comando desconhecido: %s", cmd)
@@ -214,4 +219,17 @@ func media(args []string) error {
 	}
 	fmt.Printf("arquivo: %s\nprévia:  %s (%dx%d)\ntipo:    %s\n", md.Path, md.Preview, md.Width, md.Height, md.Mime)
 	return nil
+}
+
+// demoRun sobe o daemon de mentira num socket próprio e abre a TUI nele;
+// o daemon de verdade e as suas conversas não são tocados.
+func demoRun() error {
+	sock := filepath.Join(os.TempDir(), fmt.Sprintf("zapterm-demo-%d.sock", os.Getpid()))
+	os.Setenv("ZAPTERM_SOCKET", sock)
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		return err
+	}
+	defer func() { srv.Close(); os.Remove(sock) }()
+	return tui.Run()
 }
