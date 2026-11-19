@@ -10,6 +10,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi/kitty"
+
+	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
 
 // Imagens no kitty com "Unicode placeholders": a imagem é transmitida uma
@@ -52,6 +54,27 @@ func newImages() *images {
 // células, ou "" se não houver suporte. A transmissão fica pendente até
 // flush().
 func (im *images) block(path string, pxW, pxH, maxCols, maxRows int) string {
+	return im.place(path, nil, nil, pxW, pxH, maxCols, maxRows)
+}
+
+// media desenha a mídia de uma mensagem: animada (figurinha) se tiver
+// quadros, senão a prévia estática.
+func (im *images) media(md *ipc.Media, maxCols, maxRows int) string {
+	if md == nil || md.Preview == "" {
+		return ""
+	}
+	if len(md.Frames) > 1 && len(md.Delays) == len(md.Frames) {
+		return im.place(md.Frames[0], md.Frames[1:], md.Delays, md.Width, md.Height, maxCols, maxRows)
+	}
+	return im.block(md.Preview, md.Width, md.Height, maxCols, maxRows)
+}
+
+// place transmite a imagem (e, se houver, os quadros da animação) e devolve
+// os placeholders. Animação no kitty: o primeiro quadro vem no a=T, os
+// outros em a=f com a duração em z, o r=1 recebe a duração do primeiro e
+// s=3,v=1 põe para rodar em loop. O kitty anima sozinho; a TUI não
+// redesenha nada.
+func (im *images) place(path string, frames []string, delays []int, pxW, pxH, maxCols, maxRows int) string {
 	if !im.enabled || path == "" || pxW <= 0 || pxH <= 0 || maxCols < 2 || maxRows < 1 {
 		return ""
 	}
@@ -69,6 +92,15 @@ func (im *images) block(path string, pxW, pxH, maxCols, maxRows int) string {
 		im.placed[key] = k
 		im.pending = append(im.pending, fmt.Sprintf("\x1b_Ga=T,U=1,f=100,t=f,i=%d,c=%d,r=%d,q=2;%s\x1b\\",
 			k.id, cols, rows, base64.StdEncoding.EncodeToString([]byte(path))))
+		if len(frames) > 0 {
+			for i, f := range frames {
+				im.pending = append(im.pending, fmt.Sprintf("\x1b_Ga=f,i=%d,f=100,t=f,z=%d,q=2;%s\x1b\\",
+					k.id, delays[i+1], base64.StdEncoding.EncodeToString([]byte(f))))
+			}
+			im.pending = append(im.pending,
+				fmt.Sprintf("\x1b_Ga=a,i=%d,r=1,z=%d,q=2\x1b\\", k.id, delays[0]),
+				fmt.Sprintf("\x1b_Ga=a,i=%d,s=3,v=1,q=2\x1b\\", k.id))
+		}
 	}
 	return placeholder(k)
 }

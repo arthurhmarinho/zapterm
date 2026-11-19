@@ -407,7 +407,8 @@ func (m *model) viewStickers(w int) string {
 				break
 			}
 			st := m.stickers[i]
-			pic := m.imgs.block(st.Preview, st.Width, st.Height, stickCellW-2, stickCellH-2)
+			pic := m.imgs.media(&ipc.Media{Preview: st.Preview, Width: st.Width, Height: st.Height,
+				Frames: st.Frames, Delays: st.Delays}, stickCellW-2, stickCellH-2)
 			if pic == "" {
 				pic = sText2.Render(icons.sticker)
 			}

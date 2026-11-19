@@ -259,7 +259,7 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 		if m.Kind == "sticker" {
 			cols, rows = min(inner, 16), 8
 		}
-		pic = r.imgs.block(md.Preview, md.Width, md.Height, cols, rows)
+		pic = r.imgs.media(md, cols, rows)
 	}
 	text := m.Text
 	switch {

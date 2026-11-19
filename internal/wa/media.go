@@ -3,6 +3,7 @@ package wa
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -59,14 +60,20 @@ func cachedMedia(id string) *ipc.Media {
 	}
 	md := &ipc.Media{}
 	for _, p := range matches {
-		if strings.HasSuffix(p, ".preview.png") {
+		switch {
+		case strings.HasSuffix(p, ".preview.png"):
 			md.Preview = p
-		} else {
+		case strings.HasSuffix(p, ".anim"):
+			// pasta dos quadros, lida abaixo
+		default:
 			md.Path = p
 		}
 	}
 	if md.Path == "" {
 		return nil
+	}
+	if md.Preview == "" {
+		loadAnim(base, md)
 	}
 	if md.Preview != "" {
 		md.Width, md.Height = pngSize(md.Preview)
@@ -78,6 +85,13 @@ func cachedMedia(id string) *ipc.Media {
 // funciona para mensagens com o protobuf original guardado.
 func (d *Daemon) downloadMedia(ctx context.Context, chat, id string) (*ipc.Media, error) {
 	if md := cachedMedia(id); md != nil {
+		// Figurinha animada baixada antes de existir o decodificador: gera
+		// os quadros agora a partir do arquivo em cache.
+		if md.Preview == "" && strings.HasSuffix(md.Path, ".webp") {
+			if data, err := os.ReadFile(md.Path); err == nil {
+				d.animPreview(id, data, md)
+			}
+		}
 		return md, nil
 	}
 	_, raw, err := d.st.Message(chat, id)
@@ -131,11 +145,79 @@ func (d *Daemon) downloadMedia(ctx context.Context, chat, id string) (*ipc.Media
 		md.Preview = base + ".preview.png"
 		md.Width, md.Height, err = writePreview(data, md.Preview)
 		if err != nil {
-			d.log.Warn("prévia da imagem", "id", id, "err", err)
 			md.Preview = ""
+			os.Remove(base + ".preview.png")
+			if !d.animPreview(id, data, md) {
+				d.log.Warn("prévia da imagem", "id", id, "err", err)
+			}
 		}
 	}
 	return md, nil
+}
+
+type animManifest struct {
+	Frames []string `json:"frames"`
+	Delays []int    `json:"delays"`
+}
+
+// animPreview decodifica um webp animado e grava os quadros em
+// <id>.anim/NNN.png com um manifesto de durações. Devolve false se o
+// arquivo não for animado (ou não der para ler).
+func (d *Daemon) animPreview(id string, data []byte, md *ipc.Media) bool {
+	frames, err := decodeAnimatedWebP(data)
+	if err != nil {
+		return false
+	}
+	base, err := mediaBase(id)
+	if err != nil {
+		return false
+	}
+	dir := base + ".anim"
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return false
+	}
+	var man animManifest
+	for i, f := range frames {
+		p := filepath.Join(dir, fmt.Sprintf("%03d.png", i))
+		out, err := os.OpenFile(p, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+		if err != nil {
+			return false
+		}
+		err = png.Encode(out, f.img)
+		out.Close()
+		if err != nil {
+			return false
+		}
+		man.Frames = append(man.Frames, p)
+		man.Delays = append(man.Delays, f.delay)
+	}
+	b, _ := json.Marshal(man)
+	if os.WriteFile(filepath.Join(dir, "frames.json"), b, 0o600) != nil {
+		return false
+	}
+	md.Frames, md.Delays = man.Frames, man.Delays
+	md.Preview = man.Frames[0]
+	md.Width, md.Height = pngSize(md.Preview)
+	return true
+}
+
+// loadAnim completa md com os quadros já gravados, se houver.
+func loadAnim(base string, md *ipc.Media) {
+	b, err := os.ReadFile(filepath.Join(base+".anim", "frames.json"))
+	if err != nil {
+		return
+	}
+	var man animManifest
+	if json.Unmarshal(b, &man) != nil || len(man.Frames) == 0 || len(man.Delays) != len(man.Frames) {
+		return
+	}
+	// A limpeza do cache apaga arquivos soltos: quadro faltando invalida tudo.
+	for _, f := range man.Frames {
+		if _, err := os.Stat(f); err != nil {
+			return
+		}
+	}
+	md.Frames, md.Delays, md.Preview = man.Frames, man.Delays, man.Frames[0]
 }
 
 func extFor(mimeType, fileName string) string {
@@ -369,7 +451,8 @@ func (d *Daemon) recentStickers(ctx context.Context) ([]ipc.Sticker, error) {
 			if err != nil || md.Preview == "" {
 				return
 			}
-			out[i] = &ipc.Sticker{Chat: c.chat, ID: c.id, Preview: md.Preview, Width: md.Width, Height: md.Height}
+			out[i] = &ipc.Sticker{Chat: c.chat, ID: c.id, Preview: md.Preview, Width: md.Width, Height: md.Height,
+				Frames: md.Frames, Delays: md.Delays}
 		}()
 	}
 	wg.Wait()

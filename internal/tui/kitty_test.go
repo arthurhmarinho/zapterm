@@ -6,6 +6,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
 
 // O desenho depende de cada placeholder (U+10EEEE + 2 diacríticos) contar
@@ -32,5 +34,29 @@ func TestPlaceholderLargura(t *testing.T) {
 	}
 	if !strings.Contains(b, "\x1b[38;2;1;17;112m") {
 		t.Fatal("a cor do id (70000 = 1,17,112) se perdeu dentro do balão")
+	}
+}
+
+// Animação: um a=T, um a=f por quadro extra (com a duração), a duração do
+// primeiro quadro e o comando que põe para rodar em loop.
+func TestAnimacaoKitty(t *testing.T) {
+	im := &images{enabled: true, next: 1, placed: map[string]*kimage{}}
+	md := &ipc.Media{Preview: "/a/0.png", Width: 160, Height: 160,
+		Frames: []string{"/a/0.png", "/a/1.png", "/a/2.png"}, Delays: []int{100, 50, 70}}
+	if im.media(md, 10, 5) == "" {
+		t.Fatal("sem placeholder")
+	}
+	seq := strings.Join(im.pending, "")
+	for _, want := range []string{"a=T,U=1", "a=f,i=1,f=100,t=f,z=50", "a=f,i=1,f=100,t=f,z=70",
+		"a=a,i=1,r=1,z=100", "a=a,i=1,s=3,v=1"} {
+		if !strings.Contains(seq, want) {
+			t.Errorf("faltou %q", want)
+		}
+	}
+	// Desenhar de novo não retransmite.
+	im.pending = nil
+	im.media(md, 10, 5)
+	if len(im.pending) != 0 {
+		t.Fatal("retransmitiu a animação")
 	}
 }

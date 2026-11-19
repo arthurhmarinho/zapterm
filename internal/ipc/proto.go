@@ -56,6 +56,9 @@ type Sticker struct {
 	Preview string `json:"preview"`
 	Width   int    `json:"width"`
 	Height  int    `json:"height"`
+	// Quadros, se for animada (como em Media).
+	Frames []string `json:"frames,omitempty"`
+	Delays []int    `json:"delays,omitempty"`
 }
 
 // Media é um arquivo de mídia baixado. Preview (PNG reduzido) só existe
@@ -66,6 +69,10 @@ type Media struct {
 	Width   int    `json:"width,omitempty"` // da prévia, em pixels
 	Height  int    `json:"height,omitempty"`
 	Mime    string `json:"mime,omitempty"`
+	// Figurinha animada: quadros PNG (Preview é o primeiro) e a duração
+	// de cada um em ms.
+	Frames []string `json:"frames,omitempty"`
+	Delays []int    `json:"delays,omitempty"`
 }
 
 // Frame vai do daemon para a TUI. Resposta tem ID; evento tem Event.
