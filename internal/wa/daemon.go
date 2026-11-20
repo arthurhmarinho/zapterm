@@ -166,6 +166,7 @@ func (d *Daemon) onEvent(evt any) {
 	switch e := evt.(type) {
 	case *events.Connected:
 		d.setStatus("online")
+		go d.pushUnread(true) // o widget pode ter subido antes do daemon
 		d.refreshAppState()
 		// Reconectou: o servidor esqueceu a presença; manda de novo.
 		availMu.Lock()
@@ -308,6 +309,7 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 		"progresso", e.Data.GetProgress(), "chats", len(convs), "mensagens", n)
 	// A TUI recarrega a lista inteira em vez de receber milhares de eventos.
 	d.srv.Broadcast(ipc.EvReload, nil)
+	d.scheduleUnreadPush()
 }
 
 // pushChat avisa as TUIs de que um chat mudou.
@@ -318,6 +320,7 @@ func (d *Daemon) pushChat(jid string) ipc.Chat {
 	}
 	d.decorate(context.Background(), &c)
 	d.srv.Broadcast(ipc.EvChat, c)
+	d.scheduleUnreadPush()
 	return c
 }
 
@@ -548,6 +551,10 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 			d.decorate(ctx, &chats[i])
 		}
 		return chats, nil
+	case ipc.OpUnread:
+		return d.unreadSummary(ctx), nil
+	case ipc.OpShowUI:
+		return nil, d.showUI()
 	case ipc.OpProfile:
 		pctx, pcancel := context.WithTimeout(context.Background(), time.Minute)
 		defer pcancel()

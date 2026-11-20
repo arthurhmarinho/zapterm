@@ -1,0 +1,11 @@
+{
+  "settings": {
+    "zapterm_path": {
+      "label": "Caminho do zapterm",
+      "description": "O Noctalia pode não ter ~/go/bin no PATH."
+    },
+    "hide_when_zero": {
+      "label": "Esconder sem não lidas"
+    }
+  }
+}

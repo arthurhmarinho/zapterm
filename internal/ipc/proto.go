@@ -32,6 +32,8 @@ const (
 	OpCheckNumber = "check_number" // Text: telefone com DDI; devolve o chat se tiver WhatsApp
 	OpSearch      = "search"       // procura Text no texto das mensagens (sem acento/maiúscula)
 	OpProfile     = "profile"      // perfil do chat: foto grande, recado/descrição, participantes, mídia
+	OpUnread      = "unread"       // resumo de não lidas (para a barra)
+	OpShowUI      = "show_ui"      // traz a TUI para frente, ou abre uma
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -187,6 +189,18 @@ type Profile struct {
 type ProfileMember struct {
 	Name  string `json:"name"`
 	Admin bool   `json:"admin,omitempty"`
+}
+
+// Unread é o resumo de não lidas mostrado na barra.
+type Unread struct {
+	Chats    int          `json:"chats"`    // conversas com não lidas (sem arquivadas e silenciadas)
+	Messages int          `json:"messages"` // total de mensagens não lidas nelas
+	Top      []UnreadChat `json:"top"`
+}
+
+type UnreadChat struct {
+	Name   string `json:"name"`
+	Unread int    `json:"unread"`
 }
 
 // Open pede à TUI que abra um chat.

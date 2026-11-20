@@ -12,6 +12,10 @@ import (
 // openRequested abre o chat pedido pelo clique na notificação e traz a
 // janela do kitty desta TUI para frente.
 func (m *model) openRequested(jid string) {
+	if jid == "" {
+		focusOwnWindow() // clique no widget da barra: só trazer para frente
+		return
+	}
 	c, ok := m.chatByJID(jid)
 	if !ok {
 		// Chat que a lista ainda não conhece (primeira mensagem dele):

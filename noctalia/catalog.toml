@@ -1,0 +1,15 @@
+# Catálogo da fonte local de plugins do zapterm para o Noctalia.
+# Instalação: veja noctalia/zapterm/README.md.
+
+[[plugin]]
+id = "arthurhmarinho/zapterm"
+name = "zapterm"
+version = "1.0.0"
+updated_at = 1795640000
+added_at = 1795640000
+author = "arthurhmarinho"
+license = "GPL-3.0"
+icon = "message-circle"
+description = "Não lidas do WhatsApp (zapterm) na barra; clique abre o zapterm."
+plugin_api = 30
+tags = ["chat", "whatsapp"]

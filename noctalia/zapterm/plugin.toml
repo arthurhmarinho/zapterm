@@ -1,0 +1,31 @@
+# Widget de barra do zapterm: mostra quantas conversas têm mensagem não lida
+# (sem arquivadas e silenciadas) e abre o zapterm no clique. O daemon do
+# zapterm empurra o número por IPC sempre que ele muda.
+
+id = "arthurhmarinho/zapterm"
+name = "zapterm"
+version = "1.0.0"
+plugin_api = 30
+author = "arthurhmarinho"
+license = "GPL-3.0"
+dependencies = []
+tags = ["chat", "whatsapp"]
+icon = "message-circle"
+description = "Não lidas do WhatsApp (zapterm) na barra; clique abre o zapterm."
+
+[[widget]]
+id = "unread"
+entry = "unread.luau"
+
+  [[widget.setting]]
+  key = "zapterm_path"
+  type = "string"
+  label_key = "settings.zapterm_path.label"
+  description_key = "settings.zapterm_path.description"
+  default = "~/go/bin/zapterm"
+
+  [[widget.setting]]
+  key = "hide_when_zero"
+  type = "bool"
+  label_key = "settings.hide_when_zero.label"
+  default = false

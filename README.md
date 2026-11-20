@@ -41,6 +41,10 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
   no zapterm (ou abre o zapterm, se estiver fechado); servidores com
   resposta embutida (Noctalia, Plasma) deixam responder pela própria
   notificação.
+- **Barra do Noctalia:** widget com o número de conversas não lidas, que
+  abre o zapterm no clique ([instruções](noctalia/zapterm/README.md)).
+  Fora do Noctalia, `zapterm unread --json` dá o mesmo resumo para outras
+  barras.
 - **Perfil** (clique no cabeçalho ou `alt+i`): foto grande, número e
   recado do contato, ou descrição e participantes do grupo, e a grade com
   as fotos e vídeos da conversa.

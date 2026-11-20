@@ -607,7 +607,7 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 		}
 	case ipc.EvOpen:
 		var o ipc.Open
-		if json.Unmarshal(f.Data, &o) == nil && o.Chat != "" {
+		if json.Unmarshal(f.Data, &o) == nil {
 			m.openRequested(o.Chat)
 			return m.flushPendingOpen()
 		}

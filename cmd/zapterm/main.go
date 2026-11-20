@@ -9,6 +9,8 @@
 //	zapterm tail             mostra os eventos ao vivo
 //	zapterm media <jid> <id> baixa a mídia de uma mensagem e mostra o caminho
 //	zapterm demo             abre a TUI com conversas fictícias (para prints)
+//	zapterm unread [--json]  não lidas (o widget da barra usa o --json)
+//	zapterm open             traz a TUI para frente, ou abre uma (clique no widget)
 package main
 
 import (
@@ -61,6 +63,10 @@ func run(args []string) error {
 		return media(args)
 	case "demo":
 		return demoRun()
+	case "unread":
+		return unread(args)
+	case "open":
+		return openUI()
 	case "":
 		return tui.Run()
 	case "help", "-h", "--help":
@@ -233,4 +239,33 @@ func demoRun() error {
 	}
 	defer func() { srv.Close(); os.Remove(sock) }()
 	return tui.Run()
+}
+
+func unread(args []string) error {
+	c, err := dial()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	var u ipc.Unread
+	if err := c.Call(ipc.Request{Op: ipc.OpUnread}, &u); err != nil {
+		return err
+	}
+	if len(args) > 0 && args[0] == "--json" {
+		return json.NewEncoder(os.Stdout).Encode(u)
+	}
+	fmt.Printf("%d conversas, %d mensagens não lidas\n", u.Chats, u.Messages)
+	for _, t := range u.Top {
+		fmt.Printf("  %4d  %s\n", t.Unread, t.Name)
+	}
+	return nil
+}
+
+func openUI() error {
+	c, err := dial()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	return c.Call(ipc.Request{Op: ipc.OpShowUI}, nil)
 }
