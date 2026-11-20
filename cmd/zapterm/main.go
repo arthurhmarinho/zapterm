@@ -9,6 +9,7 @@
 //	zapterm tail             mostra os eventos ao vivo
 //	zapterm media <jid> <id> baixa a mídia de uma mensagem e mostra o caminho
 //	zapterm demo             abre a TUI com conversas fictícias (para prints)
+//	zapterm config           cria ~/.config/zapterm/config.toml comentado e mostra o caminho
 //	zapterm unread [--json]  não lidas (o widget da barra usa o --json)
 //	zapterm open             traz a TUI para frente, ou abre uma (clique no widget)
 package main
@@ -27,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arthurhmarinho/zapterm/internal/config"
 	"github.com/arthurhmarinho/zapterm/internal/demo"
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 	"github.com/arthurhmarinho/zapterm/internal/paths"
@@ -63,6 +65,8 @@ func run(args []string) error {
 		return media(args)
 	case "demo":
 		return demoRun()
+	case "config":
+		return configCmd()
 	case "unread":
 		return unread(args)
 	case "open":
@@ -268,4 +272,20 @@ func openUI() error {
 	}
 	defer c.Close()
 	return c.Call(ipc.Request{Op: ipc.OpShowUI}, nil)
+}
+
+func configCmd() error {
+	created, err := config.WriteDefault()
+	if err != nil {
+		return err
+	}
+	if created {
+		fmt.Println("criado (tudo comentado, com os padrões):", config.Path())
+	} else {
+		fmt.Println("já existe:", config.Path())
+	}
+	if _, err := config.Load(); err != nil {
+		fmt.Println("atenção:", err)
+	}
+	return nil
 }

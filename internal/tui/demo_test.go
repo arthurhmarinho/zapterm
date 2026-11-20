@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/arthurhmarinho/zapterm/internal/config"
 	"github.com/arthurhmarinho/zapterm/internal/demo"
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
@@ -286,5 +287,49 @@ func TestPerfil(t *testing.T) {
 	runCmd(m, cmd)
 	if !m.profileOpen || m.profile == nil {
 		t.Fatal("clique no cabeçalho não abriu o perfil")
+	}
+}
+
+// [keys] do config: alt+r passa a responder e ctrl+r para de responder.
+func TestAtalhoTrocadoPeloConfig(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	os.MkdirAll(filepath.Join(dir, "zapterm"), 0o700)
+	os.WriteFile(filepath.Join(dir, "zapterm", "config.toml"), []byte("[keys]\nreply = \"alt+r\"\n"), 0o600)
+	if err := applyConfig(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cfg = config.Config{Interface: config.Interface{Images: true, NerdFont: true}} })
+
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	m.Update(m.loadChats()())
+	c := m.list[0]
+	m.active, m.activeChat, m.focus = c.JID, c, paneChat
+	m.layout()
+	m.Update(m.loadMessages(c.JID, 0)())
+
+	m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	if m.replyTo != nil {
+		t.Fatal("ctrl+r ainda responde depois de trocado")
+	}
+	m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModAlt})
+	if m.replyTo == nil {
+		t.Fatal("alt+r não respondeu")
+	}
+	if !strings.Contains(ansi.Strip(m.viewFooter()), "alt+r responder") {
+		t.Fatalf("rodapé não mostra o atalho novo: %q", ansi.Strip(m.viewFooter()))
 	}
 }

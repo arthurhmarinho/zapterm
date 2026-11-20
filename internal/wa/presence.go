@@ -91,7 +91,7 @@ var availSent *bool
 // e "online" dos outros a quem está online; ficar online sempre (o daemon
 // vive conectado) mostraria você online 24 horas.
 func (d *Daemon) syncAvailability() {
-	want := d.notif.anyViewing()
+	want := d.notif.anyViewing() && d.cfg.Privacy.ShowOnline
 	availMu.Lock()
 	defer availMu.Unlock()
 	if availSent != nil && *availSent == want {
@@ -128,6 +128,9 @@ func (d *Daemon) subscribePresence(chat string) {
 
 // sendTyping mostra aos outros que você está digitando ou gravando.
 func (d *Daemon) sendTyping(ctx context.Context, chat, state string) error {
+	if !d.cfg.Privacy.ShowOnline {
+		return nil // [privacy] show_online = false: ninguém te vê digitando
+	}
 	jid, err := types.ParseJID(chat)
 	if err != nil {
 		return err

@@ -158,7 +158,7 @@ func ticks(status int) string {
 	case 2:
 		return sText2.Render("✓✓")
 	case 3, 4:
-		return fg(lipgloss.Color("4")).Bold(true).Render("✓✓")
+		return fg(cReadTick).Bold(true).Render("✓✓")
 	}
 	return ""
 }
@@ -397,9 +397,9 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 	cw := min(inner, max(lipgloss.Width(content), lipgloss.Width(stamp)))
 	content += "\n" + lipgloss.PlaceHorizontal(cw, lipgloss.Right, stamp)
 
-	border, style := cText2, lipgloss.RoundedBorder()
+	border, style := cOtherBorder, lipgloss.RoundedBorder()
 	if m.FromMe {
-		border = lipgloss.Color("6")
+		border = cOwnBorder
 	}
 	if selected {
 		border, style = cGreen, lipgloss.ThickBorder()

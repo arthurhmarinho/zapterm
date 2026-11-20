@@ -156,7 +156,29 @@ O mouse também funciona (clique, botão direito para responder, roda).
 | `pgup` `pgdn` | rolar a conversa |
 | `esc` | cancela o que estiver aberto |
 | `ctrl+c` | limpa o campo; vazio, duas vezes, sai |
-| `F1` | todos os atalhos |
+| `F1` | todos os atalhos (os atalhos podem ser trocados no [config](#configuração)) |
+
+## Configuração
+
+```sh
+zapterm config
+```
+
+Cria `~/.config/zapterm/config.toml` todo comentado, com os valores padrão,
+e mostra o caminho. Sem o arquivo, vale o padrão. Dá para:
+
+- **[privacy]**: não mandar o tracinho azul ao abrir um chat, não aparecer
+  online nem "digitando…", notificação sem o texto da mensagem, desligar
+  notificações;
+- **[keys]**: trocar qualquer atalho (a ajuda e o rodapé acompanham);
+- **[colors]**: cores do destaque, dos balões, dos painéis (número ANSI ou
+  hex);
+- **[apps]**: programa para vídeo, PDF, imagem e links;
+- **[interface]**: imagens, ícones da Nerd Font, largura da lista.
+
+Mudanças valem ao reabrir o zapterm; as de privacidade também pedem
+reiniciar o daemon (`kill $(pgrep -f 'zapterm daemon$')`, ele sobe sozinho
+de novo).
 
 ## Limitações
 

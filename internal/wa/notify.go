@@ -67,7 +67,11 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
 	// Silenciado ou arquivado no celular não notifica. Arquivado conta como
 	// silenciado, como no app com "manter conversas arquivadas".
 	// Silenciado não notifica, a não ser que te marquem (como no app).
-	if s := d.chatSettings(ctx, chat); s.Archived || (s.MutedUntil.After(time.Now()) && !m.MentionsMe) {
+	if !d.cfg.Privacy.Notifications {
+		return
+	}
+	mentionOK := m.MentionsMe && d.cfg.Privacy.NotifyMentions
+	if s := d.chatSettings(ctx, chat); s.Archived || (s.MutedUntil.After(time.Now()) && !mentionOK) {
 		return
 	}
 
@@ -86,6 +90,9 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
 	body := m.Text
 	if chat.Server == types.GroupServer {
 		body = m.SenderName + ": " + body
+	}
+	if !d.cfg.Privacy.NotifyPreview {
+		body = "Nova mensagem" // [privacy] notify_preview = false
 	}
 	if count > 1 {
 		title = fmt.Sprintf("%s · %d mensagens novas", chatName, count)

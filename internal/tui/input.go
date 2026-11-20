@@ -15,6 +15,14 @@ import (
 
 func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
+	// [keys] do config: a tecla configurada vira a padrão da ação; a padrão
+	// de uma ação trocada fica sem efeito (cai no texto).
+	if def, ok := m.keyRemap[s]; ok {
+		if def == "" {
+			def = "\x00desligada"
+		}
+		s = def
+	}
 	if s != "ctrl+c" {
 		m.quitArmed = false
 	}

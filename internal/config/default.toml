@@ -1,0 +1,68 @@
+# Configuração do zapterm. Tudo aqui é opcional: apague ou comente o que não
+# quiser mudar e vale o padrão (que é o valor mostrado em cada linha).
+# Mudanças valem ao reabrir o zapterm; as de [privacy] também pedem
+# reiniciar o daemon (ele sobe sozinho de novo):
+#   kill $(pgrep -f 'zapterm daemon$')
+
+[privacy]
+# Abrir um chat manda o tracinho azul (lido) para quem escreveu.
+# false: lê sem avisar; o contador de não lidas zera só aqui.
+# read_receipts = true
+
+# Aparecer "online" e "digitando…" para os outros enquanto o zapterm está
+# aberto e em foco. false: ninguém vê, mas você também deixa de ver o
+# online e o "digitando" deles (o WhatsApp só mostra a quem mostra).
+# show_online = true
+
+# Notificações do sistema.
+# notifications = true
+# Mostrar o texto da mensagem na notificação. false: só "Nova mensagem".
+# notify_preview = true
+# Avisar quando te marcam num grupo silenciado.
+# notify_muted_mentions = true
+
+[interface]
+# Fotos e figurinhas desenhadas no terminal (kitty).
+# images = true
+# Ícones da Nerd Font. false: troca por texto.
+# nerd_font = true
+# Largura da lista de chats em colunas; 0 = automático.
+# list_width = 0
+
+[colors]
+# Número ANSI ("0"–"15", segue o tema do terminal) ou hex ("#ff79c6").
+# accent = "5"        # destaque: seleção, contador, links
+# dim = "8"           # texto secundário
+# own_bubble = "6"    # borda dos seus balões
+# other_bubble = "8"  # borda dos balões dos outros
+# panel = "0"         # fundo do cabeçalho e das caixas
+# read_tick = "4"     # ✓✓ de lida
+# danger = "1"        # erros e gravação
+
+[apps]
+# Programa para abrir cada tipo; o arquivo vai no fim, ou no lugar de {}.
+# Vazio: o primeiro instalado entre os conhecidos (mpv, zathura, imv…).
+# video = "mpv"
+# pdf = "zathura"
+# image = "imv"
+# browser = "firefox"
+
+[keys]
+# Troque qualquer atalho; a tecla antiga deixa de valer.
+# Formato das teclas: "ctrl+r", "alt+r", "f2", "ctrl+shift+x".
+# reply = "ctrl+r"      # responder
+# react = "ctrl+e"      # reagir
+# open = "ctrl+o"       # abrir mídia, link ou tocar áudio
+# copy = "alt+c"        # copiar texto
+# edit = "alt+e"        # editar (sua, até 15 min)
+# delete = "alt+d"      # apagar para todos
+# forward = "alt+w"     # encaminhar
+# chat_menu = "alt+m"   # menu do chat
+# profile = "alt+i"     # perfil
+# stickers = "ctrl+s"   # figurinhas
+# record = "ctrl+t"     # gravar áudio
+# attach = "alt+f"      # anexar arquivo
+# paste = "ctrl+v"      # colar print
+# search = "ctrl+p"     # pesquisar
+# help = "f1"           # ajuda
+# archived = "alt+a"    # arquivadas

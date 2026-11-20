@@ -19,6 +19,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/arthurhmarinho/zapterm/internal/config"
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 	"github.com/arthurhmarinho/zapterm/internal/paths"
 	"github.com/arthurhmarinho/zapterm/internal/store"
@@ -44,6 +45,7 @@ type Daemon struct {
 	notif          *notifier
 	avatars        *avatars
 	desk           *desktop // servidor de notificações (D-Bus); nil sem sessão gráfica
+	cfg            config.Config
 }
 
 // Run sobe o daemon e só volta quando ctx for cancelado ou algo fatal ocorrer.
@@ -78,6 +80,11 @@ func Run(ctx context.Context, opt Options) error {
 	defer st.Close()
 
 	d := &Daemon{log: log, st: st, status: ipc.Status{State: "connecting"}, notif: newNotifier(), avatars: newAvatars()}
+	cfg, cfgErr := config.Load()
+	if cfgErr != nil {
+		log.Warn("config", "err", cfgErr) // vale o que deu para ler; o resto, padrão
+	}
+	d.cfg = cfg
 	d.cli = whatsmeow.NewClient(device, waLogger{log.With("mod", "whatsmeow")})
 	d.cli.AddEventHandler(d.onEvent)
 
@@ -761,6 +768,9 @@ func (d *Daemon) markRead(ctx context.Context, chat string) error {
 		sender, _ := types.ParseJID(s)
 		if jid.Server != types.GroupServer {
 			sender = types.EmptyJID
+		}
+		if !d.cfg.Privacy.ReadReceipts {
+			continue // [privacy] read_receipts = false: lê sem avisar
 		}
 		if err := d.cli.MarkRead(ctx, ids, time.Now(), jid, sender); err != nil {
 			d.log.Warn("recibo de leitura", "err", err)

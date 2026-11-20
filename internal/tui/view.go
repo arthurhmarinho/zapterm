@@ -476,9 +476,9 @@ func (m *model) viewFooter() string {
 	case m.reacting:
 		help = "1–6 reage · 0 tira a sua reação · esc fecha"
 	case m.focus == paneList:
-		help = "↑/↓ chats · enter abrir · tab conversa · ctrl+p pesquisar · alt+1..4 filtros · alt+a arquivadas · F1 ajuda"
+		help = "↑/↓ chats · enter abrir · tab conversa · " + keyFor("search") + " pesquisar · alt+1..4 filtros · " + keyFor("archived") + " arquivadas · " + strings.ToUpper(keyFor("help")) + " ajuda"
 	default:
-		help = "↑/↓ mensagem · ctrl+r responder · ctrl+e reagir · ctrl+o abrir · alt+c copiar · alt+e editar · alt+d apagar · alt+w encaminhar · F1 ajuda"
+		help = "↑/↓ mensagem · " + keyFor("reply") + " responder · " + keyFor("react") + " reagir · " + keyFor("open") + " abrir · " + keyFor("copy") + " copiar · " + keyFor("edit") + " editar · " + keyFor("delete") + " apagar · " + keyFor("forward") + " encaminhar · " + strings.ToUpper(keyFor("help")) + " ajuda"
 	}
 	left := sText2.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {
@@ -590,7 +590,12 @@ func (m *model) viewPhoto() string {
 
 // listWidth: 40 colunas no mínimo, para os filtros caberem com os nomes
 // completos ("Tudo  Não lidas 14  Grupos 7  Canais").
-func listWidth(w int) int { return max(40, min(52, w*32/100)) }
+func listWidth(w int) int {
+	if n := cfg.Interface.ListWidth; n > 0 {
+		return max(30, min(n, w/2)) // [interface] list_width
+	}
+	return max(40, min(52, w*32/100))
+}
 
 func lastSeenText(ms int64) string {
 	t := time.UnixMilli(ms)
@@ -612,24 +617,24 @@ func (m *model) viewHelp() string {
 	}{
 		{"Navegar", [][2]string{
 			{"↑ ↓", "chats na lista, ou mensagens na conversa"}, {"tab", "troca entre lista e conversa"},
-			{"pgup pgdn", "rolar a conversa"}, {"ctrl+p", "pesquisar conversa"},
-			{"alt+1…4", "filtros (Tudo, Não lidas, Grupos, Canais)"}, {"alt+a", "arquivadas"},
+			{"pgup pgdn", "rolar a conversa"}, {keyFor("search"), "pesquisar conversa"},
+			{"alt+1…4", "filtros (Tudo, Não lidas, Grupos, Canais)"}, {keyFor("archived"), "arquivadas"},
 			{"esc", "cancela o que estiver aberto"}, {"ctrl+c", "limpa o campo; vazio, duas vezes, sai"},
 		}},
 		{"Escrever", [][2]string{
-			{"enter", "envia"}, {"shift+enter", "nova linha"}, {"ctrl+v", "cola print (ou texto)"},
-			{"alt+f", "anexar arquivo"}, {"ctrl+s", "figurinhas (tab: favoritas/recentes)"},
-			{"ctrl+t", "gravar mensagem de voz"},
+			{"enter", "envia"}, {"shift+enter", "nova linha"}, {keyFor("paste"), "cola print (ou texto)"},
+			{keyFor("attach"), "anexar arquivo"}, {keyFor("stickers"), "figurinhas (tab: favoritas/recentes)"},
+			{keyFor("record"), "gravar mensagem de voz"},
 		}},
 		{"Chat", [][2]string{
-			{"alt+i", "perfil do contato ou grupo: foto, recado, participantes, mídia (ou clique no cabeçalho)"},
-			{"alt+m", "menu do chat: fixar, arquivar, silenciar, marcar como lida (ou botão direito na lista)"},
+			{keyFor("profile"), "perfil do contato ou grupo: foto, recado, participantes, mídia (ou clique no cabeçalho)"},
+			{keyFor("chat_menu"), "menu do chat: fixar, arquivar, silenciar, marcar como lida (ou botão direito na lista)"},
 		}},
 		{"Mensagem selecionada", [][2]string{
-			{"ctrl+r", "responder (ou botão direito)"}, {"ctrl+e", "reagir"},
-			{"ctrl+o", "abrir foto, vídeo, documento, link, ou tocar áudio"},
-			{"alt+c", "copiar texto"}, {"alt+e", "editar (sua, até 15 min)"},
-			{"alt+d", "apagar para todos (sua, duas vezes)"}, {"alt+w", "encaminhar"},
+			{keyFor("reply"), "responder (ou botão direito)"}, {keyFor("react"), "reagir"},
+			{keyFor("open"), "abrir foto, vídeo, documento, link, ou tocar áudio"},
+			{keyFor("copy"), "copiar texto"}, {keyFor("edit"), "editar (sua, até 15 min)"},
+			{keyFor("delete"), "apagar para todos (sua, duas vezes)"}, {keyFor("forward"), "encaminhar"},
 		}},
 	}
 	var b strings.Builder

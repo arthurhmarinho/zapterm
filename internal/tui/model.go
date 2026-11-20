@@ -103,7 +103,8 @@ type model struct {
 	delArmedAt time.Time
 	help       bool // tela de ajuda (F1)
 
-	menu        *chatMenu // menu do chat (alt+m)
+	menu        *chatMenu         // menu do chat (alt+m)
+	keyRemap    map[string]string // teclas do config → teclas padrão
 	profileOpen bool
 	profile     *ipc.Profile
 	profileSel  int
@@ -186,11 +187,15 @@ type (
 )
 
 func Run() error {
+	cfgErr := applyConfig() // antes de tudo: cores e ícones valem desde o 1º quadro
 	cli, err := connect()
 	if err != nil {
 		return err
 	}
 	m := newModel(cli)
+	if cfgErr != nil {
+		m.setFlash("config: " + cfgErr.Error())
+	}
 	m.autoOpen = os.Getenv("ZAPTERM_DEMO") != ""
 	if jid := os.Getenv("ZAPTERM_OPEN"); jid != "" {
 		m.pendingOpen = ipc.Chat{JID: jid, Name: jid, LastStatus: -1}
@@ -209,6 +214,7 @@ func newModel(cli *ipc.Client) *model {
 		autoAsked: map[string]bool{}, presence: map[string]*presenceState{},
 		members: map[string][]ipc.Member{}, mentioned: map[string]string{}}
 	m.vp.MouseWheelEnabled = false // a roda é tratada em input.go
+	m.keyRemap = cfg.KeyRemap()
 	m.input.Focus()
 	return m
 }

@@ -42,11 +42,8 @@ type images struct {
 }
 
 func newImages() *images {
-	on := os.Getenv("TERM") == "xterm-kitty" || os.Getenv("KITTY_WINDOW_ID") != ""
-	switch os.Getenv("ZAPTERM_IMAGES") {
-	case "0":
-		on = false
-	case "1":
+	on := (os.Getenv("TERM") == "xterm-kitty" || os.Getenv("KITTY_WINDOW_ID") != "") && imagesAllowed()
+	if os.Getenv("ZAPTERM_IMAGES") == "1" {
 		on = true // força, para testes fora do kitty
 	}
 	return &images{enabled: on, next: 1, placed: map[string]*kimage{}}
@@ -170,6 +167,9 @@ func (im *images) cleanup() {
 // e só então cai no xdg-open.
 func openExternal(path string) error {
 	name, args := opener(path, exec.LookPath)
+	if c := configuredApp(fileKind(path), path); c != nil {
+		name, args = c[0], c[1:] // [apps] no config manda
+	}
 	cmd := exec.Command(name, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	return cmd.Start()
@@ -221,7 +221,25 @@ func opener(path string, lookPath func(string) (string, error)) (string, []strin
 
 // openURL abre um link no navegador padrão (aqui o xdg-open é o certo).
 func openURL(u string) error {
-	cmd := exec.Command("xdg-open", u)
+	args := configuredApp("browser", u)
+	if args == nil {
+		args = []string{"xdg-open", u}
+	}
+	cmd := exec.Command(args[0], args[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	return cmd.Start()
+}
+
+// fileKind classifica o arquivo para [apps] do config.
+func fileKind(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch {
+	case ext == ".pdf":
+		return "pdf"
+	case videoExts[ext]:
+		return "video"
+	case imageExts[ext]:
+		return "image"
+	}
+	return ""
 }

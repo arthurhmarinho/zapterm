@@ -61,12 +61,15 @@ type iconSet struct {
 	play, pause, rec                                             string
 }
 
+// plainIcons troca os ícones por texto, para terminais sem Nerd Font.
+var plainIcons = iconSet{search: "/", mute: "(m)", pin: "^", archive: "[A]", back: "<", reply: ">",
+	send: ">", attach: "+", close: "x", photo: "[foto]", audio: "[áudio]", video: "[vídeo]",
+	doc: "[doc]", sticker: "[fig]", pillL: "", pillR: "", check: "v",
+	play: ">", pause: "||", rec: "*"}
+
 var icons = func() iconSet {
 	if os.Getenv("ZAPTERM_NERDFONT") == "0" {
-		return iconSet{search: "/", mute: "(m)", pin: "^", archive: "[A]", back: "<", reply: ">",
-			send: ">", attach: "+", close: "x", photo: "[foto]", audio: "[áudio]", video: "[vídeo]",
-			doc: "[doc]", sticker: "[fig]", pillL: "", pillR: "", check: "v",
-			play: ">", pause: "||", rec: "*"}
+		return plainIcons
 	}
 	return iconSet{
 		search:  "\U000f0349", // nf-md-magnify
