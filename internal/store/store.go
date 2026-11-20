@@ -187,6 +187,36 @@ func (s *Store) SetChatName(jid, name string) error {
 	return err
 }
 
+// MarkReadUpTo marca como lidas as mensagens até a mais nova de ids (lidas
+// em outro aparelho): o contador vira o número de mensagens recebidas
+// depois dela. Devolve false se nenhuma das mensagens é conhecida.
+func (s *Store) MarkReadUpTo(chat string, ids []string) (bool, error) {
+	if len(ids) == 0 {
+		return false, nil
+	}
+	args := []any{chat}
+	marks := make([]string, len(ids))
+	for i, id := range ids {
+		marks[i] = "?"
+		args = append(args, id)
+	}
+	var last sql.NullInt64
+	if err := s.db.QueryRow(`SELECT MAX(ts) FROM messages WHERE chat = ? AND id IN (`+strings.Join(marks, ",")+`)`,
+		args...).Scan(&last); err != nil || !last.Valid {
+		return false, err
+	}
+	_, err := s.db.Exec(`UPDATE chats SET unread = (
+			SELECT COUNT(*) FROM messages WHERE chat = ? AND from_me = 0 AND ts > ? AND kind != 'revoked'
+		) WHERE jid = ?`, chat, last.Int64, chat)
+	return err == nil, err
+}
+
+// SetUnread põe o contador direto (marcar como não lida no celular).
+func (s *Store) SetUnread(jid string, n int) error {
+	_, err := s.db.Exec(`UPDATE chats SET unread = ? WHERE jid = ?`, n, jid)
+	return err
+}
+
 func (s *Store) MarkRead(jid string) error {
 	_, err := s.db.Exec(`UPDATE chats SET unread = 0 WHERE jid = ?`, jid)
 	return err

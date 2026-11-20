@@ -210,6 +210,8 @@ func (d *Daemon) onEvent(evt any) {
 		d.onAppState(e)
 	case *events.Receipt:
 		d.onReceipt(ctx, e)
+	case *events.MarkChatAsRead:
+		d.onMarkChatAsRead(ctx, e)
 	case *events.ChatPresence:
 		d.onChatPresence(ctx, e)
 	case *events.Presence:

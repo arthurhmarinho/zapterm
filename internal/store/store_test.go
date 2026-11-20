@@ -204,3 +204,28 @@ func TestBuscaEDepois(t *testing.T) {
 		t.Fatalf("depois: %+v", after)
 	}
 }
+
+func TestLidoEmOutroAparelho(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	const c = "1@s.whatsapp.net"
+	for i, id := range []string{"a", "b", "c", "d"} {
+		s.SaveMessage(ipc.Message{ID: id, Chat: c, Sender: c, TS: int64(i + 1), Kind: "text", Text: id}, nil, false, true)
+	}
+	if ch, _ := s.Chat(c); ch.Unread != 4 {
+		t.Fatalf("antes: %d", ch.Unread)
+	}
+	// Leu no celular até a "b": continuam não lidas a "c" e a "d".
+	if ok, _ := s.MarkReadUpTo(c, []string{"a", "b"}); !ok {
+		t.Fatal("não achou as mensagens")
+	}
+	if ch, _ := s.Chat(c); ch.Unread != 2 {
+		t.Fatalf("depois: %d, quer 2", ch.Unread)
+	}
+	if ok, _ := s.MarkReadUpTo(c, []string{"desconhecida"}); ok {
+		t.Fatal("mexeu com id desconhecido")
+	}
+}

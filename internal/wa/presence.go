@@ -16,13 +16,25 @@ import (
 
 func (d *Daemon) onReceipt(ctx context.Context, e *events.Receipt) {
 	chat := d.normalize(ctx, e.Chat).String()
-	switch e.Type {
-	case types.ReceiptTypeReadSelf:
-		// Você leu este chat em outro aparelho (o celular): zera aqui também.
-		if err := d.st.MarkRead(chat); err == nil {
-			d.pushChat(chat)
+	// Recibo de leitura vindo de você mesmo = você leu em outro aparelho (o
+	// celular). Chega como "read" comum (ou "read-self", se o tracinho azul
+	// estiver desligado na privacidade; "played" para áudio).
+	if e.IsFromMe {
+		switch e.Type {
+		case types.ReceiptTypeRead, types.ReceiptTypeReadSelf, types.ReceiptTypePlayed, types.ReceiptTypePlayedSelf:
+			if ok, err := d.st.MarkReadUpTo(chat, e.MessageIDs); err != nil {
+				d.log.Warn("lido no celular", "err", err)
+			} else if ok {
+				d.log.Info("lido no celular", "chat", chat, "mensagens", len(e.MessageIDs))
+				d.notif.mu.Lock()
+				delete(d.notif.pending, chat)
+				d.notif.mu.Unlock()
+				d.pushChat(chat)
+			}
 		}
 		return
+	}
+	switch e.Type {
 	case types.ReceiptTypeDelivered:
 		d.setMsgStatus(chat, e.MessageIDs, 2)
 	case types.ReceiptTypeRead:
@@ -143,4 +155,22 @@ func (d *Daemon) sendTyping(ctx context.Context, chat, state string) error {
 		cp, media = types.ChatPresenceComposing, types.ChatPresenceMediaAudio
 	}
 	return d.cli.SendChatPresence(ctx, jid, cp, media)
+}
+
+// onMarkChatAsRead: marcou o chat como lido ou não lido na lista do
+// celular (app state, diferente do recibo de leitura).
+func (d *Daemon) onMarkChatAsRead(ctx context.Context, e *events.MarkChatAsRead) {
+	if e.FromFullSync {
+		return // carga completa repetida (refreshAppState): marcações velhas
+	}
+	chat := d.normalize(ctx, e.JID).String()
+	var err error
+	if e.Action.GetRead() {
+		err = d.st.MarkRead(chat)
+	} else {
+		err = d.st.SetUnread(chat, 1) // "não lida" no app aparece como 1
+	}
+	if err == nil {
+		d.pushChat(chat)
+	}
 }
