@@ -100,6 +100,21 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		}
 		go d.srv.Broadcast(ipc.EvMessage, m)
 		return m, nil
+	case ipc.OpProfile:
+		for _, c := range d.chats {
+			if c.JID != req.Chat {
+				continue
+			}
+			p := ipc.Profile{JID: c.JID, Name: c.Name, Kind: c.Kind, Media: []ipc.Message{}}
+			if c.Kind == "group" {
+				p.About, p.MemberCount = "Trilhas leves aos sábados. Levar água!", 3
+				p.Members = []ipc.ProfileMember{{Name: "Lu"}, {Name: "Marina Alves"}, {Name: "Rafa", Admin: true}}
+			} else {
+				p.Phone, p.About = "+"+strings.Split(c.JID, "@")[0], "Disponível"
+			}
+			return p, nil
+		}
+		return nil, errors.New("chat não encontrado")
 	case ipc.OpChatAction:
 		for i := range d.chats {
 			c := &d.chats[i]

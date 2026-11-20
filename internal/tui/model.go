@@ -104,7 +104,10 @@ type model struct {
 	help       bool // tela de ajuda (F1)
 
 	menu        *chatMenu // menu do chat (alt+m)
-	pendingOpen ipc.Chat  // chat a abrir assim que possível (notificação, ZAPTERM_OPEN)
+	profileOpen bool
+	profile     *ipc.Profile
+	profileSel  int
+	pendingOpen ipc.Chat // chat a abrir assim que possível (notificação, ZAPTERM_OPEN)
 
 	hits       []ipc.SearchHit // resultados da busca no texto
 	hitsQuery  string
@@ -331,6 +334,9 @@ func reconnect() tea.Cmd {
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.update(msg)
 	m.prepareAvatars()
+	if m.profileOpen && m.w > 0 {
+		m.viewProfile(m.geom()) // dispara as transmissões das fotos neste Update
+	}
 	if v := m.viewing; v != nil && m.w > 0 {
 		m.imgs.media(v.media, m.w-4, m.h-4) // mesma chamada do viewPhoto
 	}
@@ -430,6 +436,16 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if c, ok := m.chatByJID(m.active); ok {
 			m.activeChat = c
 		}
+		return m, nil
+
+	case profileMsg:
+		if m.profileOpen && msg.p.JID == m.active {
+			m.profile = msg.p
+		}
+		return m, nil
+
+	case profileMediaMsg:
+		m.onProfileMedia(msg)
 		return m, nil
 
 	case searchTickMsg:
@@ -695,6 +711,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 		}
 		return nil
 	}
+	m.profileOpen, m.profile = false, nil
 	m.active, m.activeChat = c.JID, c
 	m.msgs = nil
 	m.msgSel, m.replyTo, m.attach = -1, nil, nil

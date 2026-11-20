@@ -37,7 +37,13 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
   seletor nativo (foto, vídeo, áudio, documento), suas figurinhas
   favoritas do celular e mensagem de voz gravada no microfone.
 - **Notificações** com a foto do contato, respeitando chats silenciados e
-  arquivados e sem avisar do chat que você está vendo.
+  arquivados e sem avisar do chat que você está vendo. Clicar abre o chat
+  no zapterm (ou abre o zapterm, se estiver fechado); servidores com
+  resposta embutida (Noctalia, Plasma) deixam responder pela própria
+  notificação.
+- **Perfil** (clique no cabeçalho ou `alt+i`): foto grande, número e
+  recado do contato, ou descrição e participantes do grupo, e a grade com
+  as fotos e vídeos da conversa.
 
 ## Como funciona
 
@@ -137,6 +143,7 @@ O mouse também funciona (clique, botão direito para responder, roda).
 | `alt+c` `alt+e` | copiar / editar (sua, até 15 min) |
 | `alt+d` `alt+w` | apagar para todos (duas vezes) / encaminhar |
 | `alt+m` | menu do chat: fixar, arquivar, silenciar (ou botão direito) |
+| `alt+i` | perfil do contato ou grupo (ou clique no cabeçalho) |
 | `@` | marcar alguém num grupo |
 | `ctrl+v` | colar print para enviar |
 | `alt+f` | anexar arquivo |

@@ -219,6 +219,26 @@ func (s *Store) Chats() ([]ipc.Chat, error) {
 	return out, rows.Err()
 }
 
+// MediaMessages devolve as fotos e vídeos mais recentes do chat (para o
+// perfil).
+func (s *Store) MediaMessages(chat string, limit int) ([]ipc.Message, error) {
+	rows, err := s.db.Query(`SELECT `+msgCols+` FROM messages
+		WHERE chat = ? AND kind IN ('image', 'video') ORDER BY ts DESC LIMIT ?`, chat, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ipc.Message{}
+	for rows.Next() {
+		m, err := scanMessage(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 // MessagesAfter devolve até limit mensagens posteriores a after, em ordem
 // cronológica (para descer a conversa depois de pular para uma busca).
 func (s *Store) MessagesAfter(chat string, limit int, after int64) ([]ipc.Message, error) {

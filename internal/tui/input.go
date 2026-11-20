@@ -36,6 +36,13 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.menu != nil {
 		return m.keyChatMenu(s)
 	}
+	if m.profileOpen && !m.searching {
+		if s == "tab" || s == "shift+tab" || s == "ctrl+p" {
+			m.closeProfile() // sair para a lista ou a busca fecha o perfil
+		} else {
+			return m.keyProfile(s)
+		}
+	}
 	if m.searching {
 		return m.keySearch(k)
 	}
@@ -83,6 +90,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return m.openStickers()
 	case "ctrl+t":
 		return m.startRec()
+	case "alt+i":
+		return m.openProfile()
 	case "alt+m":
 		c, ok := m.selected()
 		if m.focus == paneChat && m.active != "" {
@@ -396,6 +405,15 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 	}
 	if m.active == "" {
 		return nil
+	}
+	if m.profileOpen {
+		if y <= 1 {
+			m.closeProfile() // clique na seta de voltar
+		}
+		return nil
+	}
+	if y < headerH {
+		return m.openProfile() // clique no cabeçalho, como no app
 	}
 	if m.picking && y >= g.extraY && y < g.inputY {
 		if i := m.stickerAt(g, x, y); i >= 0 {

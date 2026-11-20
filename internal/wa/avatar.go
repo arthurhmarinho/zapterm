@@ -234,6 +234,27 @@ func (d *Daemon) downloadAvatar(ctx context.Context, url, file string) error {
 	return os.Rename(tmp, file)
 }
 
+// downloadAvatarRaw baixa a foto como veio (a do perfil, em tamanho cheio).
+func (d *Daemon) downloadAvatarRaw(ctx context.Context, url, file string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := d.avatars.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(file, data, 0o600)
+}
+
 func writeAvatarMeta(path string, meta avatarMeta) error {
 	b, err := json.Marshal(meta)
 	if err != nil {

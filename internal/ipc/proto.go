@@ -31,6 +31,7 @@ const (
 	OpChatAction  = "chat_action"  // Text: pin, unpin, archive, unarchive, mute8h, mute1w, muteforever, unmute, read
 	OpCheckNumber = "check_number" // Text: telefone com DDI; devolve o chat se tiver WhatsApp
 	OpSearch      = "search"       // procura Text no texto das mensagens (sem acento/maiúscula)
+	OpProfile     = "profile"      // perfil do chat: foto grande, recado/descrição, participantes, mídia
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -165,6 +166,27 @@ type Presence struct {
 	Recording bool   `json:"recording,omitempty"`
 	Online    *bool  `json:"online,omitempty"` // nil = sem informação nova
 	LastSeen  int64  `json:"last_seen,omitempty"`
+}
+
+// Profile é a tela de perfil de um contato ou grupo.
+type Profile struct {
+	JID         string          `json:"jid"`
+	Name        string          `json:"name"`
+	Kind        string          `json:"kind"`
+	Phone       string          `json:"phone,omitempty"`
+	Business    string          `json:"business,omitempty"` // nome verificado de empresa
+	About       string          `json:"about,omitempty"`    // recado (contato) ou descrição (grupo)
+	Photo       *Media          `json:"photo,omitempty"`
+	Created     int64           `json:"created,omitempty"`
+	MemberCount int             `json:"member_count,omitempty"`
+	Members     []ProfileMember `json:"members,omitempty"`
+	Media       []Message       `json:"media"`
+	Note        string          `json:"note,omitempty"` // aviso (ex.: saiu do grupo)
+}
+
+type ProfileMember struct {
+	Name  string `json:"name"`
+	Admin bool   `json:"admin,omitempty"`
 }
 
 // Open pede à TUI que abra um chat.

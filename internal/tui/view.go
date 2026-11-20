@@ -135,6 +135,8 @@ func (m *model) View() tea.View {
 	var right string
 	if m.active == "" {
 		right = m.viewEmpty(g)
+	} else if m.profileOpen {
+		right = m.viewProfile(g)
 	} else {
 		parts := []string{m.viewHeader(g), fitHeight(m.vp.View(), cBgChat, g.chatW, g.vpH)}
 		if g.extraH > 0 {
@@ -620,6 +622,7 @@ func (m *model) viewHelp() string {
 			{"ctrl+t", "gravar mensagem de voz"},
 		}},
 		{"Chat", [][2]string{
+			{"alt+i", "perfil do contato ou grupo: foto, recado, participantes, mídia (ou clique no cabeçalho)"},
 			{"alt+m", "menu do chat: fixar, arquivar, silenciar, marcar como lida (ou botão direito na lista)"},
 		}},
 		{"Mensagem selecionada", [][2]string{

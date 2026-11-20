@@ -248,3 +248,43 @@ func TestBuscaNoTexto(t *testing.T) {
 		t.Fatalf("não pulou para a mensagem: ativo=%s sel=%d", m.active, m.sel())
 	}
 }
+
+func TestPerfil(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m.Update(m.loadChats()())
+	g, _ := m.chatByJID("120000000000000001@g.us")
+	m.active, m.activeChat, m.focus = g.JID, g, paneChat
+	m.layout()
+
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'i', Mod: tea.ModAlt})
+	runCmd(m, cmd)
+	screen := ansi.Strip(m.View().Content)
+	for _, want := range []string{"Dados do grupo", "Grupo · 3 participantes", "Levar água", "Participantes (3)", "admin", "Mídia (0)"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("faltou %q no perfil", want)
+		}
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.profileOpen {
+		t.Fatal("esc não fechou o perfil")
+	}
+	geo := m.geom()
+	_, cmd = m.Update(tea.MouseClickMsg{X: geo.chatX + 10, Y: 1, Button: tea.MouseLeft})
+	runCmd(m, cmd)
+	if !m.profileOpen || m.profile == nil {
+		t.Fatal("clique no cabeçalho não abriu o perfil")
+	}
+}

@@ -548,6 +548,10 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 			d.decorate(ctx, &chats[i])
 		}
 		return chats, nil
+	case ipc.OpProfile:
+		pctx, pcancel := context.WithTimeout(context.Background(), time.Minute)
+		defer pcancel()
+		return d.profile(pctx, req.Chat)
 	case ipc.OpSearch:
 		return d.search(ctx, req.Text, req.Limit)
 	case ipc.OpMessages:
