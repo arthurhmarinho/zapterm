@@ -840,7 +840,8 @@ func (m *model) autoStickers(msgs []ipc.Message) tea.Cmd {
 	var cmds []tea.Cmd
 	for _, msg := range msgs {
 		hasPic := msg.Media != nil && msg.Media.Preview != ""
-		if msg.Kind != "sticker" || !msg.HasRaw || hasPic || m.autoAsked[msg.ID] {
+		isGIF := msg.Kind == "video" && strings.HasPrefix(msg.Text, "[GIF]")
+		if (msg.Kind != "sticker" && !isGIF) || !msg.HasRaw || hasPic || m.autoAsked[msg.ID] {
 			continue
 		}
 		m.autoAsked[msg.ID] = true

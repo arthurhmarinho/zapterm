@@ -35,6 +35,8 @@ func describe(m *waE2E.Message) (kind, text string) {
 		return "video", "[" + label + "]"
 	case m.GetEventMessage() != nil:
 		return "other", eventText(m.GetEventMessage())
+	case m.GetVideoMessage().GetGifPlayback():
+		return "video", tag("GIF", m.GetVideoMessage().GetCaption())
 	case m.GetVideoMessage() != nil:
 		v := m.GetVideoMessage()
 		label := "vídeo"

@@ -13,11 +13,14 @@ import (
 	"io/fs"
 	"mime"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -146,6 +149,12 @@ func (d *Daemon) downloadMedia(ctx context.Context, chat, id string) (*ipc.Media
 	if err := os.WriteFile(md.Path, data, 0o600); err != nil {
 		return nil, err
 	}
+	if v := msg.GetVideoMessage(); v != nil && v.GetGifPlayback() {
+		// GIF do WhatsApp é um MP4 curto: vira quadros para animar no kitty.
+		if err := gifFrames(md.Path, base, md); err != nil {
+			d.log.Warn("quadros do GIF", "id", id, "err", err)
+		}
+	}
 	if isImage {
 		md.Preview = base + ".preview.png"
 		md.Width, md.Height, err = writePreview(data, md.Preview)
@@ -204,6 +213,46 @@ func (d *Daemon) animPreview(id string, data []byte, md *ipc.Media) bool {
 	md.Preview = man.Frames[0]
 	md.Width, md.Height = pngSize(md.Preview)
 	return true
+}
+
+// gifFrames extrai os quadros do MP4 de um GIF (10 por segundo, 320 px de
+// largura, até 100) pelo GStreamer e grava como a animação das
+// figurinhas, em <base>.anim.
+func gifFrames(path, base string, md *ipc.Media) error {
+	dir := base + ".anim"
+	os.RemoveAll(dir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gst-launch-1.0", "-q",
+		"filesrc", "location="+path, "!", "decodebin", "!", "videoconvert", "!", "videorate", "!",
+		"video/x-raw,framerate=10/1", "!", "videoscale", "!", "video/x-raw,width=320,pixel-aspect-ratio=1/1", "!",
+		"pngenc", "!", "multifilesink", "location="+filepath.Join(dir, "%03d.png"))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("gst: %v %s", err, bytes.TrimSpace(out))
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "*.png"))
+	sort.Strings(files)
+	if len(files) == 0 {
+		return errors.New("nenhum quadro")
+	}
+	for _, f := range files[min(len(files), 100):] {
+		os.Remove(f)
+	}
+	files = files[:min(len(files), 100)]
+	man := animManifest{Frames: files}
+	for range files {
+		man.Delays = append(man.Delays, 100)
+	}
+	b, _ := json.Marshal(man)
+	if err := os.WriteFile(filepath.Join(dir, "frames.json"), b, 0o600); err != nil {
+		return err
+	}
+	md.Frames, md.Delays, md.Preview = man.Frames, man.Delays, man.Frames[0]
+	md.Width, md.Height = pngSize(md.Preview)
+	return nil
 }
 
 // loadAnim completa md com os quadros já gravados, se houver.

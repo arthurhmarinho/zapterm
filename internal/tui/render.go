@@ -51,6 +51,8 @@ func mediaLabel(s string) string {
 		icon, name = icons.audio, "Áudio"+dur
 	case tag == "figurinha":
 		icon, name = icons.sticker, "Figurinha"
+	case tag == "GIF":
+		icon, name = icons.video, "GIF"
 	case strings.HasPrefix(tag, "documento: "):
 		icon, name = icons.doc, strings.TrimPrefix(tag, "documento: ")
 	default:

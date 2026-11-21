@@ -35,7 +35,7 @@ Marque `[x]` conforme for entrando (`[~]` = feito em parte).
   OpenStreetMap. `LocationMessage`, `LiveLocationMessage`. (P)
 - [~] **Recado de vídeo** (feito: aparece e abre como vídeo; falta a miniatura redonda): miniatura redonda; `ctrl+o` abre no player.
   `PtvMessage`. (P)
-- [ ] **GIF animado no balão**, como as figurinhas animadas.
+- [x] **GIF animado no balão**, como as figurinhas animadas.
   `VideoMessage.GetGifPlayback()`. (M)
 - [~] **Chamada perdida / recebida** (feito: linha "chamada recebida · atenda no celular" e notificação; falta o botão "recusar" e saber se foi perdida): linha de sistema "📞 chamada perdida
   de Fulano" e notificação com "recusar". `events.CallOffer`,
