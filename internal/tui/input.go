@@ -203,9 +203,10 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 			m.focus = paneList
 		}
 		return nil
-	case "alt+1", "alt+2", "alt+3", "alt+4":
-		m.setTab(int(s[4] - '1'))
-		return nil
+	case "alt+1", "alt+2", "alt+3", "alt+4", "alt+5":
+		return m.setTab(int(s[4] - '1'))
+	case "alt+s":
+		return m.toggleStar()
 	case "alt+a":
 		m.setArchived(!m.archived)
 		return nil
@@ -621,7 +622,7 @@ func (m *model) clickList(g geometry, x, y int, c tea.MouseClickMsg) tea.Cmd {
 			if m.searching || m.searchQuery() != "" {
 				m.stopSearch(true)
 			}
-			m.setTab(t)
+			return m.setTab(t)
 		}
 	case g.archRowY >= 0 && y == g.archRowY:
 		m.setArchived(true)

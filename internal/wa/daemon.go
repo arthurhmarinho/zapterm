@@ -221,6 +221,8 @@ func (d *Daemon) onEvent(evt any) {
 		}
 	case *events.CallOffer:
 		d.onCallOffer(e)
+	case *events.Star:
+		d.onStar(ctx, e)
 	case *events.DeleteForMe:
 		d.onDeleteForMe(ctx, e)
 	case *events.Receipt:
@@ -355,6 +357,9 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 			d.onMessage(ctx, evt, false)
 			d.historyReactions(ctx, jid, hm.GetMessage())
 			d.historyPolls(ctx, jid, hm.GetMessage())
+			if hm.GetMessage().GetStarred() {
+				_, _ = d.st.SetStarred(jid.String(), evt.Info.ID, true)
+			}
 			if evt.Info.IsFromMe {
 				if st := historyStatus(hm.GetMessage().GetStatus()); st > 0 {
 					_ = d.st.SetStatus(jid.String(), []string{evt.Info.ID}, st)
@@ -619,6 +624,10 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return d.profile(pctx, req.Chat)
 	case ipc.OpPollVote:
 		return nil, d.pollVote(ctx, req.Chat, req.Msg, req.Options)
+	case ipc.OpStar:
+		return nil, d.star(ctx, req.Chat, req.Msg, req.Text == "1")
+	case ipc.OpStarred:
+		return d.starred(ctx)
 	case ipc.OpDeleteMe:
 		return nil, d.deleteForMe(ctx, req.Chat, req.Msg)
 	case ipc.OpRefetch:

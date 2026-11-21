@@ -62,6 +62,10 @@ func (m *model) runSearch(q string) tea.Cmd {
 // hitEntries vira os resultados em entradas da lista.
 func (m *model) hitEntries() []ipc.Chat {
 	var out []ipc.Chat
+	icon := icons.search
+	if m.searchQuery() == "" && m.tab == tabStarred {
+		icon = "★"
+	}
 	for i, h := range m.hits {
 		text := plainText(h.Message.Text)
 		if h.Message.FromMe {
@@ -70,7 +74,7 @@ func (m *model) hitEntries() []ipc.Chat {
 			text = h.Message.SenderName + ": " + text
 		}
 		out = append(out, ipc.Chat{
-			JID: fmt.Sprintf("%s%d", hitMarker, i), Name: icons.search + " " + h.Chat.Name, Kind: h.Chat.Kind,
+			JID: fmt.Sprintf("%s%d", hitMarker, i), Name: icon + " " + h.Chat.Name, Kind: h.Chat.Kind,
 			LastText: text, LastTS: h.Message.TS, LastStatus: -1,
 		})
 	}

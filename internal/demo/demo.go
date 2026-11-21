@@ -107,6 +107,24 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpPollVote:
 		d.lastSent = req
 		return nil, nil
+	case ipc.OpStar:
+		for i, m := range d.msgs[req.Chat] {
+			if m.ID == req.Msg {
+				d.msgs[req.Chat][i].Starred = req.Text == "1"
+				go d.srv.Broadcast(ipc.EvUpdate, d.msgs[req.Chat][i])
+			}
+		}
+		return nil, nil
+	case ipc.OpStarred:
+		hits := []ipc.SearchHit{}
+		for _, c := range d.chats {
+			for _, m := range d.msgs[c.JID] {
+				if m.Starred {
+					hits = append(hits, ipc.SearchHit{Chat: c, Message: m})
+				}
+			}
+		}
+		return hits, nil
 	case ipc.OpRefetch:
 		return nil, nil // sem celular na demonstração
 	case ipc.OpGallery:

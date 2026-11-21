@@ -67,6 +67,11 @@ func (d *Daemon) search(ctx context.Context, chat, q string, limit int) ([]ipc.S
 	if err != nil {
 		return nil, err
 	}
+	return d.hitsFor(ctx, msgs), nil
+}
+
+// hitsFor junta a cada mensagem a conversa dela (busca, favoritas).
+func (d *Daemon) hitsFor(ctx context.Context, msgs []ipc.Message) []ipc.SearchHit {
 	d.fillSenders(ctx, msgs)
 	d.fillMentions(ctx, msgs)
 	chats := map[string]ipc.Chat{}
@@ -74,6 +79,7 @@ func (d *Daemon) search(ctx context.Context, chat, q string, limit int) ([]ipc.S
 	for _, m := range msgs {
 		c, ok := chats[m.Chat]
 		if !ok {
+			var err error
 			if c, err = d.st.Chat(m.Chat); err != nil {
 				c = ipc.Chat{JID: m.Chat}
 			}
@@ -82,5 +88,5 @@ func (d *Daemon) search(ctx context.Context, chat, q string, limit int) ([]ipc.S
 		}
 		out = append(out, ipc.SearchHit{Chat: c, Message: m})
 	}
-	return out, nil
+	return out
 }

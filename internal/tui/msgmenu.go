@@ -49,6 +49,11 @@ func (m *model) openMsgMenu() tea.Cmd {
 		add("Editar", m.startEdit)
 	}
 	add("Encaminhar", m.startForward)
+	if msg.Starred {
+		add("Desfavoritar", m.toggleStar)
+	} else {
+		add("Favoritar", m.toggleStar)
+	}
 	add("Apagar…", func() tea.Cmd { return m.openDeleteMenu() })
 	m.popup = &popMenu{title: "Mensagem", opts: opts}
 	return nil
@@ -204,4 +209,28 @@ func (m *model) undoDelete() {
 		m.rerenderKeepingPlace()
 	}
 	m.setFlash("apagar desfeito")
+}
+
+// ---------- favoritas ----------
+
+type starredMsg struct{ hits []ipc.SearchHit }
+
+func (m *model) loadStarred() tea.Cmd {
+	var out []ipc.SearchHit
+	return m.call(ipc.Request{Op: ipc.OpStarred}, &out, func() tea.Msg { return starredMsg{out} })
+}
+
+// toggleStar (alt+s) favorita ou desfavorita a mensagem selecionada; a
+// estrela aparece quando o daemon confirma (EvUpdate).
+func (m *model) toggleStar() tea.Cmd {
+	msg, ok := m.selectedMsg()
+	if !ok || msg.Kind == "revoked" {
+		return nil
+	}
+	on, done := "1", "mensagem favoritada"
+	if msg.Starred {
+		on, done = "0", "mensagem desfavoritada"
+	}
+	return m.call(ipc.Request{Op: ipc.OpStar, Chat: msg.Chat, Msg: msg.ID, Text: on}, nil,
+		func() tea.Msg { return flashMsg(done) })
 }

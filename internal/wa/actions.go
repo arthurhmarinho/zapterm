@@ -233,3 +233,50 @@ func (d *Daemon) removeLocal(chat, msgID string) {
 	d.srv.Broadcast(ipc.EvUpdate, ipc.Message{ID: msgID, Chat: chat, Kind: "deleted"})
 	d.pushChat(chat)
 }
+
+// star favorita ou desfavorita: patch de app state (vale no celular
+// também) e marca no banco.
+func (d *Daemon) star(ctx context.Context, chat, msgID string, starred bool) error {
+	m, _, err := d.st.Message(chat, msgID)
+	if err != nil {
+		return err
+	}
+	target, err := types.ParseJID(chat)
+	if err != nil {
+		return err
+	}
+	sender := target
+	switch {
+	case m.FromMe:
+		sender = d.cli.Store.ID.ToNonAD()
+	case target.Server == types.GroupServer:
+		if sender, err = types.ParseJID(m.Sender); err != nil {
+			return err
+		}
+	}
+	if err := d.cli.SendAppState(ctx, appstate.BuildStar(target, sender, msgID, m.FromMe, starred)); err != nil {
+		return fmt.Errorf("avisando o WhatsApp: %w", err)
+	}
+	if changed, _ := d.st.SetStarred(chat, msgID, starred); changed {
+		d.pushUpdate(chat, msgID)
+	}
+	return nil
+}
+
+// onStar: estrela marcada ou tirada no celular (ou na carga completa das
+// configurações, que traz as que já existiam).
+func (d *Daemon) onStar(ctx context.Context, e *events.Star) {
+	chat := d.normalize(ctx, e.ChatJID).String()
+	if changed, err := d.st.SetStarred(chat, e.MessageID, e.Action.GetStarred()); err == nil && changed && !e.FromFullSync {
+		d.pushUpdate(chat, e.MessageID)
+	}
+}
+
+// starred: as favoritas, como resultados de busca (conversa + mensagem).
+func (d *Daemon) starred(ctx context.Context) ([]ipc.SearchHit, error) {
+	msgs, err := d.st.StarredMessages(300)
+	if err != nil {
+		return nil, err
+	}
+	return d.hitsFor(ctx, msgs), nil
+}

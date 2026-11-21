@@ -155,6 +155,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `alt+.` | menu da mensagem: responder, responder em privado, reagir, abrir, copiar, editar, encaminhar, apagar (ou botão direito) |
 | `alt+d` | apagar: pergunta se é para você ou para todos; `alt+z` desfaz o "para mim" por 5 s |
 | `alt+w` | encaminhar |
+| `alt+s` | favoritar / desfavoritar a mensagem (sincroniza com o celular); o filtro **★** (`alt+5`) lista as favoritas |
 | `alt+m` | menu do chat: fixar, arquivar, silenciar (ou botão direito) |
 | `alt+i` | perfil do contato ou grupo (ou clique no cabeçalho) |
 | `@` | marcar alguém num grupo |

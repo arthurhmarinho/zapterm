@@ -106,7 +106,7 @@ filtro.
   citação. `ContextInfo{StanzaID, Participant, RemoteJID: grupo}`. (P)
 - [x] **Apagar para mim**, com "alt+z desfaz" por 5 s. Patch em
   `appstate.IndexDeleteMessageForMe`; receber `events.DeleteForMe`. (P–M)
-- [ ] **Favoritar (★)** em `alt+s` e linha "★ Favoritas" na lista.
+- [x] **Favoritar (★)** em `alt+s` e filtro ★ (`alt+5`) na lista.
   `appstate.BuildStar`, `events.Star`, `WebMessageInfo.GetStarred()`. (P)
 - [ ] **Fixar mensagem** (24 h/7 d/sempre) e **faixa no topo** do chat.
   `PinInChatMessage`, `MessageAddOnDurationInSecs`,

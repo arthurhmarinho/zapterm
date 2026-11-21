@@ -283,8 +283,8 @@ func (m *model) viewList(g geometry) string {
 // chipLabels devolve os rótulos dos filtros e onde cada um começa. Usa
 // os nomes completos se couberem na largura da lista; senão, os curtos.
 func (m *model) chipLabels() ([]string, []int) {
-	short := [numTabs]string{"Tudo", "N.lidas", "Grupos", "Canais"}
-	tiny := [numTabs]string{"Tudo", "NL", "Gr", "Can"}
+	short := [numTabs]string{"Tudo", "N.lidas", "Grupos", "Canais", "★"}
+	tiny := [numTabs]string{"Tudo", "NL", "Gr", "Can", "★"}
 	width := listWidth(m.w) - 2
 	for _, names := range [][numTabs]string{tabNames, short, tiny} {
 		var labels []string
@@ -292,7 +292,7 @@ func (m *model) chipLabels() ([]string, []int) {
 		x := 2 // margem
 		for i, n := range names {
 			l := n
-			if i != tabAll && i != tabChannels {
+			if i != tabAll && i != tabChannels && i != tabStarred {
 				if c := m.tabCount(i); c > 0 {
 					l += fmt.Sprintf(" %d", c)
 				}
@@ -688,7 +688,8 @@ func (m *model) viewHelp() string {
 			{keyFor("copy"), "copiar texto"}, {keyFor("edit"), "editar (sua, até 15 min)"}, {"ctrl+↑", "editar a sua última mensagem"},
 			{":nome", "emoji pelo nome (:kkk → 😂, :cora → ❤️)"},
 			{keyFor("delete"), "apagar: para mim ou para todos (alt+z desfaz o para mim)"},
-			{"alt+. ou botão direito", "menu da mensagem (responder em privado, abrir, copiar…)"}, {keyFor("forward"), "encaminhar"},
+			{"alt+. ou botão direito", "menu da mensagem (responder em privado, abrir, copiar…)"},
+			{"alt+s", "favoritar a mensagem (★); alt+5 lista as favoritas"}, {keyFor("forward"), "encaminhar"},
 		}},
 	}
 	var b strings.Builder

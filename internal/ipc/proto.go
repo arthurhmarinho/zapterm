@@ -25,6 +25,8 @@ const (
 	OpReact       = "react"        // reage à mensagem Msg com o emoji em Text ("" remove)
 	OpTyping      = "typing"       // Text: "composing", "recording" ou "paused" em Chat
 	OpRevoke      = "revoke"       // apaga para todos a sua mensagem Msg
+	OpStar        = "star"         // favorita (Text "1") ou desfavorita ("0") a mensagem Msg
+	OpStarred     = "starred"      // mensagens favoritas de todas as conversas ([]SearchHit)
 	OpDeleteMe    = "delete_me"    // apaga só para você a mensagem Msg (sincroniza com o celular)
 	OpEdit        = "edit"         // troca o texto da sua mensagem Msg por Text
 	OpForward     = "forward"      // encaminha SrcChat/Msg para Chat
@@ -168,6 +170,8 @@ type Message struct {
 	MentionsMe bool `json:"mentions_me,omitempty"`
 	// Expires: quando a mensagem temporária vence (unix ms; 0 = não vence).
 	Expires int64 `json:"expires,omitempty"`
+	// Starred: favorita (estrela), sincronizada com o celular.
+	Starred bool `json:"starred,omitempty"`
 	// Forwarded: a mensagem foi encaminhada (selo "Encaminhada").
 	Forwarded bool `json:"forwarded,omitempty"`
 	// Card: contato, localização, evento, enquete ou prévia de link,

@@ -105,7 +105,7 @@ func TestAcoesNaMensagem(t *testing.T) {
 	for _, o := range m.popup.opts {
 		labels = append(labels, o.label)
 	}
-	if got := strings.Join(labels, ","); got != "Responder,Reagir,Copiar,Editar,Encaminhar,Apagar…" {
+	if got := strings.Join(labels, ","); got != "Responder,Reagir,Copiar,Editar,Encaminhar,Favoritar,Apagar…" {
 		t.Fatalf("menu: %s", got)
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -652,5 +652,45 @@ func TestResponderEmPrivado(t *testing.T) {
 	}
 	if got := m.replyRef(); got != grupo+"|t1" {
 		t.Fatalf("referência %q", got)
+	}
+}
+
+func TestFavoritas(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	runCmd(m, m.open(m.chatFor("5511900000001@s.whatsapp.net", "Marina")))
+	for i, x := range m.msgs {
+		if x.ID == "m3" {
+			m.msgSel = i
+		}
+	}
+	runCmd(m, m.toggleStar())
+	if m.flash != "mensagem favoritada" {
+		t.Fatalf("flash %q", m.flash)
+	}
+	runCmd(m, m.setTab(tabStarred))
+	if len(m.list) != 1 || !strings.HasPrefix(m.list[0].Name, "★ Marina") {
+		t.Fatalf("lista de favoritas: %+v", m.list)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "Dá pra gente almoçar") {
+		t.Error("a favorita não aparece na lista")
+	}
+	m.msgs = nil
+	runCmd(m, m.open(m.list[0]))
+	if m.sel() < 0 || m.msgs[m.sel()].ID != "m3" {
+		t.Fatal("enter na favorita não pulou para a mensagem")
 	}
 }

@@ -87,6 +87,9 @@ var migrations = []string{
 		chat TEXT NOT NULL, poll_id TEXT NOT NULL, voter TEXT NOT NULL,
 		options TEXT NOT NULL DEFAULT '', ts INTEGER NOT NULL DEFAULT 0,
 		PRIMARY KEY (chat, poll_id, voter));`,
+	// 9: mensagem favorita (estrela), sincronizada com o celular.
+	`ALTER TABLE messages ADD COLUMN starred INTEGER NOT NULL DEFAULT 0;
+	 CREATE INDEX messages_starred ON messages (starred) WHERE starred = 1;`,
 }
 
 func migrate(db *sql.DB) error {
@@ -314,6 +317,37 @@ func (s *Store) PollVotes(chat, pollID string) (map[string][]string, error) {
 	return out, rows.Err()
 }
 
+// SetStarred marca ou desmarca a estrela; true se mudou.
+func (s *Store) SetStarred(chat, id string, starred bool) (bool, error) {
+	res, err := s.db.Exec(`UPDATE messages SET starred = ? WHERE chat = ? AND id = ? AND starred != ?`,
+		starred, chat, id, starred)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// StarredMessages devolve as favoritas de todas as conversas, das mais
+// novas para as mais antigas.
+func (s *Store) StarredMessages(limit int) ([]ipc.Message, error) {
+	rows, err := s.db.Query(`SELECT `+msgCols+` FROM messages WHERE starred = 1
+		AND chat NOT IN (SELECT jid FROM chats WHERE locked = 1) ORDER BY ts DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ipc.Message{}
+	for rows.Next() {
+		m, err := scanMessage(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 // DeleteMessage tira a mensagem do banco (apagar para mim).
 func (s *Store) DeleteMessage(chat, id string) error {
 	if _, err := s.db.Exec(`DELETE FROM reactions WHERE chat = ? AND msg_id = ?`, chat, id); err != nil {
@@ -487,12 +521,12 @@ func (s *Store) Messages(chat string, limit int, before int64) ([]ipc.Message, e
 	return out, rows.Err()
 }
 
-const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw IS NOT NULL, edited, status`
+const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw IS NOT NULL, edited, status, starred`
 
 func scanMessage(r interface{ Scan(...any) error }) (ipc.Message, error) {
 	var m ipc.Message
 	var q ipc.Quote
-	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &m.Status)
+	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &m.Status, &m.Starred)
 	if q.ID != "" {
 		m.Quote = &q
 	}
@@ -527,7 +561,7 @@ func (s *Store) Message(chat, id string) (ipc.Message, []byte, error) {
 	row := s.db.QueryRow(`SELECT `+msgCols+`, raw FROM messages WHERE chat = ? AND id = ?`, chat, id)
 	var m ipc.Message
 	var q ipc.Quote
-	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &m.Status, &raw)
+	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &m.Status, &m.Starred, &raw)
 	if q.ID != "" {
 		m.Quote = &q
 	}

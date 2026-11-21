@@ -38,10 +38,11 @@ const (
 	tabUnread
 	tabGroups
 	tabChannels
+	tabStarred // mensagens favoritas (não é filtro de chat: lista mensagens)
 	numTabs
 )
 
-var tabNames = [numTabs]string{"Tudo", "Não lidas", "Grupos", "Canais"}
+var tabNames = [numTabs]string{"Tudo", "Não lidas", "Grupos", "Canais", "★"}
 
 const (
 	pageSize        = 100
@@ -109,9 +110,10 @@ type model struct {
 	emojiRecent []string   // usados por último (primeiro = mais recente)
 	reactQuery  string     // busca de emoji no painel de reações
 
-	popup      *popMenu       // menu da mensagem (alt+.) ou "apagar para quem?"
-	pendingDel *pendingDelete // apagar para mim esperando os 5 s de desfazer
-	recReview  *recReview     // gravação parada esperando você ouvir e decidir
+	starred    []ipc.SearchHit // mensagens favoritas (filtro ★)
+	popup      *popMenu        // menu da mensagem (alt+.) ou "apagar para quem?"
+	pendingDel *pendingDelete  // apagar para mim esperando os 5 s de desfazer
+	recReview  *recReview      // gravação parada esperando você ouvir e decidir
 
 	editing    *ipc.Message // mensagem sua sendo editada (alt+e)
 	forwarding *ipc.Message // mensagem a encaminhar (alt+w): a busca escolhe o destino
@@ -464,6 +466,12 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case starredMsg:
+		m.starred = msg.hits
+		if m.tab == tabStarred {
+			m.applyFilter()
+		}
+		return m, nil
 	case deleteCommitMsg:
 		return m, m.onDeleteCommit(msg)
 	case findMsg:
@@ -651,8 +659,15 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 	case ipc.EvUpdate:
 		// Mensagem editada, apagada ou com reação nova: troca no lugar.
 		var msg ipc.Message
-		if json.Unmarshal(f.Data, &msg) != nil || msg.Chat != m.active {
+		if json.Unmarshal(f.Data, &msg) != nil {
 			return nil
+		}
+		var reload tea.Cmd
+		if m.tab == tabStarred {
+			reload = m.loadStarred() // a estrela pode ter mudado
+		}
+		if msg.Chat != m.active {
+			return reload
 		}
 		for i := range m.msgs {
 			if m.msgs[i].ID == msg.ID && msg.Kind == "deleted" {
@@ -668,6 +683,7 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 				break
 			}
 		}
+		return reload
 	case ipc.EvMessage:
 		var msg ipc.Message
 		if json.Unmarshal(f.Data, &msg) != nil || msg.Chat != m.active {
@@ -1042,6 +1058,8 @@ func inTab(c ipc.Chat, tab int) bool {
 		return false
 	}
 	switch tab {
+	case tabStarred:
+		return false
 	case tabUnread:
 		return c.Unread > 0 && c.Kind != "channel"
 	case tabGroups:
@@ -1103,6 +1121,10 @@ func (m *model) applyFilter() {
 		if q == m.hitsQuery {
 			list = append(list, m.hitEntries()...)
 		}
+	} else if m.tab == tabStarred && !m.archived {
+		// Favoritas: as entradas são mensagens; enter pula até elas.
+		m.hits, m.hitsQuery = m.starred, ""
+		list = m.hitEntries()
 	} else {
 		for _, c := range m.chats {
 			if (m.archived && c.Archived) || (!m.archived && inTab(c, m.tab)) {
@@ -1118,16 +1140,23 @@ func (m *model) applyFilter() {
 	m.scrollList()
 }
 
-func (m *model) setTab(t int) {
+func (m *model) setTab(t int) tea.Cmd {
 	m.focus = paneList
 	m.archived = false
 	if t == m.tab {
 		m.applyFilter()
-		return
+		if t == tabStarred {
+			return m.loadStarred()
+		}
+		return nil
 	}
 	m.tab = t
 	m.cursor, m.offset = 0, 0
 	m.applyFilter()
+	if t == tabStarred {
+		return m.loadStarred()
+	}
+	return nil
 }
 
 func (m *model) setArchived(on bool) {
