@@ -84,10 +84,10 @@ filtro.
   trocar de conversa. (M)
 
 ### Navegação
-- [ ] **Divisor "── N não lidas ──"**: o chat abre ali, não no fim. (P)
-- [ ] **Busca dentro da conversa** (barra acima da caixa, "termo 3/12",
+- [x] **Divisor "── N não lidas ──"**: o chat abre ali, não no fim. (P)
+- [x] **Busca dentro da conversa** (barra acima da caixa, "termo 3/12",
   destaque). (P) — depende da decisão 2.
-- [ ] **`alt+↑/↓`** troca de chat; **`alt+n`** vai para a próxima não
+- [x] **`alt+↑/↓`** troca de chat; **`alt+n`** vai para a próxima não
   lida. (P)
 
 ### Campo de escrita
@@ -206,7 +206,7 @@ filtro.
 
 1. **Botão direito na mensagem abre o menu?** Hoje responde direto; com o
    menu, responder vira dois cliques.
-2. **`ctrl+f` vira busca dentro da conversa?** Hoje só repete o `ctrl+p`.
+2. ~~**`ctrl+f` vira busca dentro da conversa?**~~ Decidido em 21/11: sim.
 3. **`alt+d` vira escolha "para mim / para todos"?** Troca o "apertar duas
    vezes" de hoje.
 4. **Comandos com `/`?** Mensagem que começa com `/` abre a lista; `esc`

@@ -196,7 +196,7 @@ func TestBuscaEDepois(t *testing.T) {
 	for i, txt := range []string{"bom dia", "Não sei", "nao vou", "tchau"} {
 		s.SaveMessage(ipc.Message{ID: string(rune('a' + i)), Chat: c, Sender: c, TS: int64(i + 1), Kind: "text", Text: txt}, nil, false, false)
 	}
-	hits, _ := s.SearchMessages(func(t string) bool { return strings.Contains(strings.ToLower(t), "na") }, 10)
+	hits, _ := s.SearchMessages("", func(t string) bool { return strings.Contains(strings.ToLower(t), "na") }, 10)
 	if len(hits) != 1 || hits[0].ID != "c" { // ToLower não tira acento: só "nao vou"
 		t.Fatalf("busca: %+v", hits)
 	}
@@ -260,7 +260,7 @@ func TestTrancadaETemporarias(t *testing.T) {
 	if chats, _ := s.Chats(); len(chats) != 0 || !s.IsLocked(c) {
 		t.Fatalf("trancada apareceu na lista: %+v", chats)
 	}
-	if hits, _ := s.SearchMessages(func(string) bool { return true }, 10); len(hits) != 0 {
+	if hits, _ := s.SearchMessages("", func(string) bool { return true }, 10); len(hits) != 0 {
 		t.Fatal("busca achou mensagem de conversa trancada")
 	}
 }

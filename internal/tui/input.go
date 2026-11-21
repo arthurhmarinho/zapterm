@@ -63,6 +63,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.voting != nil {
 		return m.keyPoll(s)
 	}
+	if m.finding != nil {
+		return m.keyFind(k)
+	}
 	if m.reacting {
 		return m.keyReact(s)
 	}
@@ -122,7 +125,19 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		m.quitArmed = true
 		m.setFlash("ctrl+c de novo para sair")
 		return nil
-	case "ctrl+p", "ctrl+f":
+	case "ctrl+f":
+		if m.active != "" {
+			return m.openFind()
+		}
+		m.startSearch()
+		return nil
+	case "alt+up":
+		return m.switchChat(-1)
+	case "alt+down":
+		return m.switchChat(1)
+	case "alt+n":
+		return m.nextUnread()
+	case "ctrl+p":
 		m.startSearch()
 		return nil
 	case "ctrl+s":

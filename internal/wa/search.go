@@ -49,15 +49,21 @@ func fold(s string) string {
 }
 
 // search procura nas mensagens, da mais nova para a mais antiga.
-func (d *Daemon) search(ctx context.Context, q string, limit int) ([]ipc.SearchHit, error) {
+// search procura q no texto das mensagens; com chat, só naquela conversa
+// (a busca do ctrl+f), que aceita termos de 2 letras e até 500 achados.
+func (d *Daemon) search(ctx context.Context, chat, q string, limit int) ([]ipc.SearchHit, error) {
 	q = fold(strings.TrimSpace(q))
-	if len([]rune(q)) < 3 {
+	minLen, maxLimit := 3, 100
+	if chat != "" {
+		minLen, maxLimit = 2, 500
+	}
+	if len([]rune(q)) < minLen {
 		return []ipc.SearchHit{}, nil
 	}
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 || limit > maxLimit {
 		limit = 30
 	}
-	msgs, err := d.st.SearchMessages(func(text string) bool { return strings.Contains(fold(text), q) }, limit)
+	msgs, err := d.st.SearchMessages(chat, func(text string) bool { return strings.Contains(fold(text), q) }, limit)
 	if err != nil {
 		return nil, err
 	}

@@ -100,9 +100,13 @@ func (m *model) openHit(entry ipc.Chat) tea.Cmd {
 	m.loadingOld, m.noMoreOld, m.gap = false, false, false
 	m.layout()
 	m.refreshMessages(true)
-	chat, target, ts := c.JID, h.Message.ID, h.Message.TS
+	return tea.Batch(m.loadAround(c.JID, h.Message.ID, h.Message.TS), stop, m.syncViewing())
+}
+
+// loadAround carrega as mensagens em volta de target (para pular até ela).
+func (m *model) loadAround(chat, target string, ts int64) tea.Cmd {
 	cli := m.cli
-	load := func() tea.Msg {
+	return func() tea.Msg {
 		var before, after []ipc.Message
 		if err := cli.Call(ipc.Request{Op: ipc.OpMessages, Chat: chat, Limit: aroundPage, Before: ts + 1}, &before); err != nil {
 			return errMsg{err}
@@ -112,7 +116,6 @@ func (m *model) openHit(entry ipc.Chat) tea.Cmd {
 		}
 		return aroundMsg{chat: chat, target: target, msgs: append(before, after...), moreNewer: len(after) == aroundPage}
 	}
-	return tea.Batch(load, stop, m.syncViewing())
 }
 
 func (m *model) onAround(msg aroundMsg) tea.Cmd {

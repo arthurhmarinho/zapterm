@@ -496,3 +496,72 @@ func TestVotarNaEnquete(t *testing.T) {
 		t.Error("painel deveria fechar")
 	}
 }
+
+func TestNavegacao(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 70})
+	m.Update(m.loadChats()())
+
+	// Divisor: 4 não lidas na trilha → antes da t5 (t3 é sua e não conta).
+	var trilha ipc.Chat
+	for _, c := range m.list {
+		if strings.HasPrefix(c.Name, "Trilha") {
+			trilha = c
+		}
+	}
+	runCmd(m, m.open(trilha))
+	if m.unreadID != "t5" {
+		t.Fatalf("divisor antes de %q, queria t5", m.unreadID)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "4 mensagens não lidas") {
+		t.Error("divisor não aparece")
+	}
+
+	// alt+↓ / alt+↑ andam pela lista; alt+n acha a próxima não lida.
+	i := 0
+	for j, c := range m.list {
+		if c.JID == trilha.JID {
+			i = j
+		}
+	}
+	runCmd(m, m.switchChat(1))
+	if m.active != m.list[i+1].JID {
+		t.Fatal("alt+↓ não abriu a conversa de baixo")
+	}
+	runCmd(m, m.switchChat(-1))
+	if m.active != trilha.JID {
+		t.Fatal("alt+↑ não voltou")
+	}
+	runCmd(m, m.nextUnread())
+	if c, _ := m.chatByJID(m.active); c.Unread == 0 || c.Muted || c.JID == trilha.JID {
+		t.Fatalf("alt+n abriu %q", c.Name)
+	}
+
+	// ctrl+f: busca só nesta conversa e seleciona o achado.
+	runCmd(m, m.open(m.chatFor("5511900000001@s.whatsapp.net", "Marina")))
+	runCmd(m, m.openFind())
+	m.finding.input.SetValue("almoçar")
+	runCmd(m, m.keyFind(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	if len(m.finding.hits) != 1 || m.sel() < 0 || m.msgs[m.sel()].ID != "m3" {
+		t.Fatalf("achados %d, seleção %d", len(m.finding.hits), m.sel())
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "1 de 1") {
+		t.Error("barra da busca sem a contagem")
+	}
+	runCmd(m, m.keyFind(tea.KeyPressMsg{Code: tea.KeyEscape}))
+	if m.finding != nil {
+		t.Error("esc não fechou a busca")
+	}
+}

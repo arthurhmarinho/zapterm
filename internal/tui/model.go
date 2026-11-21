@@ -99,8 +99,12 @@ type model struct {
 	reacting bool       // barra de reações (ctrl+e) aberta
 	voting   *pollPanel // painel de votar na enquete (ctrl+o)
 
-	audioSpeed float64    // velocidade dos áudios (alt+v), vale para os próximos
-	recReview  *recReview // gravação parada esperando você ouvir e decidir
+	audioSpeed float64 // velocidade dos áudios (alt+v), vale para os próximos
+
+	unreadCount int        // não lidas ao abrir a conversa (divisor)
+	unreadID    string     // primeira não lida: o divisor vai antes dela
+	finding     *chatFind  // busca na conversa (ctrl+f)
+	recReview   *recReview // gravação parada esperando você ouvir e decidir
 
 	editing    *ipc.Message // mensagem sua sendo editada (alt+e)
 	forwarding *ipc.Message // mensagem a encaminhar (alt+w): a busca escolhe o destino
@@ -455,6 +459,8 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case findMsg:
+		return m, m.onFind(msg)
 	case galleryMsg:
 		return m, m.onGallery(msg)
 	case refetchDoneMsg:
@@ -683,6 +689,7 @@ func (m *model) onMessages(msg msgsMsg) tea.Cmd {
 		m.msgs = msg.msgs
 		m.noMoreOld = len(msg.msgs) < pageSize
 		m.refreshMessages(true)
+		m.markUnread()
 		return m.autoStickers(msg.msgs)
 	}
 	m.loadingOld = false
@@ -738,7 +745,8 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.active, m.activeChat = c.JID, c
 	m.msgs = nil
 	m.msgSel = -1
-	m.mention, m.voting = mentionState{}, nil
+	m.mention, m.voting, m.finding = mentionState{}, nil, nil
+	m.unreadCount, m.unreadID = c.Unread, ""
 	m.restoreDraft()
 	m.loadingOld, m.noMoreOld, m.gap = false, false, false
 	m.layout()
@@ -1269,7 +1277,8 @@ func (m *model) refreshMessages(toBottom bool) {
 		}
 		playID, elapsed := m.playState()
 		r := msgRenderer{w: w, isGroup: m.activeChat.Kind == "group", sel: sel, imgs: m.imgs, avatar: m.smallAvatar,
-			playID: playID, elapsed: elapsed, paused: m.play != nil && m.play.paused, speed: m.audioSpeed}
+			playID: playID, elapsed: elapsed, paused: m.play != nil && m.play.paused, speed: m.audioSpeed,
+			unreadID: m.unreadID, unreadN: m.unreadCount}
 		content, m.spans = r.render(m.msgs)
 	}
 	m.vp.SetContent(content)

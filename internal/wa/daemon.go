@@ -622,7 +622,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 	case ipc.OpGallery:
 		return d.gallery(context.Background(), req)
 	case ipc.OpSearch:
-		return d.search(ctx, req.Text, req.Limit)
+		return d.search(ctx, req.Chat, req.Text, req.Limit)
 	case ipc.OpMessages:
 		var msgs []ipc.Message
 		var err error

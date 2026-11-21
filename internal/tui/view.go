@@ -79,6 +79,8 @@ func (m *model) extraHeight() int {
 		return len(m.mention.list) + 2
 	case m.voting != nil:
 		return m.pollPanelHeight()
+	case m.finding != nil:
+		return 3
 	case m.reacting:
 		return 3
 	case m.editing != nil:
@@ -375,6 +377,9 @@ func (m *model) viewExtra(g geometry) string {
 	if m.voting != nil {
 		return fitHeight(m.viewPoll(w), cDefault, w, g.extraH)
 	}
+	if m.finding != nil {
+		return fitHeight(m.viewFind(w), cDefault, w, g.extraH)
+	}
 	if e := m.editing; e != nil {
 		q := quoteBlock(&ipc.Quote{Sender: e.Sender, SenderName: "Editando mensagem  (enter salva · esc cancela)",
 			Text: e.Text}, w-12, cDefault)
@@ -644,6 +649,8 @@ func (m *model) viewHelp() string {
 		{"Navegar", [][2]string{
 			{"↑ ↓", "chats na lista, ou mensagens na conversa"}, {"tab", "troca entre lista e conversa"},
 			{"pgup pgdn", "rolar a conversa"}, {keyFor("search"), "pesquisar conversa"},
+			{"ctrl+f", "procurar nesta conversa (enter/↑ mais antigo, ↓ mais novo)"},
+			{"alt+↑ alt+↓", "conversa de cima / de baixo"}, {"alt+n", "próxima conversa com não lidas"},
 			{"alt+1…4", "filtros (Tudo, Não lidas, Grupos, Canais)"}, {keyFor("archived"), "arquivadas"},
 			{"esc", "cancela o que estiver aberto"}, {"ctrl+c", "limpa o campo; vazio, duas vezes, sai"},
 		}},

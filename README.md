@@ -142,6 +142,9 @@ O mouse também funciona (clique, botão direito para responder, roda).
 | `enter` | envia (com o campo vazio na lista, abre o chat) |
 | `shift+enter` | nova linha |
 | `ctrl+p` | pesquisar conversa (ou digite um número para conversa nova) |
+| `ctrl+f` | procurar nesta conversa: enter/↑ vai ao mais antigo, ↓ ao mais novo |
+| `alt+↑` / `alt+↓` | abre a conversa de cima / de baixo na lista |
+| `alt+n` | abre a próxima conversa com mensagens não lidas |
 | `alt+1`…`alt+4`, `alt+a` | filtros e arquivadas |
 | `ctrl+r` | responder a mensagem selecionada |
 | `ctrl+e` | reagir |

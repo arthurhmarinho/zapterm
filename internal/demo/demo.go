@@ -65,9 +65,13 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		q := strings.ToLower(req.Text)
 		hits := []ipc.SearchHit{}
 		for _, c := range d.chats {
+			if req.Chat != "" && c.JID != req.Chat {
+				continue
+			}
 			for _, m := range d.msgs[c.JID] {
 				if m.Kind == "text" && strings.Contains(strings.ToLower(m.Text), q) {
-					hits = append(hits, ipc.SearchHit{Chat: c, Message: m})
+					// Do mais novo ao mais antigo, como o daemon.
+					hits = append([]ipc.SearchHit{{Chat: c, Message: m}}, hits...)
 				}
 			}
 		}

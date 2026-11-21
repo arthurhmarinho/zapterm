@@ -411,11 +411,16 @@ func (s *Store) MessagesAfter(chat string, limit int, after int64) ([]ipc.Messag
 // devolve as primeiras limit em que match(texto) é verdadeiro. A
 // comparação fica em Go para ignorar acento e maiúscula, o que o LIKE do
 // SQLite não faz fora do ASCII.
-func (s *Store) SearchMessages(match func(string) bool, limit int) ([]ipc.Message, error) {
+func (s *Store) SearchMessages(chat string, match func(string) bool, limit int) ([]ipc.Message, error) {
 	// Varre só chat, id e texto; a mensagem completa é lida só nos achados.
+	// chat != "": só naquela conversa.
+	filter, args := "", []any{}
+	if chat != "" {
+		filter, args = " AND chat = ?", append(args, chat)
+	}
 	rows, err := s.db.Query(`SELECT chat, id, text FROM messages
-		WHERE kind NOT IN ('revoked', 'sticker', 'audio') AND text != '' AND ` + notExpired + `
-		AND chat NOT IN (SELECT jid FROM chats WHERE locked = 1) ORDER BY ts DESC`)
+		WHERE kind NOT IN ('revoked', 'sticker', 'audio') AND text != '' AND `+notExpired+filter+`
+		AND chat NOT IN (SELECT jid FROM chats WHERE locked = 1) ORDER BY ts DESC`, args...)
 	if err != nil {
 		return nil, err
 	}
