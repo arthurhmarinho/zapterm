@@ -34,6 +34,14 @@ func (d *Daemon) onReceipt(ctx context.Context, e *events.Receipt) {
 		}
 		return
 	}
+	// Recibo de cada pessoa, para "Dados da mensagem".
+	status := map[types.ReceiptType]int{types.ReceiptTypeDelivered: 2, types.ReceiptTypeRead: 3, types.ReceiptTypePlayed: 4}[e.Type]
+	if status > 0 {
+		user := d.normalize(ctx, e.Sender.ToNonAD()).String()
+		for _, id := range e.MessageIDs {
+			_ = d.st.AddReceipt(chat, id, user, status, e.Timestamp.UnixMilli())
+		}
+	}
 	switch e.Type {
 	case types.ReceiptTypeDelivered:
 		d.setMsgStatus(chat, e.MessageIDs, 2)

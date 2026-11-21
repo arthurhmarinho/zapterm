@@ -114,6 +114,7 @@ type model struct {
 	pins       []ipc.Message   // fixadas da conversa aberta (faixa no topo)
 	pinIdx     int
 	popup      *popMenu       // menu da mensagem (alt+.) ou "apagar para quem?"
+	msgInfo    *ipc.MsgInfo   // "Dados da mensagem" aberto
 	pendingDel *pendingDelete // apagar para mim esperando os 5 s de desfazer
 	recReview  *recReview     // gravação parada esperando você ouvir e decidir
 
@@ -468,6 +469,9 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case msgInfoMsg:
+		m.msgInfo = msg.info
+		return m, nil
 	case pinsMsg:
 		m.onPins(msg)
 		return m, nil

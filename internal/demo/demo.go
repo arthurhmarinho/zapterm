@@ -108,6 +108,9 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpPollVote:
 		d.lastSent = req
 		return nil, nil
+	case ipc.OpMsgInfo:
+		return ipc.MsgInfo{FromMe: true, Read: []ipc.Who{{Name: "Marina Alves", TS: time.Now().UnixMilli()}},
+			Reactions: []ipc.Who{{Name: "Marina Alves", Emoji: "👍"}}}, nil
 	case ipc.OpPin:
 		if d.pins == nil {
 			d.pins = map[string][]string{}

@@ -61,6 +61,10 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.picking {
 		return m.keyStickers(k)
 	}
+	if m.msgInfo != nil {
+		m.msgInfo = nil // qualquer tecla fecha
+		return nil
+	}
 	if m.popup != nil {
 		return m.keyPopup(s)
 	}

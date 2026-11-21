@@ -106,7 +106,7 @@ func TestAcoesNaMensagem(t *testing.T) {
 	for _, o := range m.popup.opts {
 		labels = append(labels, o.label)
 	}
-	if got := strings.Join(labels, ","); got != "Responder,Reagir,Copiar,Editar,Encaminhar,Fixar…,Favoritar,Apagar…" {
+	if got := strings.Join(labels, ","); got != "Responder,Reagir,Copiar,Editar,Encaminhar,Fixar…,Favoritar,Dados da mensagem,Apagar…" {
 		t.Fatalf("menu: %s", got)
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -746,5 +746,35 @@ func TestFixarMensagem(t *testing.T) {
 	runCmd(m, m.jumpPin())
 	if m.sel() < 0 || m.msgs[m.sel()].ID != "m3" {
 		t.Fatal("alt+p não pulou para a fixada")
+	}
+}
+
+func TestDadosDaMensagem(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	runCmd(m, m.open(m.chatFor("5511900000001@s.whatsapp.net", "Marina")))
+	runCmd(m, m.openMsgInfo(m.msgs[len(m.msgs)-1]))
+	screen := ansi.Strip(m.View().Content)
+	for _, want := range []string{"Dados da mensagem", "Lida por (1)", "Reações (1)", "👍"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("faltou %q", want)
+		}
+	}
+	m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	if m.msgInfo != nil {
+		t.Error("tecla não fechou")
 	}
 }

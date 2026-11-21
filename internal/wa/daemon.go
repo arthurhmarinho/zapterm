@@ -361,6 +361,7 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 				_, _ = d.st.SetStarred(jid.String(), evt.Info.ID, true)
 			}
 			if evt.Info.IsFromMe {
+				d.historyReceipts(ctx, jid.String(), evt.Info.ID, hm.GetMessage().GetUserReceipt())
 				if st := historyStatus(hm.GetMessage().GetStatus()); st > 0 {
 					_ = d.st.SetStatus(jid.String(), []string{evt.Info.ID}, st)
 				}
@@ -624,6 +625,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return d.profile(pctx, req.Chat)
 	case ipc.OpPollVote:
 		return nil, d.pollVote(ctx, req.Chat, req.Msg, req.Options)
+	case ipc.OpMsgInfo:
+		return d.msgInfo(ctx, req.Chat, req.Msg)
 	case ipc.OpPin:
 		return nil, d.pin(ctx, req.Chat, req.Msg, req.Seconds)
 	case ipc.OpPins:

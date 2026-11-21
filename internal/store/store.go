@@ -94,6 +94,12 @@ var migrations = []string{
 	`CREATE TABLE pins (
 		chat TEXT NOT NULL, msg_id TEXT NOT NULL, ts INTEGER NOT NULL DEFAULT 0,
 		expires INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (chat, msg_id));`,
+	// 11: recibo de cada pessoa nas suas mensagens (quando recebeu, leu,
+	// ouviu; unix ms, 0 = ainda não).
+	`CREATE TABLE receipts (
+		chat TEXT NOT NULL, msg_id TEXT NOT NULL, user TEXT NOT NULL,
+		delivered INTEGER NOT NULL DEFAULT 0, read INTEGER NOT NULL DEFAULT 0, played INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (chat, msg_id, user));`,
 }
 
 func migrate(db *sql.DB) error {
@@ -317,6 +323,60 @@ func (s *Store) PollVotes(chat, pollID string) (map[string][]string, error) {
 		if opts != "" {
 			out[voter] = strings.Split(opts, ",")
 		}
+	}
+	return out, rows.Err()
+}
+
+// Receipt é o recibo de uma pessoa numa mensagem sua.
+type Receipt struct {
+	User                    string
+	Delivered, Read, Played int64
+}
+
+// AddReceipt anota quando user recebeu (2), leu (3) ou ouviu (4) a
+// mensagem; o primeiro horário de cada etapa vale.
+func (s *Store) AddReceipt(chat, msgID, user string, status int, ts int64) error {
+	col := map[int]string{2: "delivered", 3: "read", 4: "played"}[status]
+	if col == "" || ts <= 0 {
+		return nil
+	}
+	_, err := s.db.Exec(`INSERT INTO receipts (chat, msg_id, user, `+col+`) VALUES (?, ?, ?, ?)
+		ON CONFLICT (chat, msg_id, user) DO UPDATE SET `+col+` = excluded.`+col+`
+		WHERE receipts.`+col+` = 0`, chat, msgID, user, ts)
+	return err
+}
+
+func (s *Store) Receipts(chat, msgID string) ([]Receipt, error) {
+	rows, err := s.db.Query(`SELECT user, delivered, read, played FROM receipts WHERE chat = ? AND msg_id = ?`, chat, msgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Receipt
+	for rows.Next() {
+		var r Receipt
+		if err := rows.Scan(&r.User, &r.Delivered, &r.Read, &r.Played); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// ReactionsBy lista quem reagiu com o quê (sender → emoji).
+func (s *Store) ReactionsBy(chat, msgID string) ([][2]string, error) {
+	rows, err := s.db.Query(`SELECT sender, emoji FROM reactions WHERE chat = ? AND msg_id = ? ORDER BY ts`, chat, msgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out [][2]string
+	for rows.Next() {
+		var r [2]string
+		if err := rows.Scan(&r[0], &r[1]); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
 	}
 	return out, rows.Err()
 }

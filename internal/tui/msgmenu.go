@@ -59,6 +59,7 @@ func (m *model) openMsgMenu() tea.Cmd {
 	} else {
 		add("Favoritar", m.toggleStar)
 	}
+	add("Dados da mensagem", func() tea.Cmd { return m.openMsgInfo(msg) })
 	add("Apagar…", func() tea.Cmd { return m.openDeleteMenu() })
 	m.popup = &popMenu{title: "Mensagem", opts: opts}
 	return nil
@@ -238,4 +239,67 @@ func (m *model) toggleStar() tea.Cmd {
 	}
 	return m.call(ipc.Request{Op: ipc.OpStar, Chat: msg.Chat, Msg: msg.ID, Text: on}, nil,
 		func() tea.Msg { return flashMsg(done) })
+}
+
+// ---------- dados da mensagem ----------
+
+type msgInfoMsg struct{ info *ipc.MsgInfo }
+
+func (m *model) openMsgInfo(msg ipc.Message) tea.Cmd {
+	var out ipc.MsgInfo
+	return m.call(ipc.Request{Op: ipc.OpMsgInfo, Chat: msg.Chat, Msg: msg.ID}, &out,
+		func() tea.Msg { return msgInfoMsg{&out} })
+}
+
+func whenLabel(ms int64) string {
+	t := time.UnixMilli(ms)
+	switch {
+	case sameDay(t, time.Now()):
+		return "hoje " + t.Format("15:04")
+	case sameDay(t, time.Now().AddDate(0, 0, -1)):
+		return "ontem " + t.Format("15:04")
+	}
+	return t.Format("02/01 15:04")
+}
+
+func (m *model) viewMsgInfo() string {
+	in := m.msgInfo
+	var lines []string
+	section := func(title string, who []ipc.Who, emoji bool) {
+		if len(who) == 0 {
+			return
+		}
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, sGreen.Bold(true).Render(fmt.Sprintf("%s (%d)", title, len(who))))
+		for i, w := range who {
+			if i == 12 {
+				lines = append(lines, sText2.Render(fmt.Sprintf("… e mais %d", len(who)-i)))
+				break
+			}
+			name := ansi.Truncate(w.Name, 26, "…")
+			right := ""
+			if emoji {
+				right = w.Emoji
+			} else if w.TS > 0 {
+				right = sText2.Render(whenLabel(w.TS))
+			}
+			lines = append(lines, sText.Render(name)+strings.Repeat(" ", max(2, 28-ansi.StringWidth(name)))+right)
+		}
+	}
+	section("Ouvida por", in.Played, false)
+	section("Lida por", in.Read, false)
+	section("Entregue a", in.Delivered, false)
+	section("Reações", in.Reactions, true)
+	if len(lines) == 0 {
+		if in.FromMe {
+			lines = append(lines, sText2.Render("ainda sem recibos vistos por aqui"))
+		} else {
+			lines = append(lines, sText2.Render("ninguém reagiu"))
+		}
+	}
+	lines = append(lines, "", sText2.Render("qualquer tecla fecha"))
+	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cGreen).Padding(0, 1).
+		Render(sBold.Render("Dados da mensagem") + "\n\n" + strings.Join(lines, "\n"))
 }

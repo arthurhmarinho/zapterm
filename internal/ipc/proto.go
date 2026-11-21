@@ -25,6 +25,7 @@ const (
 	OpReact       = "react"        // reage à mensagem Msg com o emoji em Text ("" remove)
 	OpTyping      = "typing"       // Text: "composing", "recording" ou "paused" em Chat
 	OpRevoke      = "revoke"       // apaga para todos a sua mensagem Msg
+	OpMsgInfo     = "msg_info"     // dados da mensagem Msg: quem recebeu, leu, ouviu e reagiu
 	OpPin         = "pin"          // fixa a mensagem Msg por Seconds (0 = desafixa)
 	OpPins        = "pins"         // mensagens fixadas do Chat
 	OpStar        = "star"         // favorita (Text "1") ou desfavorita ("0") a mensagem Msg
@@ -196,6 +197,22 @@ type Card struct {
 	Options []CardOption `json:"options,omitempty"`
 	Multi   bool         `json:"multi,omitempty"`
 	Voters  int          `json:"voters,omitempty"`
+}
+
+// MsgInfo são os dados de uma mensagem (menu → "Dados da mensagem").
+type MsgInfo struct {
+	Read      []Who `json:"read,omitempty"`
+	Played    []Who `json:"played,omitempty"`
+	Delivered []Who `json:"delivered,omitempty"` // recebeu e ainda não leu
+	Reactions []Who `json:"reactions,omitempty"`
+	FromMe    bool  `json:"from_me,omitempty"`
+}
+
+// Who: uma pessoa e quando (unix ms) ou com que emoji.
+type Who struct {
+	Name  string `json:"name"`
+	TS    int64  `json:"ts,omitempty"`
+	Emoji string `json:"emoji,omitempty"`
 }
 
 type CardOption struct {

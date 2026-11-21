@@ -164,6 +164,11 @@ func (m *model) View() tea.View {
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
 			lipgloss.NewLayer(pop).X(4).Y(y).Z(1)).Render()
 	}
+	if m.msgInfo != nil {
+		pop := m.viewMsgInfo()
+		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
+			lipgloss.NewLayer(pop).X(g.listW+6).Y(m.popupY(g, lipgloss.Height(pop))).Z(1)).Render()
+	}
 	if m.popup != nil {
 		pop := m.viewPopup()
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),

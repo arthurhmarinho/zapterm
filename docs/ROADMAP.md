@@ -94,7 +94,7 @@ filtro.
 - [x] **Rascunho por conversa** (texto, resposta e anexo), "Rascunho: …"
   na lista. (P) — junto com o problema do item 0.
 - [x] **Emoji pelo nome**: `:ri` → 😂 🤣, como o `@`, com recentes. (M)
-- [~] **Reagir com qualquer emoji** (feito; falta ver quem reagiu) (mesmo componente) e **ver quem
+- [x] **Reagir com qualquer emoji** (quem reagiu: em "Dados da mensagem") (mesmo componente) e **ver quem
   reagiu** (já está no banco). (M / P)
 - [x] **`ctrl+↑` edita a sua última mensagem.** (P)
 
@@ -111,7 +111,7 @@ filtro.
 - [x] **Fixar mensagem** (24 h/7 d/sempre) e **faixa no topo** do chat.
   `PinInChatMessage`, `MessageAddOnDurationInSecs`,
   `WebMessageInfo.GetPinInChat()`. (M)
-- [ ] **Dados da mensagem** (quem recebeu e leu, com horário) e quem
+- [x] **Dados da mensagem** (quem recebeu e leu, com horário) e quem
   reagiu. `events.Receipt` por participante; `GetUserReceipt()` no
   histórico. (M)
 - [ ] **Seleção múltipla** com `shift+↑/↓`: encaminhar, apagar, copiar no
