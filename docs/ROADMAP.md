@@ -150,7 +150,7 @@ filtro.
   oferece "Entrar". `cli.GetGroupInfoFromLink`, `cli.JoinGroupWithLink`. (P)
 
 ### Canais
-- [ ] **Reagir** (`cli.NewsletterSendReaction`), **marcar visto**
+- [x] **Reagir** (`cli.NewsletterSendReaction`), **marcar visto**
   (`cli.NewsletterMarkViewed`), **deixar de seguir / silenciar**
   (`cli.UnfollowNewsletter`, `cli.NewsletterToggleMute`). (P)
 

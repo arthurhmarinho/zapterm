@@ -45,6 +45,27 @@ func (d *Daemon) chatAction(ctx context.Context, chat, action string) error {
 		d.setChatEphemeral(chat, n)
 		return nil
 	}
+	if jid.Server == types.NewsletterServer {
+		// Canal: silenciar e deixar de seguir são chamadas próprias.
+		switch action {
+		case "mute8h", "mute1w", "muteforever", "unmute":
+			if err := d.cli.NewsletterToggleMute(ctx, jid, action != "unmute"); err != nil {
+				return err
+			}
+			d.setChannelMuted(chat, action != "unmute")
+			d.pushChat(chat)
+			return nil
+		case "unfollow":
+			if err := d.cli.UnfollowNewsletter(ctx, jid); err != nil {
+				return err
+			}
+			if err := d.st.DeleteChat(chat); err != nil {
+				return err
+			}
+			d.srv.Broadcast(ipc.EvReload, nil)
+			return nil
+		}
+	}
 	switch action {
 	case "read":
 		return d.markRead(ctx, chat)
@@ -216,4 +237,24 @@ func (d *Daemon) onBlocklist(ctx context.Context, e *events.Blocklist) {
 	for _, c := range e.Changes {
 		d.pushChat(d.normalize(ctx, c.JID).String())
 	}
+}
+
+// Canais silenciados aqui (o estado do canal vem do servidor; guardamos o
+// que mudamos para a lista refletir na hora).
+var (
+	chMuteMu sync.Mutex
+	chMuted  = map[string]bool{}
+)
+
+func (d *Daemon) setChannelMuted(chat string, muted bool) {
+	chMuteMu.Lock()
+	chMuted[chat] = muted
+	chMuteMu.Unlock()
+}
+
+func channelMuted(chat string) (muted, known bool) {
+	chMuteMu.Lock()
+	defer chMuteMu.Unlock()
+	muted, known = chMuted[chat]
+	return
 }

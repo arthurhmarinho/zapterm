@@ -2,6 +2,7 @@ package wa
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -132,6 +133,22 @@ func (d *Daemon) react(ctx context.Context, chat, msgID, emoji string) error {
 	orig, _, err := d.st.Message(chat, msgID)
 	if err != nil {
 		return fmt.Errorf("mensagem não encontrada: %w", err)
+	}
+	if chatJID.Server == types.NewsletterServer {
+		// Canal: a reação vai pelo ID de servidor da atualização.
+		sids, _ := d.st.ServerIDs(chat, []string{msgID})
+		sid, ok := sids[msgID]
+		if !ok {
+			return errors.New("essa atualização do canal é antiga demais para reagir por aqui")
+		}
+		if err := d.cli.NewsletterSendReaction(ctx, chatJID, types.MessageServerID(sid), emoji, ""); err != nil {
+			return err
+		}
+		if err := d.st.SetReaction(chat, msgID, d.me(), emoji, time.Now().UnixMilli()); err != nil {
+			return err
+		}
+		d.pushUpdate(chat, msgID)
+		return nil
 	}
 	sender := d.cli.Store.ID.ToNonAD()
 	if !orig.FromMe {

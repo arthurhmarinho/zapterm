@@ -300,6 +300,9 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 		d.log.Error("gravando mensagem", "err", err)
 		return
 	}
+	if e.Info.ServerID != 0 {
+		_ = d.st.SetServerID(m.Chat, m.ID, int(e.Info.ServerID)) // canal: reagir e marcar visto
+	}
 	if !live || !isNew {
 		return
 	}
@@ -512,6 +515,9 @@ func (d *Daemon) decorate(ctx context.Context, c *ipc.Chat) {
 	c.Pinned = s.Pinned
 	c.Muted = s.MutedUntil.After(time.Now())
 	c.Blocked = d.isBlocked(c.JID)
+	if muted, ok := channelMuted(c.JID); ok {
+		c.Muted = muted
+	}
 }
 
 // chatSettings junta as configurações do celular gravadas pelo número e
@@ -885,6 +891,28 @@ func (d *Daemon) markRead(ctx context.Context, chat string) error {
 	msgs, err := d.st.Messages(chat, c.Unread+20, 0)
 	if err != nil {
 		return err
+	}
+	if jid.Server == types.NewsletterServer {
+		// Canal: "visto" conta as visualizações das atualizações.
+		var ids []string
+		for _, m := range msgs {
+			ids = append(ids, m.ID)
+		}
+		sids, _ := d.st.ServerIDs(chat, ids)
+		var list []types.MessageServerID
+		for _, sid := range sids {
+			list = append(list, types.MessageServerID(sid))
+		}
+		if len(list) > 0 && d.cfg.Privacy.ReadReceipts {
+			if err := d.cli.NewsletterMarkViewed(ctx, jid, list); err != nil {
+				d.log.Warn("canal: marcar visto", "err", err)
+			}
+		}
+		if err := d.st.MarkRead(chat); err != nil {
+			return err
+		}
+		d.pushChat(chat)
+		return nil
 	}
 	bySender := map[string][]types.MessageID{}
 	for _, m := range msgs {

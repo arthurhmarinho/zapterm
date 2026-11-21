@@ -63,6 +63,8 @@ func (m *model) openChatMenu(c ipc.Chat) {
 	}
 	if c.Kind != "channel" {
 		opts = append(opts, menuOpt{"Apagar conversa…", "delete", "conversa apagada"})
+	} else {
+		opts = append(opts, menuOpt{"Deixar de seguir…", "unfollow", "você deixou de seguir o canal"})
 	}
 	m.menu = &chatMenu{chat: c, opts: opts}
 }
@@ -103,13 +105,15 @@ func (m *model) runMenu(i int) tea.Cmd {
 			opt("Desligar", "0", "mensagens temporárias desligadas"),
 		}}
 		return nil
-	case "block", "leave", "delete":
+	case "block", "leave", "delete", "unfollow":
 		q := "Bloquear " + chat.Name + "? Ele não vai mais conseguir te mandar mensagem nem ligar."
 		switch o.action {
 		case "leave":
 			q = "Sair de " + chat.Name + "?"
 		case "delete":
 			q = "Apagar a conversa com " + chat.Name + "? Some aqui e no celular, com as mídias."
+		case "unfollow":
+			q = "Deixar de seguir " + chat.Name + "?"
 		}
 		m.popup = &popMenu{title: q, opts: []popOpt{
 			{strings.TrimSuffix(o.label, "…"), func() tea.Cmd { return m.chatAction(chat, o) }},

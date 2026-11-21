@@ -102,6 +102,8 @@ var migrations = []string{
 		PRIMARY KEY (chat, msg_id, user));`,
 	// 12: mensagem temporária salva na conversa (não vence enquanto salva).
 	`ALTER TABLE messages ADD COLUMN kept INTEGER NOT NULL DEFAULT 0;`,
+	// 13: ID da mensagem no servidor (canais: reagir e marcar visto usam).
+	`ALTER TABLE messages ADD COLUMN server_id INTEGER NOT NULL DEFAULT 0;`,
 }
 
 func migrate(db *sql.DB) error {
@@ -381,6 +383,24 @@ func (s *Store) ReactionsBy(chat, msgID string) ([][2]string, error) {
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// SetServerID guarda o ID de servidor de uma mensagem de canal.
+func (s *Store) SetServerID(chat, id string, serverID int) error {
+	_, err := s.db.Exec(`UPDATE messages SET server_id = ? WHERE chat = ? AND id = ? AND server_id = 0`, serverID, chat, id)
+	return err
+}
+
+// ServerIDs devolve o ID de servidor das mensagens (as sem ID ficam de fora).
+func (s *Store) ServerIDs(chat string, ids []string) (map[string]int, error) {
+	out := map[string]int{}
+	for _, id := range ids {
+		var sid int
+		if err := s.db.QueryRow(`SELECT server_id FROM messages WHERE chat = ? AND id = ?`, chat, id).Scan(&sid); err == nil && sid > 0 {
+			out[id] = sid
+		}
+	}
+	return out, nil
 }
 
 // SetKept salva (ou deixa de salvar) a temporária na conversa.
