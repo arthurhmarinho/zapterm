@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -154,4 +155,26 @@ func (d *Daemon) gallery(ctx context.Context, req ipc.Request) (*ipc.GalleryPage
 	d.fillSenders(ctx, items)
 	d.fillThumbs(items)
 	return &ipc.GalleryPage{Items: items, Counts: counts, More: more}, nil
+}
+
+// refetch pede ao celular as mensagens anteriores à primeira mensagem
+// depois de before. As que já estão no banco sem o protobuf (histórico do
+// pareamento) o recebem de volta: miniatura e download voltam a funcionar.
+// O pedido vai só para o seu próprio celular, que precisa estar online.
+func (d *Daemon) refetch(ctx context.Context, chat string, before int64) error {
+	jid, err := types.ParseJID(chat)
+	if err != nil {
+		return err
+	}
+	anchor, err := d.st.NewerThan(chat, before)
+	if err != nil {
+		return fmt.Errorf("sem mensagem de referência: %w", err)
+	}
+	info := &types.MessageInfo{
+		MessageSource: types.MessageSource{Chat: jid, IsFromMe: anchor.FromMe},
+		ID:            anchor.ID,
+		Timestamp:     time.UnixMilli(anchor.TS),
+	}
+	_, err = d.cli.SendPeerMessage(ctx, d.cli.BuildHistorySyncRequest(info, 50))
+	return err
 }

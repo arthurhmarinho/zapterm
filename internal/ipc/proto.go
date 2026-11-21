@@ -33,6 +33,7 @@ const (
 	OpSearch      = "search"       // procura Text no texto das mensagens (sem acento/maiúscula)
 	OpProfile     = "profile"      // perfil do chat: foto grande, recado/descrição, participantes, mídia
 	OpGallery     = "gallery"      // mídia, docs, links ou áudios do chat (Text = aba), em páginas
+	OpRefetch     = "refetch"      // pede ao celular o histórico anterior a Before (recupera mídia antiga)
 	OpUnread      = "unread"       // resumo de não lidas (para a barra)
 	OpShowUI      = "show_ui"      // traz a TUI para frente, ou abre uma
 )

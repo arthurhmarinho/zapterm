@@ -100,6 +100,8 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		}
 		go d.srv.Broadcast(ipc.EvMessage, m)
 		return m, nil
+	case ipc.OpRefetch:
+		return nil, nil // sem celular na demonstração
 	case ipc.OpGallery:
 		kinds := map[string]string{"fotos": "image", "videos": "video", "docs": "document", "audios": "audio"}
 		page := ipc.GalleryPage{Items: []ipc.Message{}, Counts: map[string]int{}}

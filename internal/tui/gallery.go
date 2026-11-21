@@ -39,13 +39,24 @@ type gallery struct {
 	loading bool
 	sel     int
 	top     int // primeira linha (de galleryRows) à vista
+
+	// Mídia antiga sem o original: pede ao celular (um pedido por vez).
+	refetching bool
+	refetchID  string
+	asked      map[string]bool
 }
 
 type galleryMsg struct {
 	chat   string
 	tab    int
 	append bool
+	reload bool // recarga depois do celular mandar o histórico: mantém a seleção
 	page   *ipc.GalleryPage
+}
+
+type refetchDoneMsg struct {
+	id  string
+	err error
 }
 
 func (g *gallery) tabName() string { return ipc.GalleryTabs[g.tab] }
@@ -81,12 +92,68 @@ func (m *model) onGallery(msg galleryMsg) tea.Cmd {
 	}
 	g.loading = false
 	g.counts, g.more = msg.page.Counts, msg.page.More
-	if msg.append {
+	switch {
+	case msg.append:
 		g.items = append(g.items, msg.page.Items...)
-	} else {
+	case msg.reload:
+		g.items, g.refetching = msg.page.Items, false
+		g.sel = min(g.sel, max(0, len(g.items)-1))
+	default:
 		g.items, g.sel, g.top = msg.page.Items, 0, 0
 	}
+	return m.maybeRefetch()
+}
+
+// reloadGallery recarrega a aba aberta do mesmo tamanho (o celular mandou
+// histórico: itens antigos ganharam miniatura).
+func (m *model) reloadGallery() tea.Cmd {
+	g := m.gallery
+	if g == nil || g.loading || !g.refetching {
+		return nil
+	}
+	g.loading = true
+	req := ipc.Request{Op: ipc.OpGallery, Chat: m.active, Text: g.tabName(), Limit: max(galleryPage, len(g.items))}
+	chat, tab := m.active, g.tab
+	var out ipc.GalleryPage
+	return m.call(req, &out, func() tea.Msg { return galleryMsg{chat: chat, tab: tab, reload: true, page: &out} })
+}
+
+// maybeRefetch: se perto da seleção há mídia sem o original (histórico do
+// pareamento), pede ao celular as mensagens daquela época. Cada item é
+// pedido uma vez; a resposta chega como recarga (EvReload).
+func (m *model) maybeRefetch() tea.Cmd {
+	g := m.gallery
+	if g == nil || g.refetching || g.tabName() == "links" {
+		return nil
+	}
+	if g.asked == nil {
+		g.asked = map[string]bool{}
+	}
+	for i := g.sel; i < min(len(g.items), g.sel+24); i++ {
+		it := g.items[i]
+		if it.HasRaw || g.asked[it.ID] {
+			continue
+		}
+		g.asked[it.ID], g.refetching, g.refetchID = true, true, it.ID
+		m.setFlash("pedindo ao celular as mídias antigas…")
+		req := ipc.Request{Op: ipc.OpRefetch, Chat: m.active, Before: it.TS - 1}
+		return tea.Batch(m.call(req, nil, func() tea.Msg { return refetchDoneMsg{id: it.ID} }),
+			tea.Tick(20*time.Second, func(time.Time) tea.Msg { return refetchDoneMsg{id: it.ID, err: errRefetchTimeout} }))
+	}
 	return nil
+}
+
+var errRefetchTimeout = fmt.Errorf("o celular não respondeu")
+
+func (m *model) onRefetchDone(msg refetchDoneMsg) {
+	g := m.gallery
+	if g == nil || msg.err == nil || msg.id != g.refetchID {
+		return // pedido aceito: a resposta chega como recarga
+	}
+	if g.refetching {
+		g.refetching = false
+		m.setFlash("o celular não mandou as mídias antigas (ele está online?)")
+	}
 }
 
 func (m *model) keyGallery(s string) tea.Cmd {
@@ -151,9 +218,9 @@ func (m *model) keyGallery(s string) tea.Cmd {
 	}
 	// Perto do fim do que foi carregado: pede a próxima página.
 	if g.more && g.sel >= n-per*2 {
-		return m.loadGallery(true)
+		return tea.Batch(m.loadGallery(true), m.maybeRefetch())
 	}
-	return nil
+	return m.maybeRefetch()
 }
 
 // galleryGrid: quantas células por linha e o tamanho de cada uma (com a

@@ -153,6 +153,15 @@ func (s *Store) SaveMessage(m ipc.Message, raw []byte, isGroup, incUnread bool) 
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
+		// Já existia. Se veio sem o protobuf (histórico do pareamento) e
+		// agora chegou com ele, guarda: a mídia passa a ter miniatura e
+		// download. Nada mais muda.
+		if len(raw) > 0 {
+			if _, err := tx.Exec(`UPDATE messages SET raw = ? WHERE chat = ? AND id = ? AND raw IS NULL`,
+				raw, m.Chat, m.ID); err != nil {
+				return false, err
+			}
+		}
 		return false, tx.Commit()
 	}
 
@@ -264,6 +273,13 @@ var galleryWhere = map[string]string{
 	"docs":   `kind = 'document'`,
 	"links":  `kind = 'text' AND (text LIKE '%http://%' OR text LIKE '%https://%' OR text LIKE '%www.%')`,
 	"audios": `kind = 'audio'`,
+}
+
+// NewerThan devolve a primeira mensagem do chat depois de ts (a âncora de
+// um pedido de histórico ao celular, que manda as anteriores a ela).
+func (s *Store) NewerThan(chat string, ts int64) (ipc.Message, error) {
+	return scanMessage(s.db.QueryRow(`SELECT `+msgCols+` FROM messages WHERE chat = ? AND ts > ?
+		ORDER BY ts ASC LIMIT 1`, chat, ts))
 }
 
 // Gallery devolve uma página de uma aba da galeria do chat, do mais novo

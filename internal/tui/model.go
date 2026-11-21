@@ -453,6 +453,9 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case galleryMsg:
 		return m, m.onGallery(msg)
+	case refetchDoneMsg:
+		m.onRefetchDone(msg)
+		return m, nil
 	case profileMsg:
 		if m.profileOpen && msg.p.JID == m.active {
 			m.profile = msg.p
@@ -604,7 +607,7 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 			}
 		}
 	case ipc.EvReload:
-		return m.loadChats()
+		return tea.Batch(m.loadChats(), m.reloadGallery())
 	case ipc.EvChat:
 		var c ipc.Chat
 		if json.Unmarshal(f.Data, &c) != nil {

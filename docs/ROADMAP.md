@@ -63,7 +63,7 @@ filtro.
   duração); docs, links e áudios em lista com nome, remetente e data;
   `enter` abre. Tudo sai do SQLite (`kind` e links no texto). (M)
 - [x] **Separar por mês** ("Novembro", "Outubro"…), como no app. (P)
-- [ ] **Sem miniatura**: pedir ao celular de novo
+- [x] **Sem miniatura**: pedir ao celular de novo
   (`cli.SendMediaRetryReceipt`) ou baixar sob demanda ao ficar visível,
   em vez do quadrado vazio. (M)
 

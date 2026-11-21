@@ -14,6 +14,7 @@ import (
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -312,6 +313,7 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 	convs := e.Data.GetConversations()
 	n := 0
+	onDemand := e.Data.GetSyncType() == waHistorySync.HistorySync_ON_DEMAND
 	for _, c := range convs {
 		jid, err := types.ParseJID(c.GetID())
 		if err != nil {
@@ -320,6 +322,17 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 		jid = d.normalize(ctx, jid)
 		isGroup := jid.Server == types.GroupServer
 		ts := int64(c.GetConversationTimestamp()) * 1000
+		if onDemand {
+			// Resposta a um pedido nosso (refetch): só as mensagens
+			// interessam; a conversa (não lidas, nome) fica como está.
+			for _, hm := range c.GetMessages() {
+				if evt, err := d.cli.ParseWebMessage(jid, hm.GetMessage()); err == nil {
+					d.onMessage(ctx, evt, false)
+					n++
+				}
+			}
+			continue
+		}
 		if err := d.st.UpsertChat(jid.String(), c.GetName(), isGroup, ts, int(c.GetUnreadCount())); err != nil {
 			d.log.Error("history: chat", "err", err)
 			continue
@@ -600,6 +613,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		pctx, pcancel := context.WithTimeout(context.Background(), time.Minute)
 		defer pcancel()
 		return d.profile(pctx, req.Chat)
+	case ipc.OpRefetch:
+		return nil, d.refetch(ctx, req.Chat, req.Before)
 	case ipc.OpGallery:
 		return d.gallery(context.Background(), req)
 	case ipc.OpSearch:

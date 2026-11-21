@@ -46,8 +46,10 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
   Fora do Noctalia, `zapterm unread --json` dá o mesmo resumo para outras
   barras.
 - **Perfil** (clique no cabeçalho ou `alt+i`): foto grande, número e
-  recado do contato, ou descrição e participantes do grupo, e a grade com
-  as fotos e vídeos da conversa.
+  recado do contato, ou descrição e participantes do grupo.
+- **Mídia, links e docs** (`enter` no perfil): abas Fotos, Vídeos, Docs,
+  Links e Áudios, separadas por mês; `ctrl+g` mostra o item na conversa.
+  Mídia antiga sem prévia é pedida de novo ao seu celular.
 
 ## Como funciona
 
