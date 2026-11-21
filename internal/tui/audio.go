@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,9 +25,21 @@ import (
 
 type playback struct {
 	id      string
+	chat    string // conversa do áudio (o mini player mostra fora dela)
+	name    string // quem mandou
 	cmd     *exec.Cmd
 	started time.Time
-	total   int // segundos
+	total   int     // segundos
+	ctl     *mpvCtl // nil: tocando pelo gst-launch (sem pausa nem velocidade)
+	pos     float64
+	paused  bool
+	stopped bool // parado por nós: não emenda o próximo
+}
+
+// recReview: gravação terminada esperando você ouvir e decidir.
+type recReview struct {
+	path    string
+	seconds int
 }
 
 type recording struct {
@@ -38,12 +51,18 @@ type recording struct {
 
 type (
 	playTickMsg struct{}
+	playPosMsg  struct {
+		id     string
+		pos    float64
+		paused bool
+	}
 	playDoneMsg struct{ id string }
 	recTickMsg  struct{}
 	recDoneMsg  struct {
 		path    string
 		seconds int
 		send    bool
+		review  bool
 		err     error
 	}
 )
@@ -70,6 +89,10 @@ func fmtDur(s int) string { return fmt.Sprintf("%d:%02d", s/60, s%60) }
 func (m *model) toggleAudio(i int) tea.Cmd {
 	msg := m.msgs[i]
 	if m.play != nil && m.play.id == msg.ID {
+		if m.play.ctl != nil {
+			m.togglePause()
+			return nil
+		}
 		m.stopPlay()
 		m.rerenderKeepingPlace()
 		return nil
@@ -88,16 +111,81 @@ func (m *model) toggleAudio(i int) tea.Cmd {
 	return m.startPlay(msg.Media.Path, msg.ID, audioSeconds(msg.Text))
 }
 
+// speeds: alt+v alterna entre elas; a escolhida vale para os próximos.
+var speeds = []float64{1, 1.5, 2}
+
+func (m *model) cycleSpeed() {
+	i := 0
+	for j, s := range speeds {
+		if s == m.audioSpeed {
+			i = j
+		}
+	}
+	m.audioSpeed = speeds[(i+1)%len(speeds)]
+	if p := m.play; p != nil && p.ctl != nil {
+		p.ctl.call("set_property", "speed", m.audioSpeed)
+	}
+	m.setFlash("velocidade do áudio: " + speedLabel(m.audioSpeed))
+	m.rerenderKeepingPlace()
+}
+
+func speedLabel(s float64) string {
+	return strings.Replace(strconv.FormatFloat(s, 'f', -1, 64), ".", ",", 1) + "×"
+}
+
+func (m *model) togglePause() {
+	p := m.play
+	if p == nil || p.ctl == nil {
+		return
+	}
+	p.paused = !p.paused
+	p.ctl.call("set_property", "pause", p.paused)
+	m.rerenderKeepingPlace()
+}
+
+// seekAudio anda secs segundos (negativo volta) no áudio tocando.
+func (m *model) seekAudio(secs float64) {
+	p := m.play
+	if p == nil || p.ctl == nil {
+		return
+	}
+	p.ctl.call("seek", secs, "relative")
+	p.pos = max(0, p.pos+secs)
+	if p.total > 0 {
+		p.pos = min(p.pos, float64(p.total))
+	}
+	m.rerenderKeepingPlace()
+}
+
 func (m *model) startPlay(path, id string, total int) tea.Cmd {
 	m.stopPlay()
-	u := url.URL{Scheme: "file", Path: path}
-	cmd := exec.Command("gst-launch-1.0", "-q", "playbin", "uri="+u.String())
+	if m.audioSpeed == 0 {
+		m.audioSpeed = 1
+	}
+	// mpv, se houver: pausa, velocidade e avançar/voltar. Sem ele, o
+	// gst-launch só toca do começo ao fim.
+	var cmd *exec.Cmd
+	sock := ""
+	if hasMPV() {
+		sock = mpvSocket()
+		os.Remove(sock)
+		cmd = mpvCommand(path, sock, m.audioSpeed)
+	} else {
+		u := url.URL{Scheme: "file", Path: path}
+		cmd = exec.Command("gst-launch-1.0", "-q", "playbin", "uri="+u.String())
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		m.setFlash("não deu para tocar: " + err.Error())
 		return nil
 	}
-	m.play = &playback{id: id, cmd: cmd, started: time.Now(), total: total}
+	p := &playback{id: id, chat: m.active, name: m.audioSender(id), cmd: cmd, started: time.Now(), total: total}
+	if sock != "" {
+		if ctl, err := dialMPV(sock); err == nil {
+			p.ctl = ctl
+		}
+	}
+	m.play = p
 	m.flash = ""
 	m.rerenderKeepingPlace()
 	return tea.Batch(
@@ -110,8 +198,26 @@ func (m *model) stopPlay() {
 	if m.play == nil {
 		return
 	}
+	m.play.stopped = true
+	m.play.ctl.close()
 	syscall.Kill(-m.play.cmd.Process.Pid, syscall.SIGTERM)
 	m.play = nil
+}
+
+// audioSender: quem mandou o áudio (para o mini player).
+func (m *model) audioSender(id string) string {
+	for _, x := range m.msgs {
+		if x.ID == id {
+			if x.FromMe {
+				return "você"
+			}
+			if m.activeChat.Kind == "group" {
+				return x.SenderName
+			}
+			return m.activeChat.Name
+		}
+	}
+	return "áudio"
 }
 
 func playTick() tea.Cmd {
@@ -124,6 +230,9 @@ func (m *model) playState() (id string, elapsed int) {
 		return "", 0
 	}
 	e := int(time.Since(m.play.started).Seconds())
+	if m.play.ctl != nil {
+		e = int(m.play.pos)
+	}
 	if m.play.total > 0 {
 		e = min(e, m.play.total)
 	}
@@ -177,6 +286,13 @@ func (m *model) startRec() tea.Cmd {
 
 // finishRec para a gravação; send decide se ela vai ou é descartada.
 func (m *model) finishRec(send bool) tea.Cmd {
+	return m.endRec(send, false)
+}
+
+// reviewRec para a gravação e toca o que foi gravado antes de enviar.
+func (m *model) reviewRec() tea.Cmd { return m.endRec(false, true) }
+
+func (m *model) endRec(send, review bool) tea.Cmd {
 	r := m.rec
 	if r == nil {
 		return nil
@@ -184,11 +300,36 @@ func (m *model) finishRec(send bool) tea.Cmd {
 	m.rec = nil
 	m.layout()
 	secs := int(time.Since(r.started).Round(time.Second).Seconds())
-	return tea.Batch(m.stopTyping(), r.stop(send, secs))
+	return tea.Batch(m.stopTyping(), r.stop(send || review, secs, review))
+}
+
+// keyReview: a gravação parada, esperando decisão.
+func (m *model) keyReview(s string) tea.Cmd {
+	rv := m.recReview
+	switch s {
+	case "enter", "ctrl+t":
+		m.stopPlay()
+		m.recReview = nil
+		m.layout()
+		return func() tea.Msg { return recDoneMsg{path: rv.path, seconds: rv.seconds, send: true} }
+	case "esc", "ctrl+c":
+		m.stopPlay()
+		os.Remove(rv.path)
+		m.recReview = nil
+		m.layout()
+		m.setFlash("áudio descartado")
+	case "space", "ctrl+o":
+		if m.play != nil && m.play.id == "rec-review" && m.play.ctl != nil {
+			m.togglePause()
+			return nil
+		}
+		return m.startPlay(rv.path, "rec-review", rv.seconds)
+	}
+	return nil
 }
 
 // stop para o gravador fora do loop de UI e diz o que fazer com o arquivo.
-func (r *recording) stop(send bool, secs int) tea.Cmd {
+func (r *recording) stop(send bool, secs int, review bool) tea.Cmd {
 	return func() tea.Msg {
 		// O gst-launch só trata o SIGINT (fechando o arquivo) depois que o
 		// pipeline está rodando; antes disso o sinal mata o processo e a
@@ -219,7 +360,7 @@ func (r *recording) stop(send bool, secs int) tea.Cmd {
 		if st, serr := os.Stat(r.path); serr != nil || st.Size() < 200 {
 			return recDoneMsg{err: fmt.Errorf("gravação vazia (microfone?): %v", err)}
 		}
-		return recDoneMsg{path: r.path, seconds: secs, send: true}
+		return recDoneMsg{path: r.path, seconds: secs, send: !review, review: review}
 	}
 }
 
@@ -230,15 +371,41 @@ func recTick() tea.Cmd {
 func (m *model) onAudioMsg(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case playTickMsg:
-		if m.play == nil {
+		p := m.play
+		if p == nil {
 			return nil, true
+		}
+		if p.ctl != nil {
+			// A posição vem do mpv, fora do loop de UI.
+			id, ctl := p.id, p.ctl
+			return tea.Batch(playTick(), func() tea.Msg {
+				pos, paused := ctl.state()
+				return playPosMsg{id: id, pos: pos, paused: paused}
+			}), true
 		}
 		m.rerenderKeepingPlace()
 		return playTick(), true
-	case playDoneMsg:
-		if m.play != nil && m.play.id == msg.id {
-			m.play = nil
+	case playPosMsg:
+		if p := m.play; p != nil && p.id == msg.id {
+			p.pos, p.paused = msg.pos, msg.paused
 			m.rerenderKeepingPlace()
+		}
+		return nil, true
+	case playDoneMsg:
+		p := m.play
+		if p == nil || p.id != msg.id {
+			return nil, true
+		}
+		p.ctl.close()
+		m.play = nil
+		m.rerenderKeepingPlace()
+		// Acabou sozinho: emenda o áudio seguinte da conversa, como no app.
+		if p.chat == m.active {
+			for i, x := range m.msgs {
+				if x.ID == p.id && i+1 < len(m.msgs) && m.msgs[i+1].Kind == "audio" {
+					return m.toggleAudio(i + 1), true
+				}
+			}
 		}
 		return nil, true
 	case recTickMsg:
@@ -261,6 +428,11 @@ func (m *model) onAudioMsg(msg tea.Msg) (tea.Cmd, bool) {
 			m.setFlash(msg.err.Error())
 			return nil, true
 		}
+		if msg.review {
+			m.recReview = &recReview{path: msg.path, seconds: msg.seconds}
+			m.layout()
+			return m.startPlay(msg.path, "rec-review", msg.seconds), true
+		}
 		if !msg.send {
 			return nil, true
 		}
@@ -280,6 +452,9 @@ func (m *model) onAudioMsg(msg tea.Msg) (tea.Cmd, bool) {
 // cleanupAudio encerra player e gravador ao sair da TUI.
 func (m *model) cleanupAudio() {
 	m.stopPlay()
+	if m.recReview != nil {
+		os.Remove(m.recReview.path)
+	}
 	if m.rec != nil {
 		syscall.Kill(-m.rec.cmd.Process.Pid, syscall.SIGKILL)
 		os.Remove(m.rec.path)

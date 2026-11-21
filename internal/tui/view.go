@@ -73,7 +73,7 @@ func (m *model) geom0chatW() int { return m.w - listWidth(m.w) - 1 }
 
 func (m *model) extraHeight() int {
 	switch {
-	case m.rec != nil:
+	case m.rec != nil, m.recReview != nil:
 		return 3
 	case m.mention.open:
 		return len(m.mention.list) + 2
@@ -392,7 +392,19 @@ func (m *model) viewExtra(g geometry) string {
 	if r := m.rec; r != nil {
 		secs := int(time.Since(r.started).Seconds())
 		line := "  " + fg(cDanger).Render(icons.rec+" gravando") + " " + sText.Render(fmtDur(secs)) + "   " +
-			sText2.Render("enter envia · esc descarta")
+			sText2.Render("enter envia · espaço para e ouve · esc descarta")
+		return fitHeight("\n"+line, cDefault, w, g.extraH)
+	}
+	if rv := m.recReview; rv != nil {
+		state := icons.play + " ouvir"
+		if p := m.play; p != nil && p.id == "rec-review" {
+			state = icons.pause + " " + fmtDur(int(p.pos)) + " / " + fmtDur(rv.seconds)
+			if p.paused {
+				state = icons.play + " " + fmtDur(int(p.pos)) + " / " + fmtDur(rv.seconds)
+			}
+		}
+		line := "  " + sGreen.Render(icons.audio+" áudio gravado") + " " + sText.Render(fmtDur(rv.seconds)) + "   " +
+			sText.Render(state) + "   " + sText2.Render("espaço ouve · enter envia · esc descarta")
 		return fitHeight("\n"+line, cDefault, w, g.extraH)
 	}
 	if a := m.attach; a != nil {
@@ -482,7 +494,11 @@ func (m *model) viewFooter() string {
 	case m.picking:
 		help = "setas escolhem · enter ou clique envia · esc fecha"
 	case m.rec != nil:
-		help = "gravando pelo microfone · enter envia · esc descarta"
+		help = "gravando pelo microfone · enter envia · espaço para e ouve · esc descarta"
+	case m.recReview != nil:
+		help = "espaço ouve/pausa · enter envia · esc descarta"
+	case m.play != nil && m.play.id != "rec-review":
+		help = m.miniPlayer()
 	case m.reacting:
 		help = "1–6 reage · 0 tira a sua reação · esc fecha"
 	case m.focus == paneList:
@@ -634,7 +650,9 @@ func (m *model) viewHelp() string {
 		{"Escrever", [][2]string{
 			{"enter", "envia"}, {"shift+enter", "nova linha"}, {keyFor("paste"), "cola print (ou texto)"},
 			{keyFor("attach"), "anexar arquivo"}, {keyFor("stickers"), "figurinhas (tab: favoritas/recentes)"},
-			{keyFor("record"), "gravar mensagem de voz"},
+			{keyFor("record"), "gravar mensagem de voz (espaço para e ouve antes de enviar)"},
+			{"alt+v", "velocidade do áudio (1×, 1,5×, 2×)"}, {"←/→", "áudio tocando, campo vazio: volta/avança 5 s"},
+			{"alt+x", "para o áudio"},
 		}},
 		{"Chat", [][2]string{
 			{keyFor("profile"), "perfil do contato ou grupo: foto, recado, participantes, mídia (ou clique no cabeçalho)"},
@@ -673,4 +691,31 @@ func ephemeralLabel(secs int) string {
 		return fmt.Sprintf("%d h", secs/3600)
 	}
 	return fmt.Sprintf("%d min", max(1, secs/60))
+}
+
+// miniPlayer: o áudio tocando, na barra de baixo (aparece também fora da
+// conversa dele) com os atalhos do player.
+func (m *model) miniPlayer() string {
+	p := m.play
+	_, e := m.playState()
+	icon := icons.pause
+	if p.paused {
+		icon = icons.play
+	}
+	who := p.name
+	if p.chat != m.active {
+		for _, c := range m.chats {
+			if c.JID == p.chat && c.Name != who {
+				who += " em " + c.Name
+			}
+		}
+	}
+	s := icon + " " + who + " " + fmtDur(e)
+	if p.total > 0 {
+		s += "/" + fmtDur(p.total)
+	}
+	if p.ctl != nil {
+		s += " · " + speedLabel(m.audioSpeed) + " · alt+v velocidade · ←/→ 5 s"
+	}
+	return s + " · alt+x para"
 }

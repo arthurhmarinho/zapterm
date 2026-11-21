@@ -47,7 +47,7 @@ func TestGravacaoFechaArquivo(t *testing.T) {
 	time.Sleep(1500 * time.Millisecond)
 	rec := m.rec
 	m.finishRec(true)
-	done, ok := rec.stop(true, int(time.Since(rec.started).Round(time.Second).Seconds()))().(recDoneMsg)
+	done, ok := rec.stop(true, int(time.Since(rec.started).Round(time.Second).Seconds()), false)().(recDoneMsg)
 	if !ok || done.err != nil || !done.send {
 		t.Fatalf("finishRec: %+v (%v)", done, done.err)
 	}
@@ -111,5 +111,47 @@ func TestDigitandoETracinhos(t *testing.T) {
 		if got := ansi.Strip(ticks(st)); got != want {
 			t.Errorf("ticks(%d) = %q", st, got)
 		}
+	}
+}
+
+// Toca um áudio sintético no mpv (sem som: --ao=null) e confere que
+// velocidade, pausa e avançar funcionam pelo socket.
+func TestPlayerMPV(t *testing.T) {
+	if !hasMPV() {
+		t.Skip("sem mpv")
+	}
+	if _, err := exec.LookPath("gst-launch-1.0"); err != nil {
+		t.Skip("sem GStreamer")
+	}
+	t.Setenv("ZAPTERM_AUDIO_NULL", "1")
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	path := t.TempDir() + "/tom.ogg"
+	gen := exec.Command("gst-launch-1.0", "-q", "audiotestsrc", "num-buffers=600", "!", "audioconvert", "!",
+		"opusenc", "!", "oggmux", "!", "filesink", "location="+path)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("gerando áudio: %v %s", err, out)
+	}
+	m := &model{audioSpeed: 2}
+	m.startPlay(path, "a", 13)
+	defer m.stopPlay()
+	if m.play == nil || m.play.ctl == nil {
+		t.Fatal("mpv não respondeu no socket")
+	}
+	time.Sleep(time.Second)
+	pos, paused := m.play.ctl.state()
+	if paused || pos < 1.4 {
+		t.Fatalf("em 2× deveria ter andado ~2 s: %.2f (pausado %v)", pos, paused)
+	}
+	m.togglePause()
+	p1, _ := m.play.ctl.state()
+	time.Sleep(400 * time.Millisecond)
+	p2, paused := m.play.ctl.state()
+	if !paused || p2-p1 > 0.05 {
+		t.Fatalf("pausa não segurou: %.2f → %.2f", p1, p2)
+	}
+	m.seekAudio(5)
+	time.Sleep(100 * time.Millisecond)
+	if p3, _ := m.play.ctl.state(); p3 < p2+4.5 {
+		t.Fatalf("avançar 5 s: %.2f → %.2f", p2, p3)
 	}
 }

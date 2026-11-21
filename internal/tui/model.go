@@ -99,6 +99,9 @@ type model struct {
 	reacting bool       // barra de reações (ctrl+e) aberta
 	voting   *pollPanel // painel de votar na enquete (ctrl+o)
 
+	audioSpeed float64    // velocidade dos áudios (alt+v), vale para os próximos
+	recReview  *recReview // gravação parada esperando você ouvir e decidir
+
 	editing    *ipc.Message // mensagem sua sendo editada (alt+e)
 	forwarding *ipc.Message // mensagem a encaminhar (alt+w): a busca escolhe o destino
 	delArmed   string       // alt+d apertado uma vez nesta mensagem
@@ -1266,7 +1269,7 @@ func (m *model) refreshMessages(toBottom bool) {
 		}
 		playID, elapsed := m.playState()
 		r := msgRenderer{w: w, isGroup: m.activeChat.Kind == "group", sel: sel, imgs: m.imgs, avatar: m.smallAvatar,
-			playID: playID, elapsed: elapsed}
+			playID: playID, elapsed: elapsed, paused: m.play != nil && m.play.paused, speed: m.audioSpeed}
 		content, m.spans = r.render(m.msgs)
 	}
 	m.vp.SetContent(content)

@@ -154,7 +154,11 @@ O mouse também funciona (clique, botão direito para responder, roda).
 | `ctrl+v` | colar print para enviar |
 | `alt+f` | anexar arquivo |
 | `ctrl+s` | figurinhas (favoritas do celular; `tab` troca para as recentes) |
-| `ctrl+t` | gravar mensagem de voz |
+| `ctrl+t` | gravar mensagem de voz (espaço para e deixa ouvir antes de enviar) |
+| `ctrl+o` no áudio | toca / pausa (com mpv instalado; sem ele, toca do começo ao fim) |
+| `alt+v` | velocidade do áudio: 1×, 1,5×, 2× |
+| `←` / `→` | com áudio tocando e o campo vazio, volta / avança 5 s |
+| `alt+x` | para o áudio |
 | `pgup` `pgdn` | rolar a conversa |
 | `esc` | cancela o que estiver aberto |
 | `ctrl+c` | limpa o campo; vazio, duas vezes, sai |

@@ -238,6 +238,8 @@ type msgRenderer struct {
 	avatar  func(jid, name string) string // 4×2, para remetentes em grupo
 	playID  string                        // áudio tocando
 	elapsed int                           // segundos tocados
+	paused  bool
+	speed   float64
 }
 
 // render monta a conversa inteira e devolve também a linha inicial e final
@@ -556,7 +558,15 @@ func (r msgRenderer) audioLine(m ipc.Message, inner int) string {
 		pos = min(barW-1, r.elapsed*barW/total)
 	}
 	bar := fg(cGreen).Render(strings.Repeat("━", pos)+"●") + sText2.Render(strings.Repeat("─", barW-pos-1))
-	return fg(cGreen).Render(icons.pause) + " " + bar + " " + sText2.Render(fmtDur(r.elapsed)+" / "+fmtDur(total))
+	icon := icons.pause // tocando: o botão é de pausar
+	if r.paused {
+		icon = icons.play
+	}
+	line := fg(cGreen).Render(icon) + " " + bar + " " + sText2.Render(fmtDur(r.elapsed)+" / "+fmtDur(total))
+	if r.speed > 1 {
+		line += " " + sGreen.Render(speedLabel(r.speed))
+	}
+	return line
 }
 
 // tagDuration lê a duração do marcador do daemon: "[vídeo 0:32] legenda"

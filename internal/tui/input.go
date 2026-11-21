@@ -71,17 +71,42 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return cmd
 		}
 	}
+	if m.recReview != nil {
+		return m.keyReview(s)
+	}
 	if m.rec != nil {
 		switch s {
 		case "enter", "ctrl+t":
 			return m.finishRec(true)
 		case "esc", "ctrl+c":
 			return m.finishRec(false)
+		case "space":
+			return m.reviewRec()
 		}
 		return nil // gravando: o resto das teclas fica de fora
 	}
 
+	// Áudio tocando e campo vazio: as setas para os lados andam 5 s.
+	if m.play != nil && m.play.ctl != nil && m.input.Value() == "" && m.focus == paneChat {
+		switch s {
+		case "left":
+			m.seekAudio(-5)
+			return nil
+		case "right":
+			m.seekAudio(5)
+			return nil
+		}
+	}
 	switch s {
+	case "alt+v":
+		m.cycleSpeed()
+		return nil
+	case "alt+x":
+		if m.play != nil {
+			m.stopPlay()
+			m.rerenderKeepingPlace()
+		}
+		return nil
 	case "ctrl+c":
 		// Como no Claude Code: limpa o que está escrito; com tudo vazio, o
 		// segundo ctrl+c sai.
