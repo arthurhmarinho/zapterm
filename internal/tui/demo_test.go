@@ -924,3 +924,90 @@ func TestParticipanteNoPerfil(t *testing.T) {
 		t.Fatalf("conversar: ativo %q", m.active)
 	}
 }
+
+func TestCriarEnqueteEventoContato(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	const chat = "120000000000000001@g.us"
+	runCmd(m, m.open(m.chatFor(chat, "Trilha")))
+	typeText := func(s string) {
+		for _, r := range s {
+			m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+		}
+	}
+	key := func(code rune, mod tea.KeyMod) { runCmd(m, m.onKey(tea.KeyPressMsg{Code: code, Mod: mod})) }
+
+	// "/enq" mostra o comando; enter abre o formulário.
+	typeText("/enq")
+	if !m.slash.open || m.slash.list[0].name != "enquete" {
+		t.Fatalf("comandos: %+v", m.slash)
+	}
+	key(tea.KeyEnter, 0)
+	if m.form == nil || !m.form.poll {
+		t.Fatal("formulário da enquete não abriu")
+	}
+	typeText("Pizza ou hambúrguer?")
+	key(tea.KeyEnter, 0)
+	typeText("Pizza")
+	key(tea.KeyEnter, 0)
+	typeText("Hambúrguer")
+	key(tea.KeyEnter, 0) // cria a opção 3
+	typeText("Os dois")
+	if len(m.form.fields) != 4 {
+		t.Fatalf("campos: %d", len(m.form.fields))
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "Nova enquete") {
+		t.Error("formulário não aparece")
+	}
+	key('t', tea.ModAlt) // várias respostas
+	key(tea.KeyEnter, tea.ModAlt)
+	got := demo.LastSent(srv)
+	if got.Op != ipc.OpSendPoll || got.Text != "Pizza ou hambúrguer?" || strings.Join(got.Options, ",") != "Pizza,Hambúrguer,Os dois" || got.Seconds != 0 {
+		t.Fatalf("enquete: %+v", got)
+	}
+
+	// Evento pelo clipe (alt+f → Evento).
+	runCmd(m, m.openAttachMenu())
+	for i, o := range m.popup.opts {
+		if o.label == "Criar um evento" {
+			runCmd(m, m.keyPopup(fmt.Sprint(i+1)))
+		}
+	}
+	if m.form == nil || m.form.title != "Novo evento" {
+		t.Fatal("formulário do evento não abriu pelo clipe")
+	}
+	typeText("Trilha do Pico")
+	key(tea.KeyEnter, 0)
+	typeText("29/11")
+	key(tea.KeyEnter, 0)
+	typeText("06:30")
+	key(tea.KeyEnter, tea.ModAlt)
+	got = demo.LastSent(srv)
+	want := time.Date(time.Now().Year(), 11, 29, 6, 30, 0, 0, time.Local).UnixMilli()
+	if got.Op != ipc.OpSendEvent || got.Text != "Trilha do Pico" || got.Before != want {
+		t.Fatalf("evento: %+v", got)
+	}
+
+	// Contato: a busca escolhe a pessoa.
+	runCmd(m, m.pickContact())
+	m.search.SetValue("Bia")
+	m.applyFilter()
+	runCmd(m, m.keySearch(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	got = demo.LastSent(srv)
+	if got.Op != ipc.OpSendContact || got.Msg != "5511900000003@s.whatsapp.net" || got.Chat != chat {
+		t.Fatalf("contato: %+v", got)
+	}
+}

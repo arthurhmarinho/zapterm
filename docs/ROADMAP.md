@@ -156,7 +156,7 @@ filtro.
 
 ## 3. Um dia
 
-- [ ] **Criar enquete, evento, mandar contato** com comandos `/enquete`,
+- [x] **Criar enquete, evento, mandar contato** com comandos `/enquete`,
   `/evento`, `/contato` — depende da decisão 4.
   `cli.BuildPollCreation`, `EventMessage` à mão, `ContactMessage`. (M)
 - [ ] **Responder evento** (Vou/Talvez/Não vou). Só pela API interna

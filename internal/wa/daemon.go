@@ -631,6 +631,19 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.pollVote(ctx, req.Chat, req.Msg, req.Options)
 	case ipc.OpMsgInfo:
 		return d.msgInfo(ctx, req.Chat, req.Msg)
+	case ipc.OpSendPoll:
+		return d.sendPoll(ctx, req.Chat, req.Text, req.Options, req.Seconds == 1)
+	case ipc.OpSendEvent:
+		desc, place := "", ""
+		if len(req.Options) > 0 {
+			desc = req.Options[0]
+		}
+		if len(req.Options) > 1 {
+			place = req.Options[1]
+		}
+		return d.sendEvent(ctx, req.Chat, req.Text, req.Before, desc, place)
+	case ipc.OpSendContact:
+		return d.sendContact(ctx, req.Chat, req.Msg, req.Text)
 	case ipc.OpGroupMember:
 		return nil, d.groupMember(ctx, req.Chat, req.Msg, req.Text)
 	case ipc.OpInviteLink:

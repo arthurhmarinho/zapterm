@@ -79,6 +79,10 @@ func (m *model) extraHeight() int {
 		return len(m.mention.list) + 2
 	case m.emoji.open:
 		return len(m.emoji.list) + 2
+	case m.slash.open:
+		return len(m.slash.list) + 2
+	case m.form != nil:
+		return m.formHeight()
 	case m.voting != nil:
 		return m.pollPanelHeight()
 	case m.finding != nil:
@@ -396,6 +400,12 @@ func (m *model) viewExtra(g geometry) string {
 	if m.emoji.open {
 		return fitHeight("\n"+m.viewEmoji(w), cDefault, w, g.extraH)
 	}
+	if m.slash.open {
+		return fitHeight("\n"+m.viewSlash(), cDefault, w, g.extraH)
+	}
+	if m.form != nil {
+		return fitHeight(m.viewForm(w), cDefault, w, g.extraH)
+	}
 	if m.finding != nil {
 		return fitHeight(m.viewFind(w), cDefault, w, g.extraH)
 	}
@@ -516,6 +526,8 @@ func (m *model) viewInput(g geometry) string {
 func (m *model) viewFooter() string {
 	var help string
 	switch {
+	case m.searching && m.pickingContact:
+		help = "mandar contato: digite para filtrar · enter manda · esc cancela"
 	case m.searching && m.forwarding != nil:
 		help = m.forwardHelp()
 	case m.selAnchor >= 0:
@@ -701,6 +713,7 @@ func (m *model) viewHelp() string {
 			{keyFor("delete"), "apagar: para mim ou para todos (alt+z desfaz o para mim)"},
 			{"alt+. ou botão direito", "menu da mensagem (responder em privado, abrir, copiar…)"},
 			{"alt+s", "favoritar a mensagem (★); alt+5 lista as favoritas"},
+			{"alt+f ou /", "anexar: foto, arquivo, figurinha, enquete, evento, contato"},
 			{"alt+p", "ir para a mensagem fixada (fixar: menu da mensagem)"}, {keyFor("forward"), "encaminhar (enter marca até 5 conversas, alt+w envia)"},
 			{"shift+↑ shift+↓", "selecionar várias (alt+c copia, alt+w encaminha, alt+d apaga)"},
 		}},

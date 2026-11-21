@@ -65,6 +65,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		m.msgInfo = nil // qualquer tecla fecha
 		return nil
 	}
+	if m.form != nil {
+		return m.keyForm(k)
+	}
 	if m.popup != nil {
 		return m.keyPopup(s)
 	}
@@ -84,6 +87,11 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	}
 	if m.emoji.open {
 		if cmd, ok := m.keyEmoji(s); ok {
+			return cmd
+		}
+	}
+	if m.slash.open {
+		if cmd, ok := m.keySlash(s); ok {
 			return cmd
 		}
 	}
@@ -207,7 +215,7 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	case "alt+f":
-		return m.openChooser()
+		return m.openAttachMenu()
 	case "ctrl+v":
 		if m.active == "" {
 			m.setFlash("abra um chat antes de colar")
@@ -309,6 +317,7 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	m.input, cmd = m.input.Update(k)
 	m.layout() // a altura do campo acompanha o texto
 	if m.input.Value() != before {
+		m.updateSlash()
 		return tea.Batch(cmd, m.noteTyping(), m.updateMention(), m.updateEmoji())
 	}
 	return cmd
@@ -363,6 +372,7 @@ func (m *model) keySearch(k tea.KeyPressMsg) tea.Cmd {
 			m.forwarding, m.fwdTargets = nil, nil
 			m.setFlash("encaminhamento cancelado")
 		}
+		m.pickingContact = false
 		m.stopSearch(true)
 		return nil
 	case "alt+w":
@@ -379,6 +389,17 @@ func (m *model) keySearch(k tea.KeyPressMsg) tea.Cmd {
 				m.toggleTarget(c)
 			}
 			return nil
+		}
+		if m.pickingContact {
+			if c.Kind != "dm" || strings.HasPrefix(c.JID, hitMarker) || strings.HasPrefix(c.JID, newChatMarker) {
+				m.setFlash("escolha uma pessoa (não grupo nem canal)")
+				return nil
+			}
+			m.pickingContact = false
+			m.stopSearch(true)
+			m.focus = paneChat
+			m.setFlash("mandando o contato de " + c.Name + "…")
+			return m.send(ipc.Request{Op: ipc.OpSendContact, Chat: m.active, Msg: c.JID, Text: c.Name})
 		}
 		return m.open(c)
 	case "up", "ctrl+k":
@@ -549,7 +570,7 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 		case abs(x-g.stickerBtnX) <= 1:
 			return m.openStickers()
 		case abs(x-g.clipBtnX) <= 1:
-			return m.openChooser()
+			return m.openAttachMenu()
 		}
 	}
 	return nil
@@ -625,17 +646,6 @@ func (m *model) editLast() tea.Cmd {
 	}
 	m.setFlash("nenhuma mensagem sua para editar aqui")
 	return nil
-}
-
-func (m *model) openChooser() tea.Cmd {
-	if m.active == "" {
-		m.setFlash("abra um chat antes de anexar")
-		return nil
-	}
-	m.picking = false
-	m.layout()
-	m.setFlash("escolha o arquivo na janela que abriu…")
-	return chooseFile()
 }
 
 func (m *model) clickList(g geometry, x, y int, c tea.MouseClickMsg) tea.Cmd {

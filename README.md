@@ -165,7 +165,8 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `alt+i` | perfil do contato ou grupo (ou clique no cabeçalho) |
 | `@` | marcar alguém num grupo |
 | `ctrl+v` | colar print para enviar |
-| `alt+f` | anexar arquivo |
+| `alt+f` ou o clipe | menu de anexar: foto ou vídeo, arquivo, figurinha, enquete, evento, contato |
+| `/` no campo vazio | os mesmos como comandos: `/foto`, `/arquivo`, `/figurinha`, `/enquete`, `/evento`, `/contato` (`esc` manda o texto como está) |
 | `ctrl+s` | figurinhas (favoritas do celular; `tab` troca para as recentes) |
 | `ctrl+t` | gravar mensagem de voz (espaço para e deixa ouvir antes de enviar) |
 | `ctrl+o` no áudio | toca / pausa (com mpv instalado; sem ele, toca do começo ao fim) |

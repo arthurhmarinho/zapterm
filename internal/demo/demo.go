@@ -108,6 +108,9 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpPollVote:
 		d.lastSent = req
 		return nil, nil
+	case ipc.OpSendPoll, ipc.OpSendEvent, ipc.OpSendContact:
+		d.lastSent = req
+		return nil, nil
 	case ipc.OpGroupMember:
 		d.lastSent = req
 		return nil, nil

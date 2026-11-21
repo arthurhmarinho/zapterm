@@ -110,13 +110,16 @@ type model struct {
 	emojiRecent []string   // usados por último (primeiro = mais recente)
 	reactQuery  string     // busca de emoji no painel de reações
 
-	starred    []ipc.SearchHit // mensagens favoritas (filtro ★)
-	pins       []ipc.Message   // fixadas da conversa aberta (faixa no topo)
-	pinIdx     int
-	popup      *popMenu       // menu da mensagem (alt+.) ou "apagar para quem?"
-	msgInfo    *ipc.MsgInfo   // "Dados da mensagem" aberto
-	pendingDel *pendingDelete // apagar para mim esperando os 5 s de desfazer
-	recReview  *recReview     // gravação parada esperando você ouvir e decidir
+	starred        []ipc.SearchHit // mensagens favoritas (filtro ★)
+	pins           []ipc.Message   // fixadas da conversa aberta (faixa no topo)
+	pinIdx         int
+	popup          *popMenu       // menu da mensagem (alt+.) ou "apagar para quem?"
+	msgInfo        *ipc.MsgInfo   // "Dados da mensagem" aberto
+	slash          slashState     // comandos / no começo do campo
+	form           *form          // formulário de enquete/evento
+	pickingContact bool           // a busca escolhe um contato para mandar
+	pendingDel     *pendingDelete // apagar para mim esperando os 5 s de desfazer
+	recReview      *recReview     // gravação parada esperando você ouvir e decidir
 
 	editing    *ipc.Message  // mensagem sua sendo editada (alt+e)
 	forwarding []ipc.Message // a encaminhar (alt+w): a busca escolhe os destinos
@@ -539,6 +542,7 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case membersMsg:
 		m.members[msg.chat] = msg.list
+		m.updateSlash()
 		return m, tea.Batch(m.updateMention(), m.updateEmoji())
 
 	case presenceTickMsg:

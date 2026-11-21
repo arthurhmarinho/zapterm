@@ -26,6 +26,9 @@ const (
 	OpTyping      = "typing"       // Text: "composing", "recording" ou "paused" em Chat
 	OpRevoke      = "revoke"       // apaga para todos a sua mensagem Msg
 	OpMsgInfo     = "msg_info"     // dados da mensagem Msg: quem recebeu, leu, ouviu e reagiu
+	OpSendPoll    = "send_poll"    // enquete: Text pergunta, Options opções, Seconds 1 = uma escolha só
+	OpSendEvent   = "send_event"   // evento: Text nome, Before início (unix ms), Options [descrição, local]
+	OpSendContact = "send_contact" // contato: Msg o JID da pessoa, Text o nome
 	OpGroupMember = "group_member" // Text "promote|demote|remove" no participante Msg (JID cru) do grupo Chat
 	OpInviteLink  = "invite_link"  // link de convite do grupo Chat (Text "reset" gera outro)
 	OpPin         = "pin"          // fixa a mensagem Msg por Seconds (0 = desafixa)

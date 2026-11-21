@@ -28,9 +28,14 @@ import (
 
 type chosenMsg string
 
-func chooseFile() tea.Cmd {
+// chooseFile abre o seletor; media = só fotos e vídeos (pelo tipo).
+func chooseFile(media bool) tea.Cmd {
 	return func() tea.Msg {
-		path, err := portalOpenFile("Enviar arquivo pelo zapterm")
+		title := "Enviar arquivo pelo zapterm"
+		if media {
+			title = "Enviar foto ou vídeo pelo zapterm"
+		}
+		path, err := portalOpenFile(title, media)
 		switch {
 		case err != nil:
 			return errMsg{fmt.Errorf("seletor de arquivos: %w", err)}
@@ -41,7 +46,18 @@ func chooseFile() tea.Cmd {
 	}
 }
 
-func portalOpenFile(title string) (string, error) {
+// portalFilter é o filtro do portal: nome e regras (0 = glob, 1 = tipo).
+type portalFilter struct {
+	Name  string
+	Rules []portalRule
+}
+
+type portalRule struct {
+	Kind    uint32
+	Pattern string
+}
+
+func portalOpenFile(title string, media bool) (string, error) {
 	conn, err := dbus.SessionBus()
 	if err != nil {
 		return "", err
@@ -70,6 +86,11 @@ func portalOpenFile(title string) (string, error) {
 	opts := map[string]dbus.Variant{
 		"handle_token": dbus.MakeVariant(token),
 		"multiple":     dbus.MakeVariant(false),
+	}
+	if media {
+		f := portalFilter{"Fotos e vídeos", []portalRule{{1, "image/*"}, {1, "video/*"}}}
+		opts["filters"] = dbus.MakeVariant([]portalFilter{f, {"Todos os arquivos", []portalRule{{0, "*"}}}})
+		opts["current_filter"] = dbus.MakeVariant(f)
 	}
 	if err := obj.Call("org.freedesktop.portal.FileChooser.OpenFile", 0, "", title, opts).Err; err != nil {
 		return "", err
