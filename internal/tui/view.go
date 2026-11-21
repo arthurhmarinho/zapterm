@@ -135,6 +135,8 @@ func (m *model) View() tea.View {
 	var right string
 	if m.active == "" {
 		right = m.viewEmpty(g)
+	} else if m.profileOpen && m.gallery != nil {
+		right = m.viewGallery(g)
 	} else if m.profileOpen {
 		right = m.viewProfile(g)
 	} else {

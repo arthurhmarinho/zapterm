@@ -257,6 +257,58 @@ func (s *Store) Chats() ([]ipc.Chat, error) {
 	return out, rows.Err()
 }
 
+// galleryWhere: filtro SQL de cada aba da galeria.
+var galleryWhere = map[string]string{
+	"fotos":  `kind = 'image'`,
+	"videos": `kind = 'video'`,
+	"docs":   `kind = 'document'`,
+	"links":  `kind = 'text' AND (text LIKE '%http://%' OR text LIKE '%https://%' OR text LIKE '%www.%')`,
+	"audios": `kind = 'audio'`,
+}
+
+// Gallery devolve uma página de uma aba da galeria do chat, do mais novo
+// ao mais antigo, a partir de before (0 = do começo). more diz se há mais.
+func (s *Store) Gallery(chat, tab string, before int64, limit int) (items []ipc.Message, more bool, err error) {
+	where, ok := galleryWhere[tab]
+	if !ok {
+		return nil, false, fmt.Errorf("aba desconhecida: %q", tab)
+	}
+	if before <= 0 {
+		before = 1 << 62
+	}
+	rows, err := s.db.Query(`SELECT `+msgCols+` FROM messages WHERE chat = ? AND ts < ? AND `+where+`
+		AND `+notExpired+` ORDER BY ts DESC LIMIT ?`, chat, before, limit+1)
+	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+	items = []ipc.Message{}
+	for rows.Next() {
+		m, err := scanMessage(rows)
+		if err != nil {
+			return nil, false, err
+		}
+		items = append(items, m)
+	}
+	if len(items) > limit {
+		items, more = items[:limit], true
+	}
+	return items, more, rows.Err()
+}
+
+// GalleryCounts conta os itens de cada aba da galeria do chat.
+func (s *Store) GalleryCounts(chat string) (map[string]int, error) {
+	out := map[string]int{}
+	for tab, where := range galleryWhere {
+		var n int
+		if err := s.db.QueryRow(`SELECT count(*) FROM messages WHERE chat = ? AND `+where+` AND `+notExpired, chat).Scan(&n); err != nil {
+			return nil, err
+		}
+		out[tab] = n
+	}
+	return out, nil
+}
+
 // MediaMessages devolve as fotos e vídeos mais recentes do chat (para o
 // perfil).
 func (s *Store) MediaMessages(chat string, limit int) ([]ipc.Message, error) {

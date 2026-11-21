@@ -273,7 +273,7 @@ func TestPerfil(t *testing.T) {
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'i', Mod: tea.ModAlt})
 	runCmd(m, cmd)
 	screen := ansi.Strip(m.View().Content)
-	for _, want := range []string{"Dados do grupo", "Grupo · 3 participantes", "Levar água", "Participantes (3)", "admin", "Mídia (0)"} {
+	for _, want := range []string{"Dados do grupo", "Grupo · 3 participantes", "Levar água", "Participantes (3)", "admin", "Mídia, links e docs"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("faltou %q no perfil", want)
 		}
@@ -403,5 +403,45 @@ func TestCartoes(t *testing.T) {
 		if !strings.Contains(screen, want) {
 			t.Errorf("faltou %q", want)
 		}
+	}
+}
+
+func TestGaleria(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	runCmd(m, m.open(m.chatFor("5511900000001@s.whatsapp.net", "Marina")))
+	runCmd(m, m.openProfile())
+	runCmd(m, m.keyProfile("enter"))
+	if m.gallery == nil {
+		t.Fatal("enter no perfil não abriu a galeria")
+	}
+	runCmd(m, m.keyGallery("tab"))
+	runCmd(m, m.keyGallery("tab"))
+	runCmd(m, m.keyGallery("tab")) // fotos → vídeos → docs → links
+	screen := ansi.Strip(m.View().Content)
+	if os.Getenv("ZAPTERM_SHOW") != "" {
+		t.Log("\n" + screen)
+	}
+	for _, want := range []string{"Mídia, links e docs", "Links 1", "museu.exemplo.org/agenda", "Marina Alves ·"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("faltou %q", want)
+		}
+	}
+	runCmd(m, m.keyGallery("esc"))
+	if m.gallery != nil || !m.profileOpen {
+		t.Error("esc deveria voltar ao perfil")
 	}
 }

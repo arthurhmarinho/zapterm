@@ -44,6 +44,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.menu != nil {
 		return m.keyChatMenu(s)
 	}
+	if m.gallery != nil && m.profileOpen && !m.searching {
+		return m.keyGallery(s)
+	}
 	if m.profileOpen && !m.searching {
 		if s == "tab" || s == "shift+tab" || s == "ctrl+p" {
 			m.closeProfile() // sair para a lista ou a busca fecha o perfil
@@ -415,8 +418,13 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 		return nil
 	}
 	if m.profileOpen {
-		if y <= 1 {
+		switch {
+		case y <= 1 && m.gallery != nil:
+			m.gallery = nil // seta de voltar da galeria: volta ao perfil
+		case y <= 1:
 			m.closeProfile() // clique na seta de voltar
+		case m.gallery == nil && y >= m.profileMediaY:
+			return m.openGallery(0) // clique em "Mídia, links e docs"
 		}
 		return nil
 	}

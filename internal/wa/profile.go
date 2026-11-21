@@ -45,10 +45,13 @@ func (d *Daemon) profile(ctx context.Context, chat string) (*ipc.Profile, error)
 	}()
 	go func() {
 		defer wg.Done()
-		if media, err := d.st.MediaMessages(chat, 30); err == nil {
+		if media, err := d.st.MediaMessages(chat, 12); err == nil {
 			d.fillSenders(ctx, media)
 			d.fillThumbs(media)
 			p.Media = media
+		}
+		if counts, err := d.st.GalleryCounts(chat); err == nil {
+			p.Counts = counts
 		}
 	}()
 
@@ -131,4 +134,24 @@ func (d *Daemon) fullPhoto(ctx context.Context, jid types.JID) (*ipc.Media, erro
 		return nil, err
 	}
 	return md, nil
+}
+
+// gallery devolve uma página de uma aba da galeria (fotos, vídeos, docs,
+// links, áudios) com as contagens de todas as abas.
+func (d *Daemon) gallery(ctx context.Context, req ipc.Request) (*ipc.GalleryPage, error) {
+	limit := req.Limit
+	if limit <= 0 || limit > 200 {
+		limit = 60
+	}
+	items, more, err := d.st.Gallery(req.Chat, req.Text, req.Before, limit)
+	if err != nil {
+		return nil, err
+	}
+	counts, err := d.st.GalleryCounts(req.Chat)
+	if err != nil {
+		return nil, err
+	}
+	d.fillSenders(ctx, items)
+	d.fillThumbs(items)
+	return &ipc.GalleryPage{Items: items, Counts: counts, More: more}, nil
 }

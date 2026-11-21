@@ -24,49 +24,30 @@ type (
 	}
 )
 
-const mediaCellW, mediaCellH = 14, 7
-
 func (m *model) openProfile() tea.Cmd {
 	if m.active == "" {
 		return nil
 	}
-	m.profileOpen, m.profile, m.profileSel = true, nil, 0
+	m.profileOpen, m.profile, m.gallery = true, nil, nil
 	chat := m.active
 	var out ipc.Profile
 	return m.call(ipc.Request{Op: ipc.OpProfile, Chat: chat}, &out, func() tea.Msg { return profileMsg{&out} })
 }
 
 func (m *model) closeProfile() {
-	m.profileOpen, m.profile = false, nil
+	m.profileOpen, m.profile, m.gallery = false, nil, nil
 	m.input.Focus()
 }
 
 func (m *model) keyProfile(s string) tea.Cmd {
-	n := 0
-	if m.profile != nil {
-		n = len(m.profile.Media)
-	}
-	per := m.mediaPerRow()
 	switch s {
 	case "esc", "alt+i", "ctrl+c":
 		m.closeProfile()
-	case "left":
-		m.profileSel = max(0, m.profileSel-1)
-	case "right":
-		m.profileSel = min(max(0, n-1), m.profileSel+1)
-	case "up":
-		m.profileSel = max(0, m.profileSel-per)
-	case "down":
-		m.profileSel = min(max(0, n-1), m.profileSel+per)
-	case "enter", "ctrl+o":
-		if n > 0 {
-			return m.openProfileMedia(m.profile.Media[m.profileSel])
-		}
+	case "enter", "ctrl+o", "down", "right":
+		return m.openGallery(0)
 	}
 	return nil
 }
-
-func (m *model) mediaPerRow() int { return max(1, (m.geom0chatW()-4)/(mediaCellW+1)) }
 
 // openProfileMedia: foto vai para a tela cheia; vídeo para o player. O que
 // ainda não foi baixado é baixado antes.
@@ -93,11 +74,18 @@ func (m *model) onProfileMedia(pm profileMediaMsg) {
 	if err := openExternal(pm.md.Path); err != nil {
 		m.setFlash("abrir: " + err.Error())
 	}
-	// O que foi baixado passa a aparecer na grade.
+	// O que foi baixado passa a aparecer na prévia e na galeria.
 	if m.profile != nil {
 		for i := range m.profile.Media {
 			if m.profile.Media[i].ID == pm.msg.ID {
 				m.profile.Media[i].Media = pm.md
+			}
+		}
+	}
+	if g := m.gallery; g != nil {
+		for i := range g.items {
+			if g.items[i].ID == pm.msg.ID {
+				g.items[i].Media = pm.md
 			}
 		}
 	}
@@ -156,27 +144,35 @@ func (m *model) viewProfile(g geometry) string {
 		}
 	}
 
-	// Mídia: grade de miniaturas, a selecionada com borda de acento.
-	lines = append(lines, "", "  "+sGreen.Bold(true).Render(fmt.Sprintf("Mídia (%d)", len(p.Media))))
-	if len(p.Media) == 0 {
-		lines = append(lines, "  "+sText2.Render("nenhuma foto ou vídeo nesta conversa"))
-	} else {
-		per := m.mediaPerRow()
-		firstRow := max(0, m.profileSel/per-1) // mantém a selecionada à vista
-		for r := firstRow; r < firstRow+2; r++ {
-			var cells []string
-			for c := 0; c < per; c++ {
-				i := r*per + c
-				if i >= len(p.Media) {
-					break
-				}
-				cells = append(cells, m.mediaCell(p.Media[i], i == m.profileSel), " ")
-			}
-			if len(cells) > 0 {
-				lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Top, append([]string{"  "}, cells...)...))
-			}
+	// Mídia, links e docs: resumo e uma fileira de prévia; enter (ou
+	// clique) abre a galeria completa.
+	total := 0
+	var parts []string
+	for _, t := range ipc.GalleryTabs {
+		if n := p.Counts[t]; n > 0 {
+			total += n
+			parts = append(parts, fmt.Sprintf("%d %s", n, strings.ToLower(galleryLabels[t])))
 		}
-		lines = append(lines, "  "+sText2.Render("setas escolhem · enter abre"))
+	}
+	m.profileMediaY = len(strings.Split(strings.Join(lines, "\n"), "\n")) + 1
+	lines = append(lines, "", "  "+sGreen.Bold(true).Render("Mídia, links e docs")+"  "+sText2.Render(fmt.Sprint(total))+
+		"   "+sText2.Render("enter abre"+" "+icons.forward))
+	if total == 0 {
+		lines = append(lines, "  "+sText2.Render("nada trocado nesta conversa ainda"))
+	} else {
+		lines = append(lines, "  "+sText2.Render(ansi.Truncate(strings.Join(parts, " · "), w-4, "…")))
+		if len(p.Media) > 0 {
+			per, cw, ch := m.galleryGrid()
+			var cells []string
+			for i := 0; i < min(per, len(p.Media)); i++ {
+				cells = append(cells, m.galleryCell(p.Media[i], false, cw, ch))
+				if i < min(per, len(p.Media))-1 {
+					cells = append(cells, " ")
+				}
+			}
+			row := lipgloss.JoinHorizontal(lipgloss.Top, append([]string{"  "}, cells...)...)
+			lines = append(lines, strings.Split(row, "\n")...)
+		}
 	}
 
 	// Participantes (grupo), no espaço que sobrar.
@@ -197,29 +193,4 @@ func (m *model) viewProfile(g geometry) string {
 		}
 	}
 	return fitHeight(strings.Join(lines, "\n"), cDefault, w, h)
-}
-
-// mediaCell: miniatura (ou prévia baixada) numa célula com borda.
-func (m *model) mediaCell(msg ipc.Message, selected bool) string {
-	md := msg.Media
-	if md == nil || md.Preview == "" {
-		md = msg.Thumb
-	}
-	pic := ""
-	if md != nil {
-		pic = m.imgs.media(md, mediaCellW-2, mediaCellH-2)
-	}
-	if pic == "" {
-		icon := icons.photo
-		if msg.Kind == "video" {
-			icon = icons.video
-		}
-		pic = sText2.Render(icon)
-	}
-	border := cText2
-	if selected {
-		border = cGreen
-	}
-	inner := lipgloss.Place(mediaCellW-2, mediaCellH-2, lipgloss.Center, lipgloss.Center, pic)
-	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(border).Render(inner)
 }

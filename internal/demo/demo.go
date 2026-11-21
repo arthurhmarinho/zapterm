@@ -100,6 +100,26 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		}
 		go d.srv.Broadcast(ipc.EvMessage, m)
 		return m, nil
+	case ipc.OpGallery:
+		kinds := map[string]string{"fotos": "image", "videos": "video", "docs": "document", "audios": "audio"}
+		page := ipc.GalleryPage{Items: []ipc.Message{}, Counts: map[string]int{}}
+		for _, m := range d.msgs[req.Chat] {
+			for tab, k := range kinds {
+				if m.Kind == k {
+					page.Counts[tab]++
+				}
+			}
+			if strings.Contains(m.Text, "https://") && m.Kind == "text" {
+				page.Counts["links"]++
+				if req.Text == "links" {
+					page.Items = append([]ipc.Message{m}, page.Items...)
+				}
+			}
+			if m.Kind == kinds[req.Text] {
+				page.Items = append([]ipc.Message{m}, page.Items...)
+			}
+		}
+		return page, nil
 	case ipc.OpProfile:
 		for _, c := range d.chats {
 			if c.JID != req.Chat {

@@ -600,6 +600,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		pctx, pcancel := context.WithTimeout(context.Background(), time.Minute)
 		defer pcancel()
 		return d.profile(pctx, req.Chat)
+	case ipc.OpGallery:
+		return d.gallery(context.Background(), req)
 	case ipc.OpSearch:
 		return d.search(ctx, req.Text, req.Limit)
 	case ipc.OpMessages:

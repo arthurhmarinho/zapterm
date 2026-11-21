@@ -55,14 +55,14 @@ então prints deitados viram uma faixa fina e fotos em pé ficam minúsculas;
 mídia sem miniatura vira um quadrado vazio com ícone; só cabem 2 linhas
 (mesmo com "Mídia (29)") e sobra tela vazia; não há data, remetente nem
 filtro.
-- [ ] **Miniaturas que preenchem a célula** (cortar no centro, como o
+- [x] **Miniaturas que preenchem a célula** (cortar no centro, como o
   WhatsApp), células maiores e quadradas, e a grade ocupando a altura
   livre, com rolagem. (M)
-- [ ] **Filtro por tipo**: abas `Fotos · Vídeos · Docs · Links · Áudios`
+- [x] **Filtro por tipo**: abas `Fotos · Vídeos · Docs · Links · Áudios`
   (`tab`/`shift+tab` ou clique). Fotos e vídeos em grade (vídeo com ▶ e
   duração); docs, links e áudios em lista com nome, remetente e data;
   `enter` abre. Tudo sai do SQLite (`kind` e links no texto). (M)
-- [ ] **Separar por mês** ("Novembro", "Outubro"…), como no app. (P)
+- [x] **Separar por mês** ("Novembro", "Outubro"…), como no app. (P)
 - [ ] **Sem miniatura**: pedir ao celular de novo
   (`cli.SendMediaRetryReceipt`) ou baixar sob demanda ao ficar visível,
   em vez do quadrado vazio. (M)

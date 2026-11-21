@@ -104,12 +104,13 @@ type model struct {
 	delArmedAt time.Time
 	help       bool // tela de ajuda (F1)
 
-	menu        *chatMenu         // menu do chat (alt+m)
-	keyRemap    map[string]string // teclas do config → teclas padrão
-	profileOpen bool
-	profile     *ipc.Profile
-	profileSel  int
-	pendingOpen ipc.Chat // chat a abrir assim que possível (notificação, ZAPTERM_OPEN)
+	menu          *chatMenu         // menu do chat (alt+m)
+	keyRemap      map[string]string // teclas do config → teclas padrão
+	profileOpen   bool
+	gallery       *gallery // "Mídia, links e docs" aberta sobre o perfil
+	profileMediaY int      // linha da seção de mídia no perfil (clique abre a galeria)
+	profile       *ipc.Profile
+	pendingOpen   ipc.Chat // chat a abrir assim que possível (notificação, ZAPTERM_OPEN)
 
 	hits       []ipc.SearchHit // resultados da busca no texto
 	hitsQuery  string
@@ -342,7 +343,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.update(msg)
 	m.prepareAvatars()
 	if m.profileOpen && m.w > 0 {
-		m.viewProfile(m.geom()) // dispara as transmissões das fotos neste Update
+		// Dispara as transmissões das fotos neste Update.
+		if m.gallery != nil {
+			m.viewGallery(m.geom())
+		} else {
+			m.viewProfile(m.geom())
+		}
 	}
 	if v := m.viewing; v != nil && m.w > 0 {
 		m.imgs.media(v.media, m.w-4, m.h-4) // mesma chamada do viewPhoto
@@ -445,6 +451,8 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case galleryMsg:
+		return m, m.onGallery(msg)
 	case profileMsg:
 		if m.profileOpen && msg.p.JID == m.active {
 			m.profile = msg.p
@@ -718,7 +726,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 		}
 		return nil
 	}
-	m.profileOpen, m.profile = false, nil
+	m.profileOpen, m.profile, m.gallery = false, nil, nil
 	m.saveDraft()
 	m.active, m.activeChat = c.JID, c
 	m.msgs = nil

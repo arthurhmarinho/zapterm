@@ -32,6 +32,7 @@ const (
 	OpCheckNumber = "check_number" // Text: telefone com DDI; devolve o chat se tiver WhatsApp
 	OpSearch      = "search"       // procura Text no texto das mensagens (sem acento/maiúscula)
 	OpProfile     = "profile"      // perfil do chat: foto grande, recado/descrição, participantes, mídia
+	OpGallery     = "gallery"      // mídia, docs, links ou áudios do chat (Text = aba), em páginas
 	OpUnread      = "unread"       // resumo de não lidas (para a barra)
 	OpShowUI      = "show_ui"      // traz a TUI para frente, ou abre uma
 )
@@ -203,7 +204,19 @@ type Profile struct {
 	MemberCount int             `json:"member_count,omitempty"`
 	Members     []ProfileMember `json:"members,omitempty"`
 	Media       []Message       `json:"media"`
-	Note        string          `json:"note,omitempty"` // aviso (ex.: saiu do grupo)
+	Counts      map[string]int  `json:"counts,omitempty"` // itens em cada aba da galeria
+	Note        string          `json:"note,omitempty"`   // aviso (ex.: saiu do grupo)
+}
+
+// Abas da galeria (Request.Text em OpGallery).
+var GalleryTabs = []string{"fotos", "videos", "docs", "links", "audios"}
+
+// GalleryPage é uma página da galeria: itens do mais novo ao mais antigo,
+// quantos há em cada aba e se ainda há mais (Before = TS do último).
+type GalleryPage struct {
+	Items  []Message      `json:"items"`
+	Counts map[string]int `json:"counts"`
+	More   bool           `json:"more,omitempty"`
 }
 
 type ProfileMember struct {
