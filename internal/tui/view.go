@@ -696,7 +696,7 @@ func (m *model) viewHelp() string {
 		}},
 		{"Escrever", [][2]string{
 			{"enter", "envia"}, {"shift+enter", "nova linha"}, {keyFor("paste"), "cola print (ou texto)"},
-			{keyFor("attach"), "anexar arquivo"}, {keyFor("stickers"), "figurinhas (tab: favoritas/recentes)"},
+			{keyFor("attach"), "anexar (ou / no campo): foto, arquivo, figurinha, enquete, evento, contato"}, {keyFor("stickers"), "figurinhas (tab: favoritas/recentes)"},
 			{keyFor("record"), "gravar mensagem de voz (espaço para e ouve antes de enviar)"},
 			{"alt+v", "velocidade do áudio (1×, 1,5×, 2×)"}, {"←/→", "áudio tocando, campo vazio: volta/avança 5 s"},
 			{"alt+x", "para o áudio"},
@@ -713,7 +713,6 @@ func (m *model) viewHelp() string {
 			{keyFor("delete"), "apagar: para mim ou para todos (alt+z desfaz o para mim)"},
 			{"alt+. ou botão direito", "menu da mensagem (responder em privado, abrir, copiar…)"},
 			{"alt+s", "favoritar a mensagem (★); alt+5 lista as favoritas"},
-			{"alt+f ou /", "anexar: foto, arquivo, figurinha, enquete, evento, contato"},
 			{"alt+p", "ir para a mensagem fixada (fixar: menu da mensagem)"}, {keyFor("forward"), "encaminhar (enter marca até 5 conversas, alt+w envia)"},
 			{"shift+↑ shift+↓", "selecionar várias (alt+c copia, alt+w encaminha, alt+d apaga)"},
 		}},
