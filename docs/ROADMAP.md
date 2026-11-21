@@ -49,6 +49,24 @@ Marque `[x]` conforme for entrando.
   WhatsApp não entrega o conteúdo a aparelho conectado). (P)
 - [x] **Aviso de mensagens temporárias** no cabeçalho (⏱ 7d). (P)
 
+### Galeria do perfil (pedido do Arthur em 21/11)
+Hoje a grade está ruim: células fixas de 14×7 encaixam a imagem inteira,
+então prints deitados viram uma faixa fina e fotos em pé ficam minúsculas;
+mídia sem miniatura vira um quadrado vazio com ícone; só cabem 2 linhas
+(mesmo com "Mídia (29)") e sobra tela vazia; não há data, remetente nem
+filtro.
+- [ ] **Miniaturas que preenchem a célula** (cortar no centro, como o
+  WhatsApp), células maiores e quadradas, e a grade ocupando a altura
+  livre, com rolagem. (M)
+- [ ] **Filtro por tipo**: abas `Fotos · Vídeos · Docs · Links · Áudios`
+  (`tab`/`shift+tab` ou clique). Fotos e vídeos em grade (vídeo com ▶ e
+  duração); docs, links e áudios em lista com nome, remetente e data;
+  `enter` abre. Tudo sai do SQLite (`kind` e links no texto). (M)
+- [ ] **Separar por mês** ("Novembro", "Outubro"…), como no app. (P)
+- [ ] **Sem miniatura**: pedir ao celular de novo
+  (`cli.SendMediaRetryReceipt`) ou baixar sob demanda ao ficar visível,
+  em vez do quadrado vazio. (M)
+
 ### Enquetes
 - [ ] **Ver**: opções com barra (`████░░ 4`), ✓ nas suas, total.
   `PollCreationMessage`, `cli.DecryptPollVote`,
@@ -114,7 +132,6 @@ Marque `[x]` conforme for entrando.
   `IndexClearChat`). Pedem confirmação. (P / P / M)
 
 ### Perfil
-- [ ] **Abas Mídia · Docs · Links** na galeria (`tab` troca). (P–M)
 - [ ] **`enter` num participante**: Conversar · (admin) Remover ·
   Promover. `cli.UpdateGroupParticipants`. (M)
 - [ ] **Link de convite** (copiar, redefinir) e QR. `cli.GetGroupInviteLink`. (P)
