@@ -731,7 +731,7 @@ func TestFixarMensagem(t *testing.T) {
 		t.Fatal("menu sem Fixar…")
 	}
 	runCmd(m, m.keyPopup(fmt.Sprint(idx+1)))
-	runCmd(m, m.keyPopup("2")) // 7 dias
+	runCmd(m, m.keyPopup("2"))  // 7 dias
 	runCmd(m, m.loadPins(chat)) // (o EvPins chega pelo canal de eventos)
 	if len(m.pins) != 1 || m.pins[0].ID != "m3" {
 		t.Fatalf("fixadas: %+v", m.pins)
