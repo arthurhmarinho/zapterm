@@ -60,6 +60,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.picking {
 		return m.keyStickers(k)
 	}
+	if m.voting != nil {
+		return m.keyPoll(s)
+	}
 	if m.reacting {
 		return m.keyReact(s)
 	}

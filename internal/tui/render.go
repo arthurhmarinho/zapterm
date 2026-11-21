@@ -457,6 +457,11 @@ func (r msgRenderer) card(c *ipc.Card, inner int) string {
 		}
 		out = append(out, bar+sText.Bold(true).Render(lead+l))
 	}
+	if c.Type == "poll" && len(c.Options) > 0 {
+		for _, l := range pollLines(c, w) {
+			out = append(out, bar+l)
+		}
+	}
 	for _, l := range c.Lines {
 		st := sText2
 		if c.Type == "poll" && strings.HasPrefix(l, "○ ") {

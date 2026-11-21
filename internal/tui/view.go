@@ -77,6 +77,8 @@ func (m *model) extraHeight() int {
 		return 3
 	case m.mention.open:
 		return len(m.mention.list) + 2
+	case m.voting != nil:
+		return m.pollPanelHeight()
 	case m.reacting:
 		return 3
 	case m.editing != nil:
@@ -369,6 +371,9 @@ func (m *model) viewExtra(g geometry) string {
 	}
 	if m.mention.open {
 		return fitHeight("\n"+m.viewMentions(w), cDefault, w, g.extraH)
+	}
+	if m.voting != nil {
+		return fitHeight(m.viewPoll(w), cDefault, w, g.extraH)
 	}
 	if e := m.editing; e != nil {
 		q := quoteBlock(&ipc.Quote{Sender: e.Sender, SenderName: "Editando mensagem  (enter salva · esc cancela)",

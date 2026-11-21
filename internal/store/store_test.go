@@ -264,3 +264,20 @@ func TestTrancadaETemporarias(t *testing.T) {
 		t.Fatal("busca achou mensagem de conversa trancada")
 	}
 }
+
+func TestVotoDeEnquete(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	s.SetPollVote("g", "p", "ana", []string{"aa"}, 200)
+	if changed, _ := s.SetPollVote("g", "p", "ana", []string{"bb"}, 100); changed {
+		t.Error("voto mais antigo sobrescreveu o mais novo")
+	}
+	s.SetPollVote("g", "p", "bia", nil, 300) // tirou o voto
+	v, _ := s.PollVotes("g", "p")
+	if len(v) != 1 || v["ana"][0] != "aa" {
+		t.Fatalf("votos: %v", v)
+	}
+}

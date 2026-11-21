@@ -100,6 +100,9 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		}
 		go d.srv.Broadcast(ipc.EvMessage, m)
 		return m, nil
+	case ipc.OpPollVote:
+		d.lastSent = req
+		return nil, nil
 	case ipc.OpRefetch:
 		return nil, nil // sem celular na demonstração
 	case ipc.OpGallery:
@@ -212,7 +215,8 @@ func (d *server) seed(now time.Time) {
 			{ID: "t5", Chat: trilha, Sender: rafa, SenderName: "Rafa", TS: at(11), Kind: "other", Text: "[evento: Trilha do Pico]",
 				Card: &ipc.Card{Type: "event", Title: "Trilha do Pico", Lines: []string{"🕒 sáb, 22/11 às 06:00", "📍 Portaria do parque", "Levem água e lanche"}}},
 			{ID: "t6", Chat: trilha, Sender: lu, SenderName: "Lu", TS: at(10), Kind: "other", Text: "[enquete: Carona?]",
-				Card: &ipc.Card{Type: "poll", Title: "Quem precisa de carona?", Lines: []string{"○ Eu", "○ Vou de ônibus", "○ Tenho carro", "escolha uma opção"}}},
+				Card: &ipc.Card{Type: "poll", Title: "Quem precisa de carona?", Voters: 3, Options: []ipc.CardOption{
+					{Name: "Eu", Votes: 1}, {Name: "Vou de ônibus", Votes: 0}, {Name: "Tenho carro", Votes: 2}}}},
 			{ID: "t7", Chat: trilha, Sender: lu, SenderName: "Lu", TS: at(10), Kind: "other", Text: "[localização]", Forwarded: true,
 				Card: &ipc.Card{Type: "location", Title: "Portaria do parque", Lines: []string{"Estrada do Pico, km 3"},
 					URL: "https://www.openstreetmap.org/?mlat=-5.8&mlon=-35.2#map=17/-5.8/-35.2"}},

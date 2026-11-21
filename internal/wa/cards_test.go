@@ -33,3 +33,10 @@ func TestDescribeNovosTipos(t *testing.T) {
 		}
 	}
 }
+
+func TestHashesDoVoto(t *testing.T) {
+	got := hexHashes([][]byte{{0xab, 0x01}})
+	if len(got) != 1 || got[0] != "ab01" {
+		t.Fatalf("%v", got)
+	}
+}

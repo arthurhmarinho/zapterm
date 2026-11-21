@@ -33,6 +33,7 @@ const (
 	OpSearch      = "search"       // procura Text no texto das mensagens (sem acento/maiúscula)
 	OpProfile     = "profile"      // perfil do chat: foto grande, recado/descrição, participantes, mídia
 	OpGallery     = "gallery"      // mídia, docs, links ou áudios do chat (Text = aba), em páginas
+	OpPollVote    = "poll_vote"    // vota na enquete Msg do Chat com Options (vazio tira o voto)
 	OpRefetch     = "refetch"      // pede ao celular o histórico anterior a Before (recupera mídia antiga)
 	OpUnread      = "unread"       // resumo de não lidas (para a barra)
 	OpShowUI      = "show_ui"      // traz a TUI para frente, ou abre uma
@@ -71,6 +72,8 @@ type Request struct {
 	Mentions []string `json:"mentions,omitempty"`
 	// Seconds é a duração do áudio gravado (OpSendAudio).
 	Seconds int `json:"seconds,omitempty"`
+	// Options são as opções escolhidas (OpPollVote).
+	Options []string `json:"options,omitempty"`
 }
 
 // Sticker é uma figurinha do seletor: a mensagem de onde ela veio e a
@@ -179,6 +182,17 @@ type Card struct {
 	URL   string   `json:"url,omitempty"`  // ctrl+o abre (mapa, link, chamada)
 	Chat  string   `json:"chat,omitempty"` // contato: conversa que ctrl+o abre
 	Thumb *Media   `json:"thumb,omitempty"`
+	// Enquete: opções com a contagem, se é de várias escolhas e quantas
+	// pessoas votaram.
+	Options []CardOption `json:"options,omitempty"`
+	Multi   bool         `json:"multi,omitempty"`
+	Voters  int          `json:"voters,omitempty"`
+}
+
+type CardOption struct {
+	Name  string `json:"name"`
+	Votes int    `json:"votes"`
+	Mine  bool   `json:"mine,omitempty"`
 }
 
 // Presence é o estado de alguém num chat. Typing/Recording valem por

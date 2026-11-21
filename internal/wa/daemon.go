@@ -238,7 +238,7 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	if e.Info.Chat == types.StatusBroadcastJID {
 		return // status (stories) fica fora do zapterm
 	}
-	if d.onEphemeralSetting(ctx, e) {
+	if d.onEphemeralSetting(ctx, e) || d.onPollVote(ctx, e) {
 		return
 	}
 	if d.onChange(ctx, e, live) {
@@ -328,6 +328,7 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 			for _, hm := range c.GetMessages() {
 				if evt, err := d.cli.ParseWebMessage(jid, hm.GetMessage()); err == nil {
 					d.onMessage(ctx, evt, false)
+					d.historyPolls(ctx, jid, hm.GetMessage())
 					n++
 				}
 			}
@@ -351,6 +352,7 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 			}
 			d.onMessage(ctx, evt, false)
 			d.historyReactions(ctx, jid, hm.GetMessage())
+			d.historyPolls(ctx, jid, hm.GetMessage())
 			if evt.Info.IsFromMe {
 				if st := historyStatus(hm.GetMessage().GetStatus()); st > 0 {
 					_ = d.st.SetStatus(jid.String(), []string{evt.Info.ID}, st)
@@ -613,6 +615,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		pctx, pcancel := context.WithTimeout(context.Background(), time.Minute)
 		defer pcancel()
 		return d.profile(pctx, req.Chat)
+	case ipc.OpPollVote:
+		return nil, d.pollVote(ctx, req.Chat, req.Msg, req.Options)
 	case ipc.OpRefetch:
 		return nil, d.refetch(ctx, req.Chat, req.Before)
 	case ipc.OpGallery:

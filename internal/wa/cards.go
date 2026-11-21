@@ -90,17 +90,7 @@ func (d *Daemon) cardOf(m *ipc.Message, pm *waE2E.Message) *ipc.Card {
 	case pm.GetEventMessage() != nil:
 		return eventCard(pm.GetEventMessage())
 	case pollOf(pm) != nil:
-		p := pollOf(pm)
-		c := &ipc.Card{Type: "poll", Title: strings.TrimSpace(p.GetName())}
-		for _, o := range p.GetOptions() {
-			c.Lines = append(c.Lines, "○ "+o.GetOptionName())
-		}
-		if n := p.GetSelectableOptionsCount(); n == 1 {
-			c.Lines = append(c.Lines, "escolha uma opção")
-		} else {
-			c.Lines = append(c.Lines, "escolha uma ou mais opções")
-		}
-		return c
+		return d.pollCard(m, pollOf(pm))
 	case pm.GetExtendedTextMessage().GetTitle() != "" || len(pm.GetExtendedTextMessage().GetJPEGThumbnail()) > 0:
 		e := pm.GetExtendedTextMessage()
 		u := strings.TrimSpace(e.GetMatchedText())

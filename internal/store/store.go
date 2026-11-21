@@ -81,6 +81,12 @@ var migrations = []string{
 	 ALTER TABLE messages ADD COLUMN expire_ts INTEGER NOT NULL DEFAULT 0;`,
 	// 7: marcas de tarefas que rodam uma vez só.
 	`CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');`,
+	// 8: votos de enquete (o último de cada pessoa vale; options são os
+	// SHA-256 das opções escolhidas, em hex, separados por vírgula).
+	`CREATE TABLE poll_votes (
+		chat TEXT NOT NULL, poll_id TEXT NOT NULL, voter TEXT NOT NULL,
+		options TEXT NOT NULL DEFAULT '', ts INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (chat, poll_id, voter));`,
 }
 
 func migrate(db *sql.DB) error {
@@ -273,6 +279,39 @@ var galleryWhere = map[string]string{
 	"docs":   `kind = 'document'`,
 	"links":  `kind = 'text' AND (text LIKE '%http://%' OR text LIKE '%https://%' OR text LIKE '%www.%')`,
 	"audios": `kind = 'audio'`,
+}
+
+// SetPollVote grava o voto de voter (vale o mais recente). hashes vazio =
+// tirou o voto.
+func (s *Store) SetPollVote(chat, pollID, voter string, hashes []string, ts int64) (bool, error) {
+	res, err := s.db.Exec(`INSERT INTO poll_votes (chat, poll_id, voter, options, ts) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (chat, poll_id, voter) DO UPDATE SET options = excluded.options, ts = excluded.ts
+		WHERE excluded.ts >= poll_votes.ts`, chat, pollID, voter, strings.Join(hashes, ","), ts)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// PollVotes devolve os votos de uma enquete: votante → hashes escolhidos.
+func (s *Store) PollVotes(chat, pollID string) (map[string][]string, error) {
+	rows, err := s.db.Query(`SELECT voter, options FROM poll_votes WHERE chat = ? AND poll_id = ?`, chat, pollID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]string{}
+	for rows.Next() {
+		var voter, opts string
+		if err := rows.Scan(&voter, &opts); err != nil {
+			return nil, err
+		}
+		if opts != "" {
+			out[voter] = strings.Split(opts, ",")
+		}
+	}
+	return out, rows.Err()
 }
 
 // NewerThan devolve a primeira mensagem do chat depois de ts (a âncora de

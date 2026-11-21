@@ -95,8 +95,9 @@ type model struct {
 	stickNext int             // de onde continuar a carregar (-1: acabou)
 	autoAsked map[string]bool // figurinhas já pedidas para baixar sozinhas
 
-	viewing  *viewer // foto aberta em tela cheia
-	reacting bool    // barra de reações (ctrl+e) aberta
+	viewing  *viewer    // foto aberta em tela cheia
+	reacting bool       // barra de reações (ctrl+e) aberta
+	voting   *pollPanel // painel de votar na enquete (ctrl+o)
 
 	editing    *ipc.Message // mensagem sua sendo editada (alt+e)
 	forwarding *ipc.Message // mensagem a encaminhar (alt+w): a busca escolhe o destino
@@ -734,7 +735,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.active, m.activeChat = c.JID, c
 	m.msgs = nil
 	m.msgSel = -1
-	m.mention = mentionState{}
+	m.mention, m.voting = mentionState{}, nil
 	m.restoreDraft()
 	m.loadingOld, m.noMoreOld, m.gap = false, false, false
 	m.layout()
@@ -768,6 +769,9 @@ func (m *model) openMedia(i int) tea.Cmd {
 		return nil
 	}
 	msg := m.msgs[i]
+	if c := msg.Card; c != nil && c.Type == "poll" {
+		return m.openPoll(msg)
+	}
 	if c := msg.Card; c != nil && c.Chat != "" {
 		// Contato com WhatsApp: abre a conversa com ele.
 		return m.open(m.chatFor(c.Chat, c.Title))

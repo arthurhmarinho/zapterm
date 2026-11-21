@@ -68,10 +68,10 @@ filtro.
   em vez do quadrado vazio. (M)
 
 ### Enquetes
-- [~] **Ver**: (feito: pergunta e opções num cartão; falta a contagem de votos) opções com barra (`████░░ 4`), ✓ nas suas, total.
+- [x] **Ver**: opções com barra (`████░░ 4`), ✓ nas suas, total.
   `PollCreationMessage`, `cli.DecryptPollVote`,
   `WebMessageInfo.GetPollUpdates()`. Precisa de tabela de votos. (M)
-- [ ] **Votar**: `ctrl+o` na enquete abre painel acima da caixa; números
+- [x] **Votar**: `ctrl+o` na enquete abre painel acima da caixa; números
   ou espaço marcam, `enter` vota. `cli.BuildPollVote`. (P)
 
 ### Áudio

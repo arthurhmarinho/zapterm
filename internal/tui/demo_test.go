@@ -398,7 +398,7 @@ func TestCartoes(t *testing.T) {
 	if os.Getenv("ZAPTERM_SHOW") != "" {
 		t.Log("\n" + screen)
 	}
-	for _, want := range []string{"Trilha do Pico", "sáb, 22/11 às 06:00", "Quem precisa de carona?", "○ Tenho carro",
+	for _, want := range []string{"Trilha do Pico", "sáb, 22/11 às 06:00", "Quem precisa de carona?", "○ Tenho carro", "3 votos",
 		"Encaminhada", "Portaria do parque", "ctrl+o abre o mapa", "• protetor", "▎ alguém leva protetor?"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("faltou %q", want)
@@ -443,5 +443,56 @@ func TestGaleria(t *testing.T) {
 	runCmd(m, m.keyGallery("esc"))
 	if m.gallery != nil || !m.profileOpen {
 		t.Error("esc deveria voltar ao perfil")
+	}
+}
+
+func TestVotarNaEnquete(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 70})
+	m.Update(m.loadChats()())
+	runCmd(m, m.open(m.chatFor("120000000000000001@g.us", "Trilha")))
+	idx := -1
+	for i, x := range m.msgs {
+		if x.ID == "t6" {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatal("enquete não carregou")
+	}
+	screen := ansi.Strip(m.View().Content)
+	for _, want := range []string{"3 votos · uma opção · ctrl+o vota", "██"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("faltou %q no placar", want)
+		}
+	}
+	runCmd(m, m.openMedia(idx))
+	if m.voting == nil {
+		t.Fatal("ctrl+o não abriu o painel")
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "espaço marca · enter vota") {
+		t.Error("painel não aparece")
+	}
+	runCmd(m, m.keyPoll("1"))
+	runCmd(m, m.keyPoll("3")) // uma opção só: o 3 troca o 1
+	runCmd(m, m.keyPoll("enter"))
+	got := demo.LastSent(srv)
+	if got.Op != ipc.OpPollVote || got.Msg != "t6" || len(got.Options) != 1 || got.Options[0] != "Tenho carro" {
+		t.Fatalf("voto enviado: %+v", got)
+	}
+	if m.voting != nil {
+		t.Error("painel deveria fechar")
 	}
 }
