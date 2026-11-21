@@ -369,3 +369,39 @@ func TestRascunhoPorConversa(t *testing.T) {
 		t.Error("conversa aberta não deve aparecer como rascunho")
 	}
 }
+
+// Cartões (evento, enquete, localização), selo de encaminhada e lista.
+func TestCartoes(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 70})
+	m.Update(m.loadChats()())
+	var trilha ipc.Chat
+	for _, c := range m.chats {
+		if strings.HasPrefix(c.Name, "Trilha") {
+			trilha = c
+		}
+	}
+	runCmd(m, m.open(trilha))
+	screen := ansi.Strip(m.View().Content)
+	if os.Getenv("ZAPTERM_SHOW") != "" {
+		t.Log("\n" + screen)
+	}
+	for _, want := range []string{"Trilha do Pico", "sáb, 22/11 às 06:00", "Quem precisa de carona?", "○ Tenho carro",
+		"Encaminhada", "Portaria do parque", "ctrl+o abre o mapa", "• protetor", "▎ alguém leva protetor?"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("faltou %q", want)
+		}
+	}
+}

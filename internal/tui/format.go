@@ -207,6 +207,9 @@ func formatText(s string, width int, base lipgloss.Style) string {
 	if width < 1 {
 		width = 1
 	}
+	if hasBlockSyntax(s) {
+		return formatBlocks(s, width, base)
+	}
 	lines := wrapCells(parseFormatted(s), width)
 	out := make([]string, len(lines))
 	for i, l := range lines {
@@ -312,4 +315,64 @@ func firstURL(s string) string {
 		}
 	}
 	return ""
+}
+
+var listRe = regexp.MustCompile(`^(\d{1,3}\.|[*-]) +(\S.*)$`)
+
+// hasBlockSyntax: o texto tem lista ("* ", "- ", "1. ") ou citação ("> ")
+// no começo de alguma linha, fora de bloco de código.
+func hasBlockSyntax(s string) bool {
+	if strings.Contains(s, "```") {
+		return false // blocos de código atravessam linhas; ficam como estão
+	}
+	for _, l := range strings.Split(s, "\n") {
+		if strings.HasPrefix(l, "> ") || listRe.MatchString(l) {
+			return true
+		}
+	}
+	return false
+}
+
+// formatBlocks formata linha a linha: itens de lista com recuo pendurado
+// (o marcador "*"/"-" vira "•") e citações com uma barra na cor fraca.
+// Linhas comuns seguidas são formatadas juntas.
+func formatBlocks(s string, width int, base lipgloss.Style) string {
+	var out, plain []string
+	flush := func() {
+		if len(plain) > 0 {
+			out = append(out, formatText(strings.Join(plain, "\n"), width, base))
+			plain = nil
+		}
+	}
+	indent := func(text, first, rest string) {
+		w := max(1, width-lipgloss.Width(first))
+		for i, l := range strings.Split(formatText(text, w, base), "\n") {
+			lead := rest
+			if i == 0 {
+				lead = first
+			}
+			out = append(out, lead+l)
+		}
+	}
+	for _, l := range strings.Split(s, "\n") {
+		switch {
+		case strings.HasPrefix(l, "> "):
+			flush()
+			bar := fg(cDivider).Render("▎") + " "
+			indent(strings.TrimPrefix(l, "> "), bar, bar)
+		case listRe.MatchString(l):
+			flush()
+			mm := listRe.FindStringSubmatch(l)
+			mark := mm[1]
+			if mark == "*" || mark == "-" {
+				mark = "•"
+			}
+			first := sText2.Render(mark) + " "
+			indent(mm[2], first, strings.Repeat(" ", lipgloss.Width(first)))
+		default:
+			plain = append(plain, l)
+		}
+	}
+	flush()
+	return strings.Join(out, "\n")
 }

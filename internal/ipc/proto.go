@@ -161,6 +161,22 @@ type Message struct {
 	MentionsMe bool `json:"mentions_me,omitempty"`
 	// Expires: quando a mensagem temporária vence (unix ms; 0 = não vence).
 	Expires int64 `json:"expires,omitempty"`
+	// Forwarded: a mensagem foi encaminhada (selo "Encaminhada").
+	Forwarded bool `json:"forwarded,omitempty"`
+	// Card: contato, localização, evento, enquete ou prévia de link,
+	// montado a partir do protobuf original.
+	Card *Card `json:"card,omitempty"`
+}
+
+// Card é o conteúdo estruturado de uma mensagem que não é só texto ou
+// mídia. Type: contact, location, event, poll, link.
+type Card struct {
+	Type  string   `json:"type"`
+	Title string   `json:"title"`
+	Lines []string `json:"lines,omitempty"`
+	URL   string   `json:"url,omitempty"`  // ctrl+o abre (mapa, link, chamada)
+	Chat  string   `json:"chat,omitempty"` // contato: conversa que ctrl+o abre
+	Thumb *Media   `json:"thumb,omitempty"`
 }
 
 // Presence é o estado de alguém num chat. Typing/Recording valem por

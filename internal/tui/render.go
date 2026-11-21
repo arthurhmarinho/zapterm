@@ -54,6 +54,9 @@ func mediaLabel(s string) string {
 	case strings.HasPrefix(tag, "documento: "):
 		icon, name = icons.doc, strings.TrimPrefix(tag, "documento: ")
 	default:
+		if l := otherLabel(s); l != s {
+			return l
+		}
 		return s
 	}
 	if rest == "" {
@@ -366,16 +369,24 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 			hint = " · ctrl+o baixa"
 		}
 		text = sText2.Render(mediaLabel(text) + hint)
+	case m.Card != nil && m.Kind == "other":
+		text = "" // o cartão diz tudo
 	case m.Kind == "other":
-		text = sText2.Render(text)
+		text = sText2.Render(otherLabel(text))
 	}
 
 	var lines []string
 	if showName {
 		lines = append(lines, fg(senderColor(m.Sender)).Bold(true).Render(ansi.Truncate(m.SenderName, inner, "…")))
 	}
+	if m.Forwarded {
+		lines = append(lines, sText2.Italic(true).Render(icons.forward+" Encaminhada"))
+	}
 	if m.Quote != nil {
 		lines = append(lines, inlineQuote(m.Quote, inner))
+	}
+	if m.Card != nil {
+		lines = append(lines, r.card(m.Card, inner))
 	}
 	if pic != "" {
 		lines = append(lines, pic)
@@ -409,6 +420,84 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 		border, style = cGreen, lipgloss.ThickBorder()
 	}
 	return lipgloss.NewStyle().Border(style).BorderForeground(border).Padding(0, 1).Render(content)
+}
+
+// card desenha contato, localização, evento, enquete ou prévia de link
+// dentro do balão: ícone e título em destaque, detalhes na cor fraca e uma
+// barra de acento à esquerda, como a citação.
+func (r msgRenderer) card(c *ipc.Card, inner int) string {
+	icon, hint := icons.link, ""
+	switch c.Type {
+	case "contact":
+		icon = icons.contact
+	case "location":
+		icon, hint = icons.location, "ctrl+o abre o mapa"
+	case "event":
+		icon = icons.event
+	case "poll":
+		icon = icons.poll
+	}
+	w := inner - 2
+	bar := sGreen.Render("▎")
+	var out []string
+	if c.Thumb != nil && r.imgs != nil {
+		if pic := r.imgs.media(c.Thumb, min(w, 30), 6); pic != "" {
+			out = append(out, pic)
+		}
+	}
+	title := c.Title
+	if title == "" {
+		title = map[string]string{"contact": "Contato", "location": "Localização", "event": "Evento",
+			"poll": "Enquete", "link": "Link"}[c.Type]
+	}
+	for i, l := range strings.Split(ansi.Wrap(title, w-2, " "), "\n") {
+		lead := icon + " "
+		if i > 0 {
+			lead = "  "
+		}
+		out = append(out, bar+sText.Bold(true).Render(lead+l))
+	}
+	for _, l := range c.Lines {
+		st := sText2
+		if c.Type == "poll" && strings.HasPrefix(l, "○ ") {
+			st = sText
+		}
+		if c.Type == "event" && l == "cancelado" {
+			st = fg(cDanger)
+		}
+		for _, wl := range strings.Split(ansi.Wrap(l, w, " "), "\n") {
+			out = append(out, bar+st.Render(wl))
+		}
+	}
+	if hint != "" {
+		out = append(out, bar+sText2.Italic(true).Render(hint))
+	}
+	return strings.Join(out, "\n")
+}
+
+// otherLabel: marcadores de mensagens sem cartão (visualização única,
+// chamada) com o ícone certo.
+func otherLabel(s string) string {
+	inner := strings.TrimSuffix(strings.TrimPrefix(s, "["), "]")
+	switch {
+	case strings.HasPrefix(s, "[contato: "):
+		return icons.contact + " " + strings.TrimPrefix(inner, "contato: ")
+	case strings.HasPrefix(s, "[enquete: "):
+		return icons.poll + " Enquete: " + strings.TrimPrefix(inner, "enquete: ")
+	case strings.HasPrefix(s, "[evento"):
+		head, _, _ := strings.Cut(strings.TrimPrefix(s, "["), "]")
+		return icons.event + " " + strings.TrimPrefix(strings.TrimPrefix(head, "evento"), ": ")
+	case s == "[localização]":
+		return icons.location + " Localização"
+	case s == "[localização em tempo real]":
+		return icons.location + " Localização em tempo real · veja no celular"
+	case s == "[visualização única]":
+		return icons.eye + " Visualização única · abra no celular"
+	case strings.HasPrefix(s, "📞 "), strings.HasPrefix(s, "📹 "):
+		_, rest, _ := strings.Cut(s, " ")
+		return icons.phone + " " + rest
+	}
+	return s
 }
 
 // inlineQuote: citação dentro do balão, só com a barra colorida.

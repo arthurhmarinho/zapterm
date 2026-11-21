@@ -585,21 +585,30 @@ func (d *Daemon) thumbFor(chat, id string) *ipc.Media {
 		return nil
 	}
 	path := base + ".thumb.png"
+	if _, err := os.Stat(path); err == nil {
+		return pngThumb(path, nil)
+	}
+	_, raw, err := d.st.Message(chat, id)
+	if err != nil || len(raw) == 0 {
+		return nil
+	}
+	var msg waE2E.Message
+	if proto.Unmarshal(raw, &msg) != nil {
+		return nil
+	}
+	jpg := msg.GetImageMessage().GetJPEGThumbnail()
+	if v := msg.GetVideoMessage(); v != nil {
+		jpg = v.GetJPEGThumbnail()
+	} else if v := msg.GetPtvMessage(); v != nil {
+		jpg = v.GetJPEGThumbnail()
+	}
+	return pngThumb(path, jpg)
+}
+
+// pngThumb grava a miniatura JPEG embutida como PNG em path (se ainda não
+// existir) e devolve a mídia para a TUI. jpg nil: só lê o que já existe.
+func pngThumb(path string, jpg []byte) *ipc.Media {
 	if _, err := os.Stat(path); err != nil {
-		_, raw, err := d.st.Message(chat, id)
-		if err != nil || len(raw) == 0 {
-			return nil
-		}
-		var msg waE2E.Message
-		if proto.Unmarshal(raw, &msg) != nil {
-			return nil
-		}
-		jpg := msg.GetImageMessage().GetJPEGThumbnail()
-		if v := msg.GetVideoMessage(); v != nil {
-			jpg = v.GetJPEGThumbnail()
-		} else if v := msg.GetPtvMessage(); v != nil {
-			jpg = v.GetJPEGThumbnail()
-		}
 		if len(jpg) == 0 {
 			return nil
 		}

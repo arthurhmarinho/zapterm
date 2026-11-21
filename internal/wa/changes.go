@@ -93,6 +93,7 @@ func (d *Daemon) pushUpdate(chat, id string) {
 	d.fillSenders(ctx, one)
 	d.fillMentions(ctx, one)
 	d.fillThumbs(one)
+	d.fillCards(one)
 	d.fillReactions(one)
 	d.srv.Broadcast(ipc.EvUpdate, one[0])
 }

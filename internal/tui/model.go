@@ -757,9 +757,17 @@ func (m *model) openMedia(i int) tea.Cmd {
 		return nil
 	}
 	msg := m.msgs[i]
+	if c := msg.Card; c != nil && c.Chat != "" {
+		// Contato com WhatsApp: abre a conversa com ele.
+		return m.open(m.chatFor(c.Chat, c.Title))
+	}
 	if msg.Kind == "text" || msg.Kind == "other" {
 		// Mensagem com link: ctrl+o abre o primeiro no navegador.
-		if u := firstURL(msg.Text); u != "" {
+		u := firstURL(msg.Text)
+		if c := msg.Card; c != nil && c.URL != "" {
+			u = c.URL
+		}
+		if u != "" {
 			if err := openURL(u); err != nil {
 				m.setFlash("xdg-open: " + err.Error())
 			} else {
@@ -1330,4 +1338,14 @@ func (m *model) draftText(jid string) string {
 		return "anexo"
 	}
 	return "resposta"
+}
+
+// chatFor acha a conversa na lista ou monta uma nova para abrir.
+func (m *model) chatFor(jid, name string) ipc.Chat {
+	for _, c := range m.chats {
+		if c.JID == jid {
+			return c
+		}
+	}
+	return ipc.Chat{JID: jid, Name: name, Kind: "dm", LastStatus: -1}
 }

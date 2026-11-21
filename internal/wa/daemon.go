@@ -218,6 +218,8 @@ func (d *Daemon) onEvent(evt any) {
 		if !d.onLockChat(e) {
 			d.onAppState(e)
 		}
+	case *events.CallOffer:
+		d.onCallOffer(e)
 	case *events.Receipt:
 		d.onReceipt(ctx, e)
 	case *events.MarkChatAsRead:
@@ -296,6 +298,7 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	d.fillSenders(ctx, one)
 	d.fillMentions(ctx, one)
 	d.fillThumbs(one)
+	d.fillCards(one)
 	d.fillReactions(one)
 	m = one[0]
 	d.srv.Broadcast(ipc.EvMessage, m)
@@ -613,6 +616,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		d.fillSenders(ctx, msgs)
 		d.fillMentions(ctx, msgs)
 		d.fillThumbs(msgs)
+		d.fillCards(msgs)
 		d.fillReactions(msgs)
 		return msgs, nil
 	case ipc.OpSend:
@@ -766,6 +770,7 @@ func (d *Daemon) sendAndStore(ctx context.Context, jid types.JID, msg *waE2E.Mes
 	d.fillSenders(ctx, one)
 	d.fillMentions(ctx, one)
 	d.fillThumbs(one)
+	d.fillCards(one)
 	d.fillReactions(one)
 	m = one[0]
 	if afterSend != nil {

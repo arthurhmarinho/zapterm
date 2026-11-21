@@ -6,7 +6,7 @@ filtraram o que é possível no código (whatsmeow + zapterm) e o que faz
 sentido num terminal. Esforço: **P** até ~1 h · **M** meio dia · **G** um
 dia ou mais.
 
-Marque `[x]` conforme for entrando.
+Marque `[x]` conforme for entrando (`[~]` = feito em parte).
 
 ## 0. Problemas encontrados (corrigir primeiro)
 
@@ -26,26 +26,26 @@ Marque `[x]` conforme for entrando.
 ## 1. Próxima leva — ler direito o que chega e tirar atrito
 
 ### Mostrar o que hoje vira marcador
-- [ ] **Evento**: 📅 data/hora, local, link de chamada, contagem
+- [x] **Evento**: 📅 data/hora, local, link de chamada, contagem
   Vou/Talvez/Não vou. `waE2E.EventMessage`. (P)
-- [ ] **Contato (vCard)**: "👤 Nome · +55 …"; `ctrl+o` abre a conversa,
+- [x] **Contato (vCard)**: "👤 Nome · +55 …"; `ctrl+o` abre a conversa,
   `alt+c` copia o número. `ContactMessage.GetVcard()`,
   `ContactsArrayMessage`. (P)
-- [ ] **Localização**: endereço ou coordenadas, link OSC 8 para o
+- [x] **Localização**: endereço ou coordenadas, link OSC 8 para o
   OpenStreetMap. `LocationMessage`, `LiveLocationMessage`. (P)
-- [ ] **Recado de vídeo**: miniatura redonda; `ctrl+o` abre no player.
+- [~] **Recado de vídeo** (feito: aparece e abre como vídeo; falta a miniatura redonda): miniatura redonda; `ctrl+o` abre no player.
   `PtvMessage`. (P)
 - [ ] **GIF animado no balão**, como as figurinhas animadas.
   `VideoMessage.GetGifPlayback()`. (M)
-- [ ] **Chamada perdida / recebida**: linha de sistema "📞 chamada perdida
+- [~] **Chamada perdida / recebida** (feito: linha "chamada recebida · atenda no celular" e notificação; falta o botão "recusar" e saber se foi perdida): linha de sistema "📞 chamada perdida
   de Fulano" e notificação com "recusar". `events.CallOffer`,
   `CallTerminate`, `cli.RejectCall`, `CallLogMessage`. (P)
-- [ ] **Prévia de link recebida**: cartão com título, domínio e
+- [x] **Prévia de link recebida**: cartão com título, domínio e
   miniatura. `ExtendedTextMessage` `GetTitle`/`GetDescription`/
   `GetJPEGThumbnail`. (P)
-- [ ] **Listas (`*`, `-`, `1.`) e citação (`> `)** na formatação. (P)
-- [ ] **Rótulo "Encaminhada"** no balão. `ContextInfo.GetIsForwarded()`. (P)
-- [ ] **Visualização única recebida**: marcador "👁 abra no celular" (o
+- [x] **Listas (`*`, `-`, `1.`) e citação (`> `)** na formatação. (P)
+- [x] **Rótulo "Encaminhada"** no balão. `ContextInfo.GetIsForwarded()`. (P)
+- [x] **Visualização única recebida**: marcador "👁 abra no celular" (o
   WhatsApp não entrega o conteúdo a aparelho conectado). (P)
 - [x] **Aviso de mensagens temporárias** no cabeçalho (⏱ 7d). (P)
 
@@ -68,7 +68,7 @@ filtro.
   em vez do quadrado vazio. (M)
 
 ### Enquetes
-- [ ] **Ver**: opções com barra (`████░░ 4`), ✓ nas suas, total.
+- [~] **Ver**: (feito: pergunta e opções num cartão; falta a contagem de votos) opções com barra (`████░░ 4`), ✓ nas suas, total.
   `PollCreationMessage`, `cli.DecryptPollVote`,
   `WebMessageInfo.GetPollUpdates()`. Precisa de tabela de votos. (M)
 - [ ] **Votar**: `ctrl+o` na enquete abre painel acima da caixa; números

@@ -187,7 +187,14 @@ func (d *server) seed(now time.Time) {
 				Reactions: []ipc.Reaction{{Emoji: "❤️", Count: 3}, {Emoji: "😂", Count: 1}}},
 			{ID: "t3", Chat: trilha, Sender: me, SenderName: "você", FromMe: true, TS: at(40), Kind: "text", Text: "Tô dentro, saio às 6h", Status: 2},
 			{ID: "t4", Chat: trilha, Sender: rafa, SenderName: "Rafa", TS: at(12), Kind: "audio", Text: "[áudio 0:24]", HasRaw: true},
-			{ID: "t5", Chat: trilha, Sender: rafa, SenderName: "Rafa", TS: at(9), Kind: "text", Text: "alguém leva protetor?"},
+			{ID: "t5", Chat: trilha, Sender: rafa, SenderName: "Rafa", TS: at(11), Kind: "other", Text: "[evento: Trilha do Pico]",
+				Card: &ipc.Card{Type: "event", Title: "Trilha do Pico", Lines: []string{"🕒 sáb, 22/11 às 06:00", "📍 Portaria do parque", "Levem água e lanche"}}},
+			{ID: "t6", Chat: trilha, Sender: lu, SenderName: "Lu", TS: at(10), Kind: "other", Text: "[enquete: Carona?]",
+				Card: &ipc.Card{Type: "poll", Title: "Quem precisa de carona?", Lines: []string{"○ Eu", "○ Vou de ônibus", "○ Tenho carro", "escolha uma opção"}}},
+			{ID: "t7", Chat: trilha, Sender: lu, SenderName: "Lu", TS: at(10), Kind: "other", Text: "[localização]", Forwarded: true,
+				Card: &ipc.Card{Type: "location", Title: "Portaria do parque", Lines: []string{"Estrada do Pico, km 3"},
+					URL: "https://www.openstreetmap.org/?mlat=-5.8&mlon=-35.2#map=17/-5.8/-35.2"}},
+			{ID: "t8", Chat: trilha, Sender: rafa, SenderName: "Rafa", TS: at(9), Kind: "text", Text: "levar:\n* protetor\n* boné\n> alguém leva protetor?"},
 		},
 	}
 }

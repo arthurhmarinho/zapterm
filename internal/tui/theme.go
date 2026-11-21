@@ -59,39 +59,50 @@ type iconSet struct {
 	search, mute, pin, archive, back, reply, send, attach, close string
 	photo, audio, video, doc, sticker, pillL, pillR, check       string
 	play, pause, rec                                             string
+	contact, location, event, poll, link, forward, eye, phone    string
 }
 
 // plainIcons troca os ícones por texto, para terminais sem Nerd Font.
 var plainIcons = iconSet{search: "/", mute: "(m)", pin: "^", archive: "[A]", back: "<", reply: ">",
 	send: ">", attach: "+", close: "x", photo: "[foto]", audio: "[áudio]", video: "[vídeo]",
 	doc: "[doc]", sticker: "[fig]", pillL: "", pillR: "", check: "v",
-	play: ">", pause: "||", rec: "*"}
+	play: ">", pause: "||", rec: "*",
+	contact: "[contato]", location: "[local]", event: "[evento]", poll: "[enquete]", link: "[link]",
+	forward: ">>", eye: "(1x)", phone: "[tel]"}
 
 var icons = func() iconSet {
 	if os.Getenv("ZAPTERM_NERDFONT") == "0" {
 		return plainIcons
 	}
 	return iconSet{
-		search:  "\U000f0349", // nf-md-magnify
-		mute:    "\U000f009b", // nf-md-bell_off
-		pin:     "\U000f0403", // nf-md-pin
-		archive: "\U000f003c", // nf-md-archive
-		back:    "\U000f004d", // nf-md-arrow_left
-		reply:   "\U000f045a", // nf-md-reply
-		send:    "\U000f048a", // nf-md-send
-		attach:  "\U000f0066", // nf-md-attachment
-		close:   "\U000f0156", // nf-md-close
-		photo:   "\U000f02e9", // nf-md-image
-		audio:   "\U000f036c", // nf-md-microphone
-		video:   "\U000f0567", // nf-md-video
-		doc:     "\U000f0219", // nf-md-file_document
-		sticker: "\U000f0785", // nf-md-sticker_emoji
-		pillL:   "",          // meia-lua esquerda (powerline)
-		pillR:   "",
-		check:   "\U000f012c", // nf-md-check
-		play:    "\U000f040a", // nf-md-play
-		pause:   "\U000f03e4", // nf-md-pause
-		rec:     "\U000f044a", // nf-md-record
+		search:   "\U000f0349", // nf-md-magnify
+		mute:     "\U000f009b", // nf-md-bell_off
+		pin:      "\U000f0403", // nf-md-pin
+		archive:  "\U000f003c", // nf-md-archive
+		back:     "\U000f004d", // nf-md-arrow_left
+		reply:    "\U000f045a", // nf-md-reply
+		send:     "\U000f048a", // nf-md-send
+		attach:   "\U000f0066", // nf-md-attachment
+		close:    "\U000f0156", // nf-md-close
+		photo:    "\U000f02e9", // nf-md-image
+		audio:    "\U000f036c", // nf-md-microphone
+		video:    "\U000f0567", // nf-md-video
+		doc:      "\U000f0219", // nf-md-file_document
+		sticker:  "\U000f0785", // nf-md-sticker_emoji
+		pillL:    "",          // meia-lua esquerda (powerline)
+		pillR:    "",
+		check:    "\U000f012c", // nf-md-check
+		play:     "\U000f040a", // nf-md-play
+		pause:    "\U000f03e4", // nf-md-pause
+		rec:      "\U000f044a", // nf-md-record
+		contact:  "\U000f0004", // nf-md-account
+		location: "\U000f034e", // nf-md-map_marker
+		event:    "\U000f00ed", // nf-md-calendar
+		poll:     "\U000f0128", // nf-md-poll
+		link:     "\U000f0337", // nf-md-link
+		forward:  "\U000f0496", // nf-md-share
+		eye:      "\U000f0208", // nf-md-eye
+		phone:    "\U000f03f2", // nf-md-phone
 	}
 }()
 

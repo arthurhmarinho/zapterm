@@ -22,6 +22,8 @@ func describe(m *waE2E.Message) (kind, text string) {
 		return "text", m.GetConversation()
 	case m.GetExtendedTextMessage() != nil:
 		return "text", m.GetExtendedTextMessage().GetText()
+	case viewOnce(m):
+		return "other", "[visualização única]"
 	case m.GetImageMessage() != nil:
 		return "image", tag("imagem", m.GetImageMessage().GetCaption())
 	case m.GetPtvMessage() != nil:
@@ -59,10 +61,14 @@ func describe(m *waE2E.Message) (kind, text string) {
 		return "other", "[contato: " + m.GetContactMessage().GetDisplayName() + "]"
 	case m.GetLocationMessage() != nil:
 		return "other", "[localização]"
-	case m.GetPollCreationMessage() != nil:
-		return "other", "[enquete: " + m.GetPollCreationMessage().GetName() + "]"
-	case m.GetPollCreationMessageV3() != nil:
-		return "other", "[enquete: " + m.GetPollCreationMessageV3().GetName() + "]"
+	case m.GetContactsArrayMessage() != nil:
+		return "other", fmt.Sprintf("[%d contatos]", len(m.GetContactsArrayMessage().GetContacts()))
+	case m.GetLiveLocationMessage() != nil:
+		return "other", "[localização em tempo real]"
+	case pollOf(m) != nil:
+		return "other", "[enquete: " + pollOf(m).GetName() + "]"
+	case viewOnce(m):
+		return "other", "[visualização única]"
 	}
 	return "", ""
 }
@@ -103,8 +109,12 @@ func contextInfo(m *waE2E.Message) *waE2E.ContextInfo {
 		ci = m.GetContactMessage().GetContextInfo()
 	case m.GetLocationMessage() != nil:
 		ci = m.GetLocationMessage().GetContextInfo()
-	case m.GetPollCreationMessage() != nil:
-		ci = m.GetPollCreationMessage().GetContextInfo()
+	case pollOf(m) != nil:
+		ci = pollOf(m).GetContextInfo()
+	case m.GetLiveLocationMessage() != nil:
+		ci = m.GetLiveLocationMessage().GetContextInfo()
+	case m.GetContactsArrayMessage() != nil:
+		ci = m.GetContactsArrayMessage().GetContextInfo()
 	}
 	return ci
 }

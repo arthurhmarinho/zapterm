@@ -60,3 +60,33 @@ func TestMencaoDestacada(t *testing.T) {
 		t.Fatalf("texto: %q", ansi.Strip(out))
 	}
 }
+
+func TestListasECitacao(t *testing.T) {
+	got := ansi.Strip(formatText("compras:\n* pão\n- leite com *muito* chocolate quente\n2. ovos\n> disse ele", 20, sText))
+	want := []string{"compras:", "• pão", "• leite com muito", "  chocolate quente", "2. ovos", "▎ disse ele"}
+	lines := strings.Split(got, "\n")
+	if len(lines) != len(want) {
+		t.Fatalf("linhas:\n%s", got)
+	}
+	for i := range want {
+		if strings.TrimRight(lines[i], " ") != want[i] {
+			t.Errorf("linha %d: %q, queria %q", i, lines[i], want[i])
+		}
+	}
+	if plain := ansi.Strip(formatText("*negrito* normal", 40, sText)); plain != "negrito normal" {
+		t.Errorf("negrito no começo virou lista: %q", plain)
+	}
+}
+
+func TestRotulosAntigos(t *testing.T) {
+	for in, want := range map[string]string{
+		"[contato: Zé]":     icons.contact + " Zé",
+		"[enquete: Pizza?]": icons.poll + " Enquete: Pizza?",
+		"[evento: Trilha · 22/11 06:00] levem água": icons.event + " Trilha · 22/11 06:00",
+		"[localização]": icons.location + " Localização",
+	} {
+		if got := previewLabel(in); got != want {
+			t.Errorf("%q → %q, queria %q", in, got, want)
+		}
+	}
+}
