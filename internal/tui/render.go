@@ -163,8 +163,9 @@ func ticks(status int) string {
 	return ""
 }
 
-// renderChatItem: typing, se não vazio, substitui a prévia ("digitando…").
-func renderChatItem(c ipc.Chat, w int, selected bool, av string, typing string) string {
+// renderChatItem: typing, se não vazio, substitui a prévia ("digitando…");
+// draft, o rascunho deixado na conversa.
+func renderChatItem(c ipc.Chat, w int, selected bool, av string, typing, draft string) string {
 	bg := cBgList
 	if selected {
 		bg = cBgHover
@@ -205,8 +206,11 @@ func renderChatItem(c ipc.Chat, w int, selected bool, av string, typing string) 
 		}
 	}
 	prevSt := sText2
-	if typing != "" {
+	switch {
+	case typing != "":
 		prev, tick, prevSt = typing, "", sGreen
+	case draft != "":
+		prev, tick, prevSt = "Rascunho: "+oneLine(draft), "", sGreen
 	}
 	prev = ansi.Truncate(prev, tw-lipgloss.Width(r)-lipgloss.Width(tick)-1, "…")
 	l2 := tick + prevSt.Render(prev) + strings.Repeat(" ", max(1, tw-lipgloss.Width(tick)-lipgloss.Width(prev)-lipgloss.Width(r))) + r

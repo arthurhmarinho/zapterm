@@ -128,6 +128,8 @@ type Chat struct {
 	// LastStatus: situação da última mensagem, se for sua (ver Message.Status);
 	// -1 se a última não é sua.
 	LastStatus int `json:"last_status"`
+	// Ephemeral: prazo das mensagens temporárias, em segundos (0 = desligado).
+	Ephemeral int `json:"ephemeral,omitempty"`
 }
 
 // Message é uma mensagem já reduzida ao que a TUI mostra.
@@ -157,6 +159,8 @@ type Message struct {
 	// MentionsMe: a mensagem marca você (o texto já vem com os nomes no
 	// lugar dos números, entre U+2068 e U+2069).
 	MentionsMe bool `json:"mentions_me,omitempty"`
+	// Expires: quando a mensagem temporária vence (unix ms; 0 = não vence).
+	Expires int64 `json:"expires,omitempty"`
 }
 
 // Presence é o estado de alguém num chat. Typing/Recording valem por

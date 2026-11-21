@@ -83,6 +83,7 @@ type model struct {
 	msgSel     int      // mensagem sob o cursor; -1 = seguir a última
 	replyTo    *ipc.Message
 	attach     *attachment
+	drafts     map[string]draft // o que ficou escrito em cada conversa
 
 	// Seletor de figurinhas (ctrl+s)
 	picking   bool
@@ -718,10 +719,12 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 		return nil
 	}
 	m.profileOpen, m.profile = false, nil
+	m.saveDraft()
 	m.active, m.activeChat = c.JID, c
 	m.msgs = nil
-	m.msgSel, m.replyTo, m.attach = -1, nil, nil
-	m.mention, m.mentioned = mentionState{}, map[string]string{}
+	m.msgSel = -1
+	m.mention = mentionState{}
+	m.restoreDraft()
 	m.loadingOld, m.noMoreOld, m.gap = false, false, false
 	m.layout()
 	m.refreshMessages(true)
@@ -1265,4 +1268,66 @@ func (m *model) flushPendingOpen() tea.Cmd {
 	}
 	m.active = "" // força recarregar mesmo se for o chat já aberto
 	return m.open(c)
+}
+
+// draft é o que ficou na caixa de escrita de uma conversa ao trocar de
+// chat: texto, resposta, anexo e as menções escolhidas.
+type draft struct {
+	text      string
+	replyTo   *ipc.Message
+	attach    *attachment
+	mentioned map[string]string
+}
+
+// saveDraft guarda a caixa de escrita da conversa aberta. Uma edição em
+// andamento não vira rascunho: é cancelada.
+func (m *model) saveDraft() {
+	if m.active == "" {
+		return
+	}
+	if m.drafts == nil {
+		m.drafts = map[string]draft{}
+	}
+	if m.editing != nil {
+		m.editing = nil
+		m.input.Reset()
+	}
+	d := draft{text: m.input.Value(), replyTo: m.replyTo, attach: m.attach, mentioned: m.mentioned}
+	if strings.TrimSpace(d.text) == "" && d.replyTo == nil && d.attach == nil {
+		delete(m.drafts, m.active)
+		return
+	}
+	m.drafts[m.active] = d
+}
+
+// restoreDraft põe de volta o rascunho da conversa recém-aberta (ou limpa a
+// caixa). Enquanto a conversa está aberta, o rascunho mora na própria caixa.
+func (m *model) restoreDraft() {
+	d, ok := m.drafts[m.active]
+	delete(m.drafts, m.active)
+	m.input.Reset()
+	m.replyTo, m.attach, m.mentioned = nil, nil, map[string]string{}
+	if !ok {
+		return
+	}
+	m.input.SetValue(d.text)
+	m.replyTo, m.attach = d.replyTo, d.attach
+	if d.mentioned != nil {
+		m.mentioned = d.mentioned
+	}
+}
+
+// draftText: prévia do rascunho de uma conversa fechada ("" se não houver).
+func (m *model) draftText(jid string) string {
+	d, ok := m.drafts[jid]
+	if !ok || jid == m.active {
+		return ""
+	}
+	if t := strings.TrimSpace(d.text); t != "" {
+		return t
+	}
+	if d.attach != nil {
+		return "anexo"
+	}
+	return "resposta"
 }

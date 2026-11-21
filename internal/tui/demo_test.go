@@ -333,3 +333,39 @@ func TestAtalhoTrocadoPeloConfig(t *testing.T) {
 		t.Fatalf("rodapé não mostra o atalho novo: %q", ansi.Strip(m.viewFooter()))
 	}
 }
+
+// O texto meio escrito fica na conversa em que foi escrito.
+func TestRascunhoPorConversa(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	m.Update(m.loadChats()())
+	a, b := m.list[0], m.list[1]
+	runCmd(m, m.open(a))
+	m.input.SetValue("meio escrito")
+	runCmd(m, m.open(b))
+	if v := m.input.Value(); v != "" {
+		t.Fatalf("rascunho vazou para outra conversa: %q", v)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "Rascunho: meio escrito") {
+		t.Error("a lista não mostra o rascunho")
+	}
+	runCmd(m, m.open(a))
+	if v := m.input.Value(); v != "meio escrito" {
+		t.Fatalf("rascunho não voltou: %q", v)
+	}
+	if m.draftText(a.JID) != "" {
+		t.Error("conversa aberta não deve aparecer como rascunho")
+	}
+}

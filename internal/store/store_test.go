@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
@@ -227,5 +228,39 @@ func TestLidoEmOutroAparelho(t *testing.T) {
 	}
 	if ok, _ := s.MarkReadUpTo(c, []string{"desconhecida"}); ok {
 		t.Fatal("mexeu com id desconhecido")
+	}
+}
+
+func TestTrancadaETemporarias(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	const c = "1@s.whatsapp.net"
+	now := time.Now().UnixMilli()
+	s.SaveMessage(ipc.Message{ID: "velha", Chat: c, Sender: c, TS: now - 10000, Kind: "text", Text: "sumiu",
+		Expires: now - 1000}, nil, false, false)
+	s.SaveMessage(ipc.Message{ID: "nova", Chat: c, Sender: c, TS: now, Kind: "text", Text: "fica",
+		Expires: now + 3600000}, nil, false, false)
+	msgs, _ := s.Messages(c, 10, 0)
+	if len(msgs) != 1 || msgs[0].ID != "nova" {
+		t.Fatalf("vencida apareceu: %+v", msgs)
+	}
+	if n, _ := s.PurgeExpired(); n != 1 {
+		t.Fatalf("purge apagou %d", n)
+	}
+	if changed, _ := s.SetEphemeral(c, 604800); !changed || s.Ephemeral(c) != 604800 {
+		t.Fatal("prazo não gravou")
+	}
+	if ch, _ := s.Chat(c); ch.Ephemeral != 604800 {
+		t.Fatalf("Chat.Ephemeral: %d", ch.Ephemeral)
+	}
+	s.SetLocked(c, true)
+	if chats, _ := s.Chats(); len(chats) != 0 || !s.IsLocked(c) {
+		t.Fatalf("trancada apareceu na lista: %+v", chats)
+	}
+	if hits, _ := s.SearchMessages(func(string) bool { return true }, 10); len(hits) != 0 {
+		t.Fatal("busca achou mensagem de conversa trancada")
 	}
 }

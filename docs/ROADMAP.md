@@ -10,16 +10,16 @@ Marque `[x]` conforme for entrando.
 
 ## 0. Problemas encontrados (corrigir primeiro)
 
-- [ ] **Mensagens temporárias ignoradas no envio.** Numa conversa com
+- [x] **Mensagens temporárias ignoradas no envio.** Numa conversa com
   mensagens temporárias, o que sai pelo zapterm não some: o envio não
   leva `ContextInfo.Expiration`. Prazo vem de
   `Conversation.GetEphemeralExpiration()` (histórico),
   `GroupInfo.GroupEphemeral` e `ProtocolMessage_EPHEMERAL_SETTING`. (M)
-- [ ] **Eventos e recados de vídeo descartados.** `describe()` não trata
+- [x] **Eventos e recados de vídeo descartados.** `describe()` não trata
   `EventMessage` nem `PtvMessage`; a mensagem some sem marcador. (P)
-- [ ] **Rascunho vaza entre conversas.** `open()` não guarda nem limpa o
+- [x] **Rascunho vaza entre conversas.** `open()` não guarda nem limpa o
   campo de escrita; o texto vai junto para o próximo chat. (P)
-- [ ] **Conversas trancadas aparecem.** O celular esconde com código
+- [x] **Conversas trancadas aparecem.** O celular esconde com código
   secreto; o zapterm mostra. `LockChatAction.GetLocked()` no índice
   `appstate.IndexLock`, que já chega em `events.AppState`. (P)
 
@@ -47,7 +47,7 @@ Marque `[x]` conforme for entrando.
 - [ ] **Rótulo "Encaminhada"** no balão. `ContextInfo.GetIsForwarded()`. (P)
 - [ ] **Visualização única recebida**: marcador "👁 abra no celular" (o
   WhatsApp não entrega o conteúdo a aparelho conectado). (P)
-- [ ] **Aviso de mensagens temporárias** no cabeçalho (⏱ 7d). (P)
+- [x] **Aviso de mensagens temporárias** no cabeçalho (⏱ 7d). (P)
 
 ### Enquetes
 - [ ] **Ver**: opções com barra (`████░░ 4`), ✓ nas suas, total.
@@ -73,7 +73,7 @@ Marque `[x]` conforme for entrando.
   lida. (P)
 
 ### Campo de escrita
-- [ ] **Rascunho por conversa** (texto, resposta e anexo), "Rascunho: …"
+- [x] **Rascunho por conversa** (texto, resposta e anexo), "Rascunho: …"
   na lista. (P) — junto com o problema do item 0.
 - [ ] **Emoji pelo nome**: `:ri` → 😂 🤣, como o `@`, com recentes. (M)
 - [ ] **Reagir com qualquer emoji** (mesmo componente) e **ver quem

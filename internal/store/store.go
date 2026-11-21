@@ -74,6 +74,13 @@ var migrations = []string{
 	// 5: favorita cujo arquivo expirou no servidor (403/404/410): não tenta
 	// de novo até ser favoritada de novo (link novo).
 	`ALTER TABLE favorite_stickers ADD COLUMN gone INTEGER NOT NULL DEFAULT 0;`,
+	// 6: conversa trancada no celular (escondida aqui) e mensagens
+	// temporárias (prazo da conversa e vencimento de cada mensagem).
+	`ALTER TABLE chats ADD COLUMN locked INTEGER NOT NULL DEFAULT 0;
+	 ALTER TABLE chats ADD COLUMN ephemeral INTEGER NOT NULL DEFAULT 0;
+	 ALTER TABLE messages ADD COLUMN expire_ts INTEGER NOT NULL DEFAULT 0;`,
+	// 7: marcas de tarefas que rodam uma vez só.
+	`CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');`,
 }
 
 func migrate(db *sql.DB) error {
@@ -138,9 +145,9 @@ func (s *Store) SaveMessage(m ipc.Message, raw []byte, isGroup, incUnread bool) 
 		q = *m.Quote
 	}
 	res, err := tx.Exec(`INSERT OR IGNORE INTO messages
-		(chat, id, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		m.Chat, m.ID, m.Sender, m.SenderName, m.FromMe, m.TS, m.Kind, m.Text, q.ID, q.Sender, q.Text, raw)
+		(chat, id, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw, expire_ts)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.Chat, m.ID, m.Sender, m.SenderName, m.FromMe, m.TS, m.Kind, m.Text, q.ID, q.Sender, q.Text, raw, m.Expires)
 	if err != nil {
 		return false, err
 	}
@@ -225,7 +232,7 @@ func (s *Store) MarkRead(jid string) error {
 func (s *Store) Chat(jid string) (ipc.Chat, error) {
 	var c ipc.Chat
 	err := s.db.QueryRow(`SELECT `+chatCols+` FROM chats WHERE jid = ?`, jid).
-		Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread, &c.LastStatus)
+		Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread, &c.Ephemeral, &c.LastStatus)
 	return c, err
 }
 
@@ -233,7 +240,8 @@ func (s *Store) Chat(jid string) (ipc.Chat, error) {
 // centenas de conversas vazias (contatos com quem você nunca falou ou que
 // foram apagadas), sem timestamp; essas ficam de fora.
 func (s *Store) Chats() ([]ipc.Chat, error) {
-	rows, err := s.db.Query(`SELECT ` + chatCols + ` FROM chats WHERE last_ts > 0 ORDER BY last_ts DESC`)
+	// Trancadas no celular ficam escondidas aqui também.
+	rows, err := s.db.Query(`SELECT ` + chatCols + ` FROM chats WHERE last_ts > 0 AND locked = 0 ORDER BY last_ts DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +249,7 @@ func (s *Store) Chats() ([]ipc.Chat, error) {
 	out := []ipc.Chat{}
 	for rows.Next() {
 		var c ipc.Chat
-		if err := rows.Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread, &c.LastStatus); err != nil {
+		if err := rows.Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread, &c.Ephemeral, &c.LastStatus); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -253,7 +261,7 @@ func (s *Store) Chats() ([]ipc.Chat, error) {
 // perfil).
 func (s *Store) MediaMessages(chat string, limit int) ([]ipc.Message, error) {
 	rows, err := s.db.Query(`SELECT `+msgCols+` FROM messages
-		WHERE chat = ? AND kind IN ('image', 'video') ORDER BY ts DESC LIMIT ?`, chat, limit)
+		WHERE chat = ? AND kind IN ('image', 'video') AND `+notExpired+` ORDER BY ts DESC LIMIT ?`, chat, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +283,7 @@ func (s *Store) MessagesAfter(chat string, limit int, after int64) ([]ipc.Messag
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	rows, err := s.db.Query(`SELECT `+msgCols+` FROM messages WHERE chat = ? AND ts > ?
+	rows, err := s.db.Query(`SELECT `+msgCols+` FROM messages WHERE chat = ? AND ts > ? AND `+notExpired+`
 		ORDER BY ts ASC LIMIT ?`, chat, after, limit)
 	if err != nil {
 		return nil, err
@@ -299,7 +307,8 @@ func (s *Store) MessagesAfter(chat string, limit int, after int64) ([]ipc.Messag
 func (s *Store) SearchMessages(match func(string) bool, limit int) ([]ipc.Message, error) {
 	// Varre só chat, id e texto; a mensagem completa é lida só nos achados.
 	rows, err := s.db.Query(`SELECT chat, id, text FROM messages
-		WHERE kind NOT IN ('revoked', 'sticker', 'audio') AND text != '' ORDER BY ts DESC`)
+		WHERE kind NOT IN ('revoked', 'sticker', 'audio') AND text != '' AND ` + notExpired + `
+		AND chat NOT IN (SELECT jid FROM chats WHERE locked = 1) ORDER BY ts DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -339,7 +348,7 @@ func (s *Store) Messages(chat string, limit int, before int64) ([]ipc.Message, e
 	}
 	rows, err := s.db.Query(`SELECT * FROM (
 			SELECT `+msgCols+`
-			FROM messages WHERE chat = ? AND ts < ?
+			FROM messages WHERE chat = ? AND ts < ? AND `+notExpired+`
 			ORDER BY ts DESC LIMIT ?
 		) ORDER BY ts ASC`, chat, before, limit)
 	if err != nil {
@@ -437,9 +446,109 @@ func (s *Store) UpdateMessage(chat, id, kind, text string, edited bool) (bool, e
 }
 
 // chatCols inclui a situação da última mensagem, se for sua (-1 se não).
-const chatCols = `jid, name, is_group, last_ts, last_text, unread,
+const chatCols = `jid, name, is_group, last_ts, last_text, unread, ephemeral,
 	COALESCE((SELECT m.status FROM messages m WHERE m.chat = chats.jid AND m.ts = chats.last_ts
 		AND m.from_me = 1 LIMIT 1), -1)`
+
+// notExpired filtra mensagens temporárias já vencidas.
+const notExpired = `(expire_ts = 0 OR expire_ts > CAST(strftime('%s','now') AS INTEGER) * 1000)`
+
+// PurgeExpired apaga as mensagens temporárias vencidas (o celular e os
+// outros aparelhos apagam as deles também). Devolve quantas.
+func (s *Store) PurgeExpired() (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM messages WHERE expire_ts > 0
+		AND expire_ts <= CAST(strftime('%s','now') AS INTEGER) * 1000`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// Done diz se a tarefa única key já rodou; MarkDone registra que rodou.
+func (s *Store) Done(key string) bool {
+	var n int
+	_ = s.db.QueryRow(`SELECT count(*) FROM meta WHERE key = ?`, key).Scan(&n)
+	return n > 0
+}
+
+func (s *Store) MarkDone(key string) error {
+	_, err := s.db.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, '1')`, key)
+	return err
+}
+
+// RawMessages percorre (em ordem de data) as mensagens com o protobuf
+// original guardado.
+func (s *Store) RawMessages(fn func(chat, id string, fromMe bool, ts int64, raw []byte)) error {
+	rows, err := s.db.Query(`SELECT chat, id, from_me, ts, raw FROM messages WHERE raw IS NOT NULL ORDER BY ts`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var chat, id string
+		var fromMe bool
+		var ts int64
+		var raw []byte
+		if err := rows.Scan(&chat, &id, &fromMe, &ts, &raw); err != nil {
+			return err
+		}
+		fn(chat, id, fromMe, ts, raw)
+	}
+	return rows.Err()
+}
+
+// SetExpiries grava o vencimento de várias mensagens de uma vez
+// (chat → id → unix ms).
+func (s *Store) SetExpiries(exp map[[2]string]int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	st, err := tx.Prepare(`UPDATE messages SET expire_ts = ? WHERE chat = ? AND id = ?`)
+	if err != nil {
+		return err
+	}
+	for k, ts := range exp {
+		if _, err := st.Exec(ts, k[0], k[1]); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// SetLocked marca a conversa como trancada (escondida) ou não.
+func (s *Store) SetLocked(jid string, locked bool) error {
+	// A trava pode chegar antes do histórico criar a conversa.
+	_, err := s.db.Exec(`INSERT INTO chats (jid, locked) VALUES (?, ?)
+		ON CONFLICT (jid) DO UPDATE SET locked = excluded.locked`, jid, locked)
+	return err
+}
+
+func (s *Store) IsLocked(jid string) bool {
+	var l bool
+	_ = s.db.QueryRow(`SELECT locked FROM chats WHERE jid = ?`, jid).Scan(&l)
+	return l
+}
+
+// SetEphemeral grava o prazo das mensagens temporárias da conversa
+// (segundos; 0 desliga). Devolve true se mudou.
+func (s *Store) SetEphemeral(jid string, secs int) (bool, error) {
+	res, err := s.db.Exec(`INSERT INTO chats (jid, ephemeral) VALUES (?, ?)
+		ON CONFLICT (jid) DO UPDATE SET ephemeral = excluded.ephemeral
+		WHERE chats.ephemeral != excluded.ephemeral`, jid, secs)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+func (s *Store) Ephemeral(jid string) int {
+	var secs int
+	_ = s.db.QueryRow(`SELECT ephemeral FROM chats WHERE jid = ?`, jid).Scan(&secs)
+	return secs
+}
 
 // SetStatus sobe a situação de mensagens suas; nunca desce (um "entregue"
 // atrasado não apaga um "lida").

@@ -121,6 +121,9 @@ func (d *Daemon) downloadMedia(ctx context.Context, chat, id string) (*ipc.Media
 	case msg.GetVideoMessage() != nil:
 		m := msg.GetVideoMessage()
 		dl, mimeType = m, m.GetMimetype()
+	case msg.GetPtvMessage() != nil:
+		m := msg.GetPtvMessage()
+		dl, mimeType = m, m.GetMimetype()
 	case msg.GetAudioMessage() != nil:
 		m := msg.GetAudioMessage()
 		dl, mimeType = m, m.GetMimetype()
@@ -593,6 +596,8 @@ func (d *Daemon) thumbFor(chat, id string) *ipc.Media {
 		}
 		jpg := msg.GetImageMessage().GetJPEGThumbnail()
 		if v := msg.GetVideoMessage(); v != nil {
+			jpg = v.GetJPEGThumbnail()
+		} else if v := msg.GetPtvMessage(); v != nil {
 			jpg = v.GetJPEGThumbnail()
 		}
 		if len(jpg) == 0 {

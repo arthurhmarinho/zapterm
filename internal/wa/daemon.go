@@ -124,6 +124,7 @@ func Run(ctx context.Context, opt Options) error {
 		return fmt.Errorf("conectando: %w", err)
 	}
 	defer d.cli.Disconnect()
+	go d.purgeLoop(ctx)
 
 	<-ctx.Done()
 	return nil
@@ -193,6 +194,13 @@ func (d *Daemon) onEvent(evt any) {
 	case *events.HistorySync:
 		d.onHistory(ctx, e)
 	case *events.GroupInfo:
+		if e.Ephemeral != nil {
+			secs := 0
+			if e.Ephemeral.IsEphemeral {
+				secs = int(e.Ephemeral.DisappearingTimer)
+			}
+			d.setChatEphemeral(e.JID.String(), secs)
+		}
 		if e.Name != nil {
 			jid := e.JID.String()
 			if err := d.st.SetChatName(jid, e.Name.Name); err == nil {
@@ -207,7 +215,9 @@ func (d *Daemon) onEvent(evt any) {
 	case *events.Pin:
 		d.pushChat(d.normalize(ctx, e.JID).String())
 	case *events.AppState:
-		d.onAppState(e)
+		if !d.onLockChat(e) {
+			d.onAppState(e)
+		}
 	case *events.Receipt:
 		d.onReceipt(ctx, e)
 	case *events.MarkChatAsRead:
@@ -224,6 +234,9 @@ func (d *Daemon) onEvent(evt any) {
 func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	if e.Info.Chat == types.StatusBroadcastJID {
 		return // status (stories) fica fora do zapterm
+	}
+	if d.onEphemeralSetting(ctx, e) {
+		return
 	}
 	if d.onChange(ctx, e, live) {
 		return // edição, remoção ou reação: muda outra mensagem
@@ -244,6 +257,10 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 		Kind:       kind,
 		Text:       text,
 		Quote:      quoteOf(e.Message),
+		Expires:    expiresAt(e.Message, e.Info.Timestamp),
+	}
+	if m.Expires > 0 && m.Expires <= time.Now().UnixMilli() {
+		return // temporária que já venceu (histórico antigo)
 	}
 	if m.Quote != nil && m.Quote.Sender != "" {
 		if q, err := types.ParseJID(m.Quote.Sender); err == nil {
@@ -267,6 +284,11 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	}
 	if !live || !isNew {
 		return
+	}
+	// Quem manda numa conversa temporária manda com o prazo dela: serve para
+	// aprender o prazo se o aviso de mudança se perdeu.
+	if secs := int(contextInfo(e.Message).GetExpiration()); secs > 0 && !m.FromMe {
+		d.setChatEphemeral(m.Chat, secs)
 	}
 	m.HasRaw = len(raw) > 0
 	m.MentionsMe = d.mentionsMe(e.Message)
@@ -298,6 +320,13 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 		if err := d.st.UpsertChat(jid.String(), c.GetName(), isGroup, ts, int(c.GetUnreadCount())); err != nil {
 			d.log.Error("history: chat", "err", err)
 			continue
+		}
+		// Só com o campo presente: pedaços parciais do histórico vêm sem ele
+		// e não podem zerar um prazo conhecido.
+		if c.GetEphemeralExpiration() > 0 || c.GetEphemeralSettingTimestamp() > 0 {
+			if _, err := d.st.SetEphemeral(jid.String(), int(c.GetEphemeralExpiration())); err != nil {
+				d.log.Warn("history: prazo de temporárias", "err", err)
+			}
 		}
 		for _, hm := range c.GetMessages() {
 			evt, err := d.cli.ParseWebMessage(jid, hm.GetMessage())
@@ -714,6 +743,9 @@ func (d *Daemon) replyContext(chat, replyTo string) (*waE2E.ContextInfo, *ipc.Qu
 // Quote e Media; o resto vem da resposta do servidor. afterSend roda com o ID
 // definitivo antes do broadcast (a imagem usa para entrar no cache).
 func (d *Daemon) sendAndStore(ctx context.Context, jid types.JID, msg *waE2E.Message, m ipc.Message, afterSend func(id string) *ipc.Media) (any, error) {
+	// Conversa temporária: a mensagem leva o prazo, senão não some.
+	secs := d.st.Ephemeral(jid.String())
+	withExpiration(msg, uint32(secs))
 	resp, err := d.cli.SendMessage(ctx, jid, msg)
 	if err != nil {
 		return nil, err
@@ -721,6 +753,9 @@ func (d *Daemon) sendAndStore(ctx context.Context, jid types.JID, msg *waE2E.Mes
 	me := d.cli.Store.ID.ToNonAD()
 	m.ID, m.Chat, m.Sender, m.SenderName = resp.ID, jid.String(), me.String(), "você"
 	m.FromMe, m.TS = true, resp.Timestamp.UnixMilli()
+	if secs > 0 {
+		m.Expires = resp.Timestamp.Add(time.Duration(secs) * time.Second).UnixMilli()
+	}
 	raw, _ := proto.Marshal(msg)
 	m.Status = 1 // o servidor aceitou: um tracinho
 	if _, err := d.st.SaveMessage(m, raw, jid.Server == types.GroupServer, false); err != nil {

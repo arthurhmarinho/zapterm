@@ -3,6 +3,7 @@ package wa
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 
@@ -23,6 +24,15 @@ func describe(m *waE2E.Message) (kind, text string) {
 		return "text", m.GetExtendedTextMessage().GetText()
 	case m.GetImageMessage() != nil:
 		return "image", tag("imagem", m.GetImageMessage().GetCaption())
+	case m.GetPtvMessage() != nil:
+		v := m.GetPtvMessage()
+		label := "recado de vídeo"
+		if s := v.GetSeconds(); s > 0 {
+			label += fmt.Sprintf(" %d:%02d", s/60, s%60)
+		}
+		return "video", "[" + label + "]"
+	case m.GetEventMessage() != nil:
+		return "other", eventText(m.GetEventMessage())
 	case m.GetVideoMessage() != nil:
 		v := m.GetVideoMessage()
 		label := "vídeo"
@@ -85,8 +95,41 @@ func contextInfo(m *waE2E.Message) *waE2E.ContextInfo {
 		ci = m.GetDocumentMessage().GetContextInfo()
 	case m.GetStickerMessage() != nil:
 		ci = m.GetStickerMessage().GetContextInfo()
+	case m.GetPtvMessage() != nil:
+		ci = m.GetPtvMessage().GetContextInfo()
+	case m.GetEventMessage() != nil:
+		ci = m.GetEventMessage().GetContextInfo()
+	case m.GetContactMessage() != nil:
+		ci = m.GetContactMessage().GetContextInfo()
+	case m.GetLocationMessage() != nil:
+		ci = m.GetLocationMessage().GetContextInfo()
+	case m.GetPollCreationMessage() != nil:
+		ci = m.GetPollCreationMessage().GetContextInfo()
 	}
 	return ci
+}
+
+// eventText resume um evento: nome, quando e onde.
+func eventText(e *waE2E.EventMessage) string {
+	label := "evento"
+	if e.GetIsCanceled() {
+		label = "evento cancelado"
+	}
+	parts := []string{strings.TrimSpace(e.GetName())}
+	if ts := e.GetStartTime(); ts > 0 {
+		parts = append(parts, time.Unix(ts, 0).Format("02/01 15:04"))
+	}
+	if loc := strings.TrimSpace(e.GetLocation().GetName()); loc != "" {
+		parts = append(parts, loc)
+	}
+	text := "[" + label + ": " + strings.Join(parts, " · ") + "]"
+	if desc := strings.TrimSpace(e.GetDescription()); desc != "" {
+		text += " " + desc
+	}
+	if link := e.GetJoinLink(); link != "" {
+		text += "\n" + link
+	}
+	return text
 }
 
 func tag(label, caption string) string {

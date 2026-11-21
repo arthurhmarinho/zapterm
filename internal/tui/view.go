@@ -254,7 +254,7 @@ func (m *model) viewList(g geometry) string {
 	for i := m.offset; i < min(len(m.list), m.offset+g.listRows); i++ {
 		c := m.list[i]
 		sel := i == m.cursor && (m.focus == paneList || c.JID == m.active)
-		rows = append(rows, renderChatItem(c, w, sel, m.bigAvatar(c.JID, c.Name), m.typingText(c.JID, false)))
+		rows = append(rows, renderChatItem(c, w, sel, m.bigAvatar(c.JID, c.Name), m.typingText(c.JID, false), m.draftText(c.JID)))
 	}
 	if len(m.list) == 0 {
 		msg := "Nenhuma conversa aqui"
@@ -339,6 +339,9 @@ func (m *model) viewHeader(g geometry) string {
 	}
 	if c.Archived {
 		sub += " · arquivado"
+	}
+	if c.Ephemeral > 0 {
+		sub += " · temporárias: " + ephemeralLabel(c.Ephemeral)
 	}
 	subSt := sText2
 	switch p := m.presence[c.JID]; {
@@ -648,4 +651,19 @@ func (m *model) viewHelp() string {
 	b.WriteString("\n" + sText2.Render("mouse: clique abre e seleciona · botão direito responde · shift+clique abre link") + "\n")
 	b.WriteString(sText2.Render("qualquer tecla fecha"))
 	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, b.String())
+}
+
+// ephemeralLabel: prazo das mensagens temporárias por extenso.
+func ephemeralLabel(secs int) string {
+	switch {
+	case secs%86400 == 0 && secs >= 86400:
+		if d := secs / 86400; d == 1 {
+			return "24 horas"
+		} else {
+			return fmt.Sprintf("%d dias", d)
+		}
+	case secs%3600 == 0 && secs >= 3600:
+		return fmt.Sprintf("%d h", secs/3600)
+	}
+	return fmt.Sprintf("%d min", max(1, secs/60))
 }
