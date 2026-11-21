@@ -778,3 +778,52 @@ func TestDadosDaMensagem(t *testing.T) {
 		t.Error("tecla não fechou")
 	}
 }
+
+func TestSelecaoEEncaminharParaVarios(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	runCmd(m, m.open(m.chatFor("5511900000001@s.whatsapp.net", "Marina")))
+	shift := func(code rune) { m.Update(tea.KeyPressMsg{Code: code, Mod: tea.ModShift}) }
+	shift(tea.KeyUp)
+	shift(tea.KeyUp)
+	// m7, m6 e m5, mas a m5 é "mensagem apagada": fica de fora.
+	if got := len(m.selectedMsgs()); got != 2 {
+		t.Fatalf("selecionadas: %d", got)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "2 selecionadas") {
+		t.Error("rodapé sem a contagem")
+	}
+	runCmd(m, m.startForward())
+	if len(m.forwarding) != 2 || !m.searching {
+		t.Fatal("encaminhar não pegou a seleção")
+	}
+	m.toggleTarget(m.chatFor("5511900000002@s.whatsapp.net", "Diego"))
+	m.toggleTarget(m.chatFor("5511900000003@s.whatsapp.net", "Bia"))
+	runCmd(m, m.sendForward())
+	got := demo.LastSent(srv)
+	if got.Op != ipc.OpForward || got.Chat != "5511900000003@s.whatsapp.net" || got.Msg != "m7" {
+		t.Fatalf("último encaminhamento: %+v", got)
+	}
+	if m.forwarding != nil || m.selAnchor >= 0 {
+		t.Error("estado não foi limpo")
+	}
+	// Seta sem shift desfaz a seleção.
+	shift(tea.KeyUp)
+	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if _, _, ok := m.selRange(); ok {
+		t.Error("seta sem shift não desfez")
+	}
+}

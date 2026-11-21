@@ -118,9 +118,11 @@ type model struct {
 	pendingDel *pendingDelete // apagar para mim esperando os 5 s de desfazer
 	recReview  *recReview     // gravação parada esperando você ouvir e decidir
 
-	editing    *ipc.Message // mensagem sua sendo editada (alt+e)
-	forwarding *ipc.Message // mensagem a encaminhar (alt+w): a busca escolhe o destino
-	help       bool         // tela de ajuda (F1)
+	editing    *ipc.Message  // mensagem sua sendo editada (alt+e)
+	forwarding []ipc.Message // a encaminhar (alt+w): a busca escolhe os destinos
+	fwdTargets []ipc.Chat    // destinos marcados (até 5)
+	selAnchor  int           // começo da seleção de várias (shift+↑/↓); -1 = sem
+	help       bool          // tela de ajuda (F1)
 
 	menu          *chatMenu         // menu do chat (alt+m)
 	keyRemap      map[string]string // teclas do config → teclas padrão
@@ -229,7 +231,7 @@ func Run() error {
 
 func newModel(cli *ipc.Client) *model {
 	m := &model{cli: cli, input: newInput(), search: newSearch(), vp: viewport.New(), emojiRecent: loadRecentEmoji(),
-		status: "conectando", termFocused: true, msgSel: -1, imgs: newImages(),
+		status: "conectando", termFocused: true, msgSel: -1, selAnchor: -1, imgs: newImages(),
 		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}, fallbacks: map[string]string{},
 		autoAsked: map[string]bool{}, presence: map[string]*presenceState{},
 		members: map[string][]ipc.Member{}, mentioned: map[string]string{}}
@@ -785,7 +787,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.saveDraft()
 	m.active, m.activeChat = c.JID, c
 	m.msgs = nil
-	m.msgSel = -1
+	m.msgSel, m.selAnchor = -1, -1
 	m.mention, m.voting, m.finding = mentionState{}, nil, nil
 	m.unreadCount, m.unreadID = c.Unread, ""
 	m.restoreDraft()
@@ -1333,8 +1335,11 @@ func (m *model) refreshMessages(toBottom bool) {
 		}
 		playID, elapsed := m.playState()
 		r := msgRenderer{w: w, isGroup: m.activeChat.Kind == "group", sel: sel, imgs: m.imgs, avatar: m.smallAvatar,
-			playID: playID, elapsed: elapsed, paused: m.play != nil && m.play.paused, speed: m.audioSpeed,
+			playID: playID, elapsed: elapsed, selFrom: -1, selTo: -1, paused: m.play != nil && m.play.paused, speed: m.audioSpeed,
 			unreadID: m.unreadID, unreadN: m.unreadCount}
+		if a, b, ok := m.selRange(); ok {
+			r.selFrom, r.selTo = a, b
+		}
 		content, m.spans = r.render(m.msgs)
 	}
 	m.vp.SetContent(content)

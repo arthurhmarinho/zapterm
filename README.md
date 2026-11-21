@@ -154,7 +154,8 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `alt+c` `alt+e` | copiar / editar (sua, até 15 min) |
 | `alt+.` | menu da mensagem: responder, responder em privado, reagir, abrir, copiar, editar, encaminhar, apagar (ou botão direito) |
 | `alt+d` | apagar: pergunta se é para você ou para todos; `alt+z` desfaz o "para mim" por 5 s |
-| `alt+w` | encaminhar |
+| `alt+w` | encaminhar: na busca, `enter` marca até 5 conversas e `alt+w` envia |
+| `shift+↑` / `shift+↓` | seleciona várias mensagens; aí `alt+c` copia todas, `alt+w` encaminha, `alt+d` apaga para você |
 | `alt+p` | pula para a mensagem fixada (alterna se houver mais de uma); fixar e desafixar ficam no menu da mensagem |
 | `alt+s` | favoritar / desfavoritar a mensagem (sincroniza com o celular); o filtro **★** (`alt+5`) lista as favoritas |
 | `alt+m` | menu do chat: fixar, arquivar, silenciar (ou botão direito) |

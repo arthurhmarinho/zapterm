@@ -173,11 +173,25 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	case "f1", "alt+h":
 		m.help = true
 		return nil
+	case "shift+up", "shift+down":
+		if m.focus == paneChat && m.active != "" {
+			d := 1
+			if s == "shift+up" {
+				d = -1
+			}
+			return m.extendSel(d)
+		}
 	case "alt+c":
+		if _, _, ok := m.selRange(); ok {
+			return m.copyRange()
+		}
 		return m.copySelected()
 	case "alt+e":
 		return m.startEdit()
 	case "alt+d":
+		if _, _, ok := m.selRange(); ok {
+			return m.deleteRange()
+		}
 		return m.openDeleteMenu()
 	case "alt+.":
 		return m.openMsgMenu()
@@ -283,6 +297,7 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 				m.moveCursor(d)
 				return nil
 			}
+			m.selAnchor = -1 // seta sem shift desfaz a seleção de várias
 			m.setSel(m.sel() + d)
 			return tea.Batch(m.maybeLoadOlder(), m.maybeLoadNewer())
 		}
@@ -345,21 +360,25 @@ func (m *model) keySearch(k tea.KeyPressMsg) tea.Cmd {
 	switch k.String() {
 	case "esc", "ctrl+c":
 		if m.forwarding != nil {
-			m.forwarding = nil
+			m.forwarding, m.fwdTargets = nil, nil
 			m.setFlash("encaminhamento cancelado")
 		}
 		m.stopSearch(true)
 		return nil
+	case "alt+w":
+		if m.forwarding != nil {
+			return m.sendForward()
+		}
 	case "enter":
 		c, ok := m.selected()
 		if !ok {
 			return nil
 		}
-		if f := m.forwarding; f != nil {
-			m.forwarding = nil
-			m.stopSearch(true)
-			m.setFlash("encaminhando para " + c.Name + "…")
-			return m.send(ipc.Request{Op: ipc.OpForward, Chat: c.JID, SrcChat: f.Chat, Msg: f.ID})
+		if m.forwarding != nil {
+			if !strings.HasPrefix(c.JID, hitMarker) && !strings.HasPrefix(c.JID, newChatMarker) {
+				m.toggleTarget(c)
+			}
+			return nil
 		}
 		return m.open(c)
 	case "up", "ctrl+k":
@@ -729,16 +748,5 @@ func (m *model) startEdit() tea.Cmd {
 	m.editing, m.replyTo, m.attach = &msg, nil, nil
 	m.input.SetValue(msg.Text)
 	m.layout()
-	return nil
-}
-
-func (m *model) startForward() tea.Cmd {
-	msg, ok := m.selectedMsg()
-	if !ok || msg.Kind == "revoked" {
-		return nil
-	}
-	m.forwarding = &msg
-	m.startSearch()
-	m.setFlash("escolha o chat e aperte enter para encaminhar")
 	return nil
 }

@@ -114,9 +114,9 @@ filtro.
 - [x] **Dados da mensagem** (quem recebeu e leu, com horário) e quem
   reagiu. `events.Receipt` por participante; `GetUserReceipt()` no
   histórico. (M)
-- [ ] **Seleção múltipla** com `shift+↑/↓`: encaminhar, apagar, copiar no
+- [x] **Seleção múltipla** com `shift+↑/↓`: encaminhar, apagar, copiar no
   formato `[14:03] Fulano: texto`. (M)
-- [ ] **Encaminhar para até 5 conversas** (espaço marca no seletor). (P)
+- [x] **Encaminhar para até 5 conversas** (espaço marca no seletor). (P)
 - [ ] **Salvar na conversa** (mensagem temporária que não some).
   `KeepInChatMessage`. (M)
 - [ ] **Apagar como admin** a mensagem de um membro. `cli.BuildRevoke`

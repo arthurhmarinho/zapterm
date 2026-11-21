@@ -517,7 +517,9 @@ func (m *model) viewFooter() string {
 	var help string
 	switch {
 	case m.searching && m.forwarding != nil:
-		help = "encaminhar: digite para filtrar · ↑/↓ escolher · enter encaminha · esc cancela"
+		help = m.forwardHelp()
+	case m.selAnchor >= 0:
+		help = fmt.Sprintf("%d selecionadas · shift+↑/↓ ajusta · alt+c copia · alt+w encaminha · alt+d apaga para mim · seta desfaz", len(m.selectedMsgs()))
 	case m.searching:
 		help = "digite para filtrar · ↑/↓ escolher · enter abrir · esc sair da busca"
 	case m.attach != nil:
@@ -699,7 +701,8 @@ func (m *model) viewHelp() string {
 			{keyFor("delete"), "apagar: para mim ou para todos (alt+z desfaz o para mim)"},
 			{"alt+. ou botão direito", "menu da mensagem (responder em privado, abrir, copiar…)"},
 			{"alt+s", "favoritar a mensagem (★); alt+5 lista as favoritas"},
-			{"alt+p", "ir para a mensagem fixada (fixar: menu da mensagem)"}, {keyFor("forward"), "encaminhar"},
+			{"alt+p", "ir para a mensagem fixada (fixar: menu da mensagem)"}, {keyFor("forward"), "encaminhar (enter marca até 5 conversas, alt+w envia)"},
+			{"shift+↑ shift+↓", "selecionar várias (alt+c copia, alt+w encaminha, alt+d apaga)"},
 		}},
 	}
 	var b strings.Builder

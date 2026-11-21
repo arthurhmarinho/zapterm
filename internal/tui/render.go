@@ -233,17 +233,18 @@ func renderChatItem(c ipc.Chat, w int, selected bool, av string, typing, draft s
 // ---------- conversa ----------
 
 type msgRenderer struct {
-	w        int
-	isGroup  bool
-	sel      int
-	imgs     *images
-	avatar   func(jid, name string) string // 4×2, para remetentes em grupo
-	playID   string                        // áudio tocando
-	elapsed  int                           // segundos tocados
-	paused   bool
-	speed    float64
-	unreadID string // divisor "N mensagens não lidas" antes desta
-	unreadN  int
+	w              int
+	isGroup        bool
+	sel            int
+	imgs           *images
+	avatar         func(jid, name string) string // 4×2, para remetentes em grupo
+	playID         string                        // áudio tocando
+	elapsed        int                           // segundos tocados
+	paused         bool
+	speed          float64
+	selFrom, selTo int    // seleção de várias (shift+↑/↓); -1 = sem
+	unreadID       string // divisor "N mensagens não lidas" antes desta
+	unreadN        int
 }
 
 // render monta a conversa inteira e devolve também a linha inicial e final
@@ -275,7 +276,7 @@ func (r msgRenderer) render(msgs []ipc.Message) (string, [][2]int) {
 		}
 		firstOfRun := newDay || msgs[i-1].Sender != m.Sender || msgs[i-1].FromMe != m.FromMe
 		spans[i][0] = line
-		add(r.bubbleRow(m, firstOfRun, i == r.sel))
+		add(r.bubbleRow(m, firstOfRun, i == r.sel || i >= r.selFrom && i <= r.selTo && r.selFrom >= 0))
 		spans[i][1] = line - 1
 	}
 	return strings.Join(out, "\n"), spans
