@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -28,7 +29,7 @@ func (m *model) openProfile() tea.Cmd {
 	if m.active == "" {
 		return nil
 	}
-	m.profileOpen, m.profile, m.gallery = true, nil, nil
+	m.profileOpen, m.profile, m.gallery, m.memberSel = true, nil, nil, -1
 	chat := m.active
 	var out ipc.Profile
 	return m.call(ipc.Request{Op: ipc.OpProfile, Chat: chat}, &out, func() tea.Msg { return profileMsg{&out} })
@@ -39,13 +40,91 @@ func (m *model) closeProfile() {
 	m.input.Focus()
 }
 
+// keyProfile: enter abre a galeria; num grupo, ↓/↑ andam pelos
+// participantes e enter num deles abre o menu dele; alt+c copia o link de
+// convite.
 func (m *model) keyProfile(s string) tea.Cmd {
+	var members []ipc.ProfileMember
+	if m.profile != nil {
+		members = m.profile.Members
+	}
 	switch s {
 	case "esc", "alt+i", "ctrl+c":
+		if m.memberSel >= 0 && s == "esc" {
+			m.memberSel = -1
+			return nil
+		}
 		m.closeProfile()
-	case "enter", "ctrl+o", "down", "right":
+	case "down":
+		if len(members) == 0 {
+			return m.openGallery(0)
+		}
+		m.memberSel = min(len(members)-1, m.memberSel+1)
+	case "up":
+		m.memberSel = max(-1, m.memberSel-1)
+	case "right":
 		return m.openGallery(0)
+	case "enter", "ctrl+o":
+		if m.memberSel >= 0 && m.memberSel < len(members) {
+			return m.openMemberMenu(members[m.memberSel])
+		}
+		return m.openGallery(0)
+	case "alt+c":
+		if m.profile != nil && m.profile.Kind == "group" {
+			return m.copyInviteLink()
+		}
 	}
+	return nil
+}
+
+type inviteMsg struct{ link string }
+
+func (m *model) copyInviteLink() tea.Cmd {
+	var link string
+	m.setFlash("pedindo o link de convite…")
+	return m.call(ipc.Request{Op: ipc.OpInviteLink, Chat: m.active}, &link, func() tea.Msg { return inviteMsg{link} })
+}
+
+func (m *model) onInvite(msg inviteMsg) {
+	cmd := exec.Command("wl-copy")
+	cmd.Stdin = strings.NewReader(msg.link)
+	if err := cmd.Run(); err != nil {
+		m.setFlash("wl-copy: " + err.Error())
+		return
+	}
+	m.setFlash("link de convite copiado: " + msg.link)
+}
+
+// openMemberMenu: conversar e, se você é admin, promover, rebaixar ou
+// remover (com confirmação).
+func (m *model) openMemberMenu(mb ipc.ProfileMember) tea.Cmd {
+	chat := m.active
+	act := func(action, done string) func() tea.Cmd {
+		return func() tea.Cmd {
+			return m.call(ipc.Request{Op: ipc.OpGroupMember, Chat: chat, Msg: mb.Raw, Text: action}, nil,
+				func() tea.Msg { return flashMsg(done) })
+		}
+	}
+	opts := []popOpt{{"Conversar com " + firstName(mb.Name), func() tea.Cmd {
+		m.closeProfile()
+		return m.open(m.chatFor(mb.JID, mb.Name))
+	}}}
+	if m.profile.IAmAdmin {
+		if mb.Admin {
+			opts = append(opts, popOpt{"Tirar de admin", act("demote", mb.Name+" não é mais admin")})
+		} else {
+			opts = append(opts, popOpt{"Tornar admin", act("promote", mb.Name+" agora é admin")})
+		}
+		opts = append(opts, popOpt{"Remover do grupo…", func() tea.Cmd {
+			m.popup = &popMenu{title: "Remover " + mb.Name + " do grupo?", opts: []popOpt{
+				{"Remover", act("remove", mb.Name+" removido do grupo")},
+				{"Cancelar", func() tea.Cmd { return nil }},
+			}}
+			return nil
+		}})
+	}
+	opts = append(opts, popOpt{"Cancelar", func() tea.Cmd { return nil }})
+	m.popup = &popMenu{title: mb.Name, opts: opts}
 	return nil
 }
 
@@ -177,15 +256,23 @@ func (m *model) viewProfile(g geometry) string {
 
 	// Participantes (grupo), no espaço que sobrar.
 	if len(p.Members) > 0 {
-		lines = append(lines, "", "  "+sGreen.Bold(true).Render(fmt.Sprintf("Participantes (%d)", p.MemberCount)))
+		hint := "↓ escolhe · enter: conversar"
+		if p.IAmAdmin {
+			hint += ", admin, remover"
+		}
+		hint += " · alt+c copia o link de convite"
+		lines = append(lines, "", "  "+sGreen.Bold(true).Render(fmt.Sprintf("Participantes (%d)", p.MemberCount))+"   "+sText2.Render(hint))
 		used := strings.Count(strings.Join(lines, "\n"), "\n") + 1
 		room := max(1, h-used-1)
-		for i, mb := range p.Members {
-			if i == room-1 && len(p.Members) > room {
-				lines = append(lines, "  "+sText2.Render(fmt.Sprintf("… e mais %d", len(p.Members)-i)))
-				break
+		// Janela que acompanha o selecionado.
+		first := max(0, min(m.memberSel-room/2, len(p.Members)-room))
+		for i := first; i < len(p.Members) && i < first+room; i++ {
+			mb := p.Members[i]
+			mark, st := "  ", sText
+			if i == m.memberSel {
+				mark, st = sGreen.Render("▌ "), sGreen.Bold(true)
 			}
-			l := "  " + sText.Render(mb.Name)
+			l := mark + st.Render(mb.Name)
 			if mb.Admin {
 				l += "  " + sGreen.Render("admin")
 			}

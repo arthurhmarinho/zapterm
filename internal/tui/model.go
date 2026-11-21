@@ -129,6 +129,7 @@ type model struct {
 	profileOpen   bool
 	gallery       *gallery // "Mídia, links e docs" aberta sobre o perfil
 	profileMediaY int      // linha da seção de mídia no perfil (clique abre a galeria)
+	memberSel     int      // participante escolhido no perfil do grupo (-1 = nenhum)
 	profile       *ipc.Profile
 	pendingOpen   ipc.Chat // chat a abrir assim que possível (notificação, ZAPTERM_OPEN)
 
@@ -471,6 +472,9 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case inviteMsg:
+		m.onInvite(msg)
+		return m, nil
 	case msgInfoMsg:
 		m.msgInfo = msg.info
 		return m, nil

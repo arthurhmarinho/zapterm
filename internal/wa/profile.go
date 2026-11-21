@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -70,17 +72,37 @@ func (d *Daemon) profile(ctx context.Context, chat string) (*ipc.Profile, error)
 			p.About = info.Topic
 			p.Created = info.GroupCreated.UnixMilli()
 			p.MemberCount = len(info.Participants)
-			admins := map[string]bool{}
-			for _, pt := range info.Participants {
-				if pt.IsAdmin || pt.IsSuperAdmin {
-					admins[pt.JID.ToNonAD().String()] = true
-				}
-			}
+			names := map[string]string{}
 			if list, err := d.groupMembers(ctx, chat); err == nil {
 				for _, mb := range list {
-					p.Members = append(p.Members, ipc.ProfileMember{Name: mb.Name, Admin: admins[mb.JID]})
+					names[mb.JID] = mb.Name
 				}
 			}
+			me := d.cli.Store.ID
+			for _, pt := range info.Participants {
+				admin := pt.IsAdmin || pt.IsSuperAdmin
+				if me != nil && (pt.JID.User == me.User || pt.PhoneNumber.User == me.User) {
+					p.IAmAdmin = admin
+					continue
+				}
+				named := pt.PhoneNumber
+				if named.IsEmpty() {
+					named = d.normalize(ctx, pt.JID)
+				}
+				raw := pt.JID.ToNonAD().String()
+				name, ok := names[raw]
+				if !ok {
+					continue
+				}
+				p.Members = append(p.Members, ipc.ProfileMember{Name: name, Admin: admin, JID: named.ToNonAD().String(), Raw: raw})
+			}
+			// Admins primeiro, como no app; dentro de cada grupo, por nome.
+			sort.SliceStable(p.Members, func(a, b int) bool {
+				if p.Members[a].Admin != p.Members[b].Admin {
+					return p.Members[a].Admin
+				}
+				return strings.ToLower(p.Members[a].Name) < strings.ToLower(p.Members[b].Name)
+			})
 		}
 	case types.DefaultUserServer:
 		p.Phone = "+" + jid.User
@@ -177,4 +199,39 @@ func (d *Daemon) refetch(ctx context.Context, chat string, before int64) error {
 	}
 	_, err = d.cli.SendPeerMessage(ctx, d.cli.BuildHistorySyncRequest(info, 50))
 	return err
+}
+
+// groupMember promove, rebaixa ou remove um participante (só admin).
+func (d *Daemon) groupMember(ctx context.Context, chat, member, action string) error {
+	jid, err := types.ParseJID(chat)
+	if err != nil {
+		return err
+	}
+	who, err := types.ParseJID(member)
+	if err != nil {
+		return err
+	}
+	change := map[string]whatsmeow.ParticipantChange{
+		"promote": whatsmeow.ParticipantChangePromote,
+		"demote":  whatsmeow.ParticipantChangeDemote,
+		"remove":  whatsmeow.ParticipantChangeRemove,
+	}[action]
+	if change == "" {
+		return fmt.Errorf("ação desconhecida: %q", action)
+	}
+	if _, err := d.cli.UpdateGroupParticipants(ctx, jid, []types.JID{who}, change); err != nil {
+		return err
+	}
+	membersMu.Lock()
+	delete(members, chat) // a lista de participantes mudou
+	membersMu.Unlock()
+	return nil
+}
+
+func (d *Daemon) inviteLink(ctx context.Context, chat string, reset bool) (string, error) {
+	jid, err := types.ParseJID(chat)
+	if err != nil {
+		return "", err
+	}
+	return d.cli.GetGroupInviteLink(ctx, jid, reset)
 }

@@ -880,3 +880,47 @@ func TestMenuDoChatNovasOpcoes(t *testing.T) {
 		t.Fatal("sair sem confirmação")
 	}
 }
+
+func TestParticipanteNoPerfil(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
+	m.Update(m.loadChats()())
+	runCmd(m, m.open(m.chatFor("120000000000000001@g.us", "Trilha")))
+	runCmd(m, m.openProfile())
+	runCmd(m, m.keyProfile("down"))
+	if m.memberSel != 0 {
+		t.Fatalf("seleção %d", m.memberSel)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "alt+c copia o link de convite") {
+		t.Error("perfil sem a dica dos participantes")
+	}
+	runCmd(m, m.keyProfile("enter"))
+	var labels []string
+	for _, o := range m.popup.opts {
+		labels = append(labels, o.label)
+	}
+	if got := strings.Join(labels, ","); got != "Conversar com Rafa,Tirar de admin,Remover do grupo…,Cancelar" {
+		t.Fatalf("menu: %s", got)
+	}
+	runCmd(m, m.keyPopup("2"))
+	if got := demo.LastSent(srv); got.Op != ipc.OpGroupMember || got.Text != "demote" || got.Msg != "100000000000005@lid" {
+		t.Fatalf("enviado: %+v", got)
+	}
+	runCmd(m, m.keyProfile("enter"))
+	runCmd(m, m.keyPopup("1"))
+	if m.profileOpen || m.active != "5511900000005@s.whatsapp.net" {
+		t.Fatalf("conversar: ativo %q", m.active)
+	}
+}

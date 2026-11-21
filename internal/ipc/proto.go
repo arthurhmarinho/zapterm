@@ -26,6 +26,8 @@ const (
 	OpTyping      = "typing"       // Text: "composing", "recording" ou "paused" em Chat
 	OpRevoke      = "revoke"       // apaga para todos a sua mensagem Msg
 	OpMsgInfo     = "msg_info"     // dados da mensagem Msg: quem recebeu, leu, ouviu e reagiu
+	OpGroupMember = "group_member" // Text "promote|demote|remove" no participante Msg (JID cru) do grupo Chat
+	OpInviteLink  = "invite_link"  // link de convite do grupo Chat (Text "reset" gera outro)
 	OpPin         = "pin"          // fixa a mensagem Msg por Seconds (0 = desafixa)
 	OpPins        = "pins"         // mensagens fixadas do Chat
 	OpStar        = "star"         // favorita (Text "1") ou desfavorita ("0") a mensagem Msg
@@ -248,6 +250,7 @@ type Profile struct {
 	Media       []Message       `json:"media"`
 	Counts      map[string]int  `json:"counts,omitempty"` // itens em cada aba da galeria
 	Note        string          `json:"note,omitempty"`   // aviso (ex.: saiu do grupo)
+	IAmAdmin    bool            `json:"i_am_admin,omitempty"`
 }
 
 // Abas da galeria (Request.Text em OpGallery).
@@ -264,6 +267,8 @@ type GalleryPage struct {
 type ProfileMember struct {
 	Name  string `json:"name"`
 	Admin bool   `json:"admin,omitempty"`
+	JID   string `json:"jid,omitempty"` // conversa individual com a pessoa
+	Raw   string `json:"raw,omitempty"` // como o grupo a conhece (para remover/promover)
 }
 
 // Unread é o resumo de não lidas mostrado na barra.

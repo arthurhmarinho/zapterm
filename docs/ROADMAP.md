@@ -132,9 +132,9 @@ filtro.
   `IndexClearChat`). Pedem confirmação. (P / P / M)
 
 ### Perfil
-- [ ] **`enter` num participante**: Conversar · (admin) Remover ·
+- [x] **`enter` num participante**: Conversar · (admin) Remover ·
   Promover. `cli.UpdateGroupParticipants`. (M)
-- [ ] **Link de convite** (copiar, redefinir) e QR. `cli.GetGroupInviteLink`. (P)
+- [~] **Link de convite** (feito: copiar com alt+c; falta redefinir e QR). `cli.GetGroupInviteLink`. (P)
 
 ### Painéis acima da caixa
 - [ ] **Várias fotos de uma vez** com legenda (álbum). `AlbumMessage`. (M)

@@ -631,6 +631,10 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.pollVote(ctx, req.Chat, req.Msg, req.Options)
 	case ipc.OpMsgInfo:
 		return d.msgInfo(ctx, req.Chat, req.Msg)
+	case ipc.OpGroupMember:
+		return nil, d.groupMember(ctx, req.Chat, req.Msg, req.Text)
+	case ipc.OpInviteLink:
+		return d.inviteLink(ctx, req.Chat, req.Text == "reset")
 	case ipc.OpPin:
 		return nil, d.pin(ctx, req.Chat, req.Msg, req.Seconds)
 	case ipc.OpPins:

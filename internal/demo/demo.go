@@ -108,6 +108,11 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpPollVote:
 		d.lastSent = req
 		return nil, nil
+	case ipc.OpGroupMember:
+		d.lastSent = req
+		return nil, nil
+	case ipc.OpInviteLink:
+		return "https://chat.whatsapp.com/DEMONSTRACAO", nil
 	case ipc.OpForward:
 		d.lastSent = req
 		return nil, nil
@@ -188,7 +193,11 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 			p := ipc.Profile{JID: c.JID, Name: c.Name, Kind: c.Kind, Media: []ipc.Message{}}
 			if c.Kind == "group" {
 				p.About, p.MemberCount = "Trilhas leves aos sábados. Levar água!", 3
-				p.Members = []ipc.ProfileMember{{Name: "Lu"}, {Name: "Marina Alves"}, {Name: "Rafa", Admin: true}}
+				p.Members = []ipc.ProfileMember{
+					{Name: "Rafa", Admin: true, JID: "5511900000005@s.whatsapp.net", Raw: "100000000000005@lid"},
+					{Name: "Lu", JID: "5511900000006@s.whatsapp.net", Raw: "100000000000006@lid"},
+					{Name: "Marina Alves", JID: "5511900000001@s.whatsapp.net", Raw: "100000000000001@lid"}}
+				p.IAmAdmin = true
 			} else {
 				p.Phone, p.About = "+"+strings.Split(c.JID, "@")[0], "Disponível"
 			}

@@ -47,6 +47,9 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
   barras.
 - **Perfil** (clique no cabeçalho ou `alt+i`): foto grande, número e
   recado do contato, ou descrição e participantes do grupo.
+- **Participantes** (perfil do grupo): `↓` escolhe, `enter` abre conversar
+  e, se você é admin, tornar/tirar admin e remover; `alt+c` copia o link de
+  convite.
 - **Mídia, links e docs** (`enter` no perfil): abas Fotos, Vídeos, Docs,
   Links e Áudios, separadas por mês; `ctrl+g` mostra o item na conversa.
   Mídia antiga sem prévia é pedida de novo ao seu celular.
