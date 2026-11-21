@@ -52,6 +52,7 @@ type Privacy struct {
 	NotifyPreview  bool `toml:"notify_preview"`
 	Notifications  bool `toml:"notifications"`
 	NotifyMentions bool `toml:"notify_muted_mentions"`
+	LinkPreviews   bool `toml:"link_previews"`
 }
 
 type Interface struct {
@@ -85,7 +86,7 @@ func defaults() Config {
 		Keys: map[string]string{},
 		Privacy: Privacy{
 			ReadReceipts: true, ShowOnline: true, NotifyPreview: true,
-			Notifications: true, NotifyMentions: true,
+			Notifications: true, NotifyMentions: true, LinkPreviews: true,
 		},
 		Interface: Interface{Images: true, NerdFont: true},
 	}

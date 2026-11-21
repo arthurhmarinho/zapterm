@@ -20,6 +20,9 @@
 # notify_preview = true
 # Avisar quando te marcam num grupo silenciado.
 # notify_muted_mentions = true
+# Prévia de link ao enviar: o zapterm abre a página do link (do seu
+# computador) para pegar título, descrição e imagem, como o app faz.
+# link_previews = true
 
 [interface]
 # Fotos e figurinhas desenhadas no terminal (kitty).

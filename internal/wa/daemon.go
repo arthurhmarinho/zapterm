@@ -793,6 +793,7 @@ func (d *Daemon) send(ctx context.Context, chat, text, replyTo string, mentions 
 			Text: proto.String(text), ContextInfo: ci,
 		}}
 	}
+	d.withLinkPreview(ctx, msg, text)
 	return d.sendAndStore(ctx, jid, msg, ipc.Message{Kind: "text", Text: text, Quote: quote}, nil)
 }
 

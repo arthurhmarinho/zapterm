@@ -193,7 +193,9 @@ e mostra o caminho. Sem o arquivo, vale o padrão. Dá para:
 
 - **[privacy]**: não mandar o tracinho azul ao abrir um chat, não aparecer
   online nem "digitando…", notificação sem o texto da mensagem, desligar
-  notificações;
+  notificações, não buscar a prévia dos links que você envia
+  (`link_previews`: para montá-la o zapterm abre a página do seu
+  computador);
 - **[keys]**: trocar qualquer atalho (a ajuda e o rodapé acompanham);
 - **[colors]**: cores do destaque, dos balões, dos painéis (número ANSI ou
   hex);

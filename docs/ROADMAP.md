@@ -142,7 +142,7 @@ filtro.
 - [x] **Enviar como figurinha** a partir de imagem (WebP 512×512). (M)
 - [x] **Enviar visualização única.** `ViewOnceMessageV2`. (P)
 - [x] **Arrastar arquivo para o kitty**: caminho colado vira anexo. (P)
-- [ ] **Prévia de link ao enviar** (busca og:tags; opcional no TOML). (M)
+- [x] **Prévia de link ao enviar** (busca og:tags; opcional no TOML). (M)
 - [ ] **Mandar GIF** em `alt+g` (busca via Giphy/Tenor, precisa de chave). (M)
 - [ ] **@todos** no autocompletar (campos `NonJIDMentions`/`GroupMentions`
   a confirmar). (?)
