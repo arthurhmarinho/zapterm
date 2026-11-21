@@ -668,7 +668,7 @@ func (m *model) viewHelp() string {
 			{"pgup pgdn", "rolar a conversa"}, {keyFor("search"), "pesquisar conversa"},
 			{"ctrl+f", "procurar nesta conversa (enter/↑ mais antigo, ↓ mais novo)"},
 			{"alt+↑ alt+↓", "conversa de cima / de baixo"}, {"alt+n", "próxima conversa com não lidas"},
-			{"alt+1…4", "filtros (Tudo, Não lidas, Grupos, Canais)"}, {keyFor("archived"), "arquivadas"},
+			{"alt+1…5", "filtros (Tudo, Não lidas, Grupos, Canais, ★ favoritas)"}, {keyFor("archived"), "arquivadas"},
 			{"esc", "cancela o que estiver aberto"}, {"ctrl+c", "limpa o campo; vazio, duas vezes, sai"},
 		}},
 		{"Escrever", [][2]string{

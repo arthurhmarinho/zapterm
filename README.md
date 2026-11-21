@@ -145,7 +145,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `ctrl+f` | procurar nesta conversa: enter/↑ vai ao mais antigo, ↓ ao mais novo |
 | `alt+↑` / `alt+↓` | abre a conversa de cima / de baixo na lista |
 | `alt+n` | abre a próxima conversa com mensagens não lidas |
-| `alt+1`…`alt+4`, `alt+a` | filtros e arquivadas |
+| `alt+1`…`alt+5`, `alt+a` | filtros (Tudo, Não lidas, Grupos, Canais, ★ favoritas) e arquivadas |
 | `ctrl+r` | responder a mensagem selecionada |
 | `ctrl+e` | reagir: 1–6 as rápidas, ou digite o nome de qualquer emoji (`fogo` → 🔥) |
 | `ctrl+↑` | editar a sua última mensagem |
