@@ -4,6 +4,7 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/sahilm/fuzzy"
@@ -74,6 +75,11 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return cmd
 		}
 	}
+	if m.emoji.open {
+		if cmd, ok := m.keyEmoji(s); ok {
+			return cmd
+		}
+	}
 	if m.recReview != nil {
 		return m.keyReview(s)
 	}
@@ -131,6 +137,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 		m.startSearch()
 		return nil
+	case "ctrl+up":
+		return m.editLast()
 	case "alt+up":
 		return m.switchChat(-1)
 	case "alt+down":
@@ -271,7 +279,7 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	m.input, cmd = m.input.Update(k)
 	m.layout() // a altura do campo acompanha o texto
 	if m.input.Value() != before {
-		return tea.Batch(cmd, m.noteTyping(), m.updateMention())
+		return tea.Batch(cmd, m.noteTyping(), m.updateMention(), m.updateEmoji())
 	}
 	return cmd
 }
@@ -520,26 +528,65 @@ func abs(n int) int {
 // keyReact: 1–6 escolhem a reação, 0 tira a sua, esc fecha.
 func (m *model) keyReact(s string) tea.Cmd {
 	close := func() {
-		m.reacting = false
+		m.reacting, m.reactQuery = false, ""
 		m.layout()
 	}
-	switch {
-	case s == "esc" || s == "ctrl+e" || s == "ctrl+c":
-		close()
-		return nil
-	case len(s) == 1 && s[0] >= '0' && s[0] <= '6':
+	react := func(emoji string) tea.Cmd {
 		i := m.sel()
+		close()
 		if i < 0 {
-			close()
 			return nil
 		}
-		emoji := ""
-		if s[0] != '0' {
-			emoji = quickReactions[s[0]-'1']
+		if emoji != "" {
+			m.useEmoji(emoji)
 		}
-		close()
 		return m.call(ipc.Request{Op: ipc.OpReact, Chat: m.active, Msg: m.msgs[i].ID, Text: emoji}, nil, nil)
 	}
+	choices := m.reactChoices()
+	switch {
+	case s == "esc" || s == "ctrl+e" || s == "ctrl+c":
+		if m.reactQuery != "" && s == "esc" {
+			m.reactQuery = "" // esc com busca: limpa a busca primeiro
+			return nil
+		}
+		close()
+		return nil
+	case s == "0" && m.reactQuery == "":
+		return react("")
+	case len(s) == 1 && s[0] >= '1' && s[0] <= '9':
+		if i := int(s[0] - '1'); i < len(choices) {
+			return react(choices[i])
+		}
+	case s == "enter":
+		if len(choices) > 0 && m.reactQuery != "" {
+			return react(choices[0])
+		}
+	case s == "backspace":
+		if r := []rune(m.reactQuery); len(r) > 0 {
+			m.reactQuery = string(r[:len(r)-1])
+		}
+	case s == "space":
+		if m.reactQuery != "" {
+			m.reactQuery += " "
+		}
+	case len([]rune(s)) == 1 && unicode.IsLetter([]rune(s)[0]):
+		m.reactQuery += s // digitar busca entre todos os emojis
+	}
+	return nil
+}
+
+// editLast (ctrl+↑): edita a sua última mensagem de texto, como no app.
+func (m *model) editLast() tea.Cmd {
+	for i := len(m.msgs) - 1; i >= 0; i-- {
+		x := m.msgs[i]
+		if x.FromMe && x.Kind == "text" {
+			m.msgSel = i
+			m.refreshMessages(false)
+			m.ensureSelVisible()
+			return m.startEdit()
+		}
+	}
+	m.setFlash("nenhuma mensagem sua para editar aqui")
 	return nil
 }
 

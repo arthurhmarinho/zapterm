@@ -565,3 +565,26 @@ func TestNavegacao(t *testing.T) {
 		t.Error("esc não fechou a busca")
 	}
 }
+
+func TestEditarUltima(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m.Update(m.loadChats()())
+	runCmd(m, m.open(m.chatFor("5511900000001@s.whatsapp.net", "Marina")))
+	runCmd(m, m.editLast())
+	if m.editing == nil || m.editing.ID != "m7" || m.input.Value() != "fechado, te vejo lá!" {
+		t.Fatalf("ctrl+↑ editando %+v", m.editing)
+	}
+}

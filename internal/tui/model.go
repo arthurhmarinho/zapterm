@@ -101,9 +101,13 @@ type model struct {
 
 	audioSpeed float64 // velocidade dos áudios (alt+v), vale para os próximos
 
-	unreadCount int        // não lidas ao abrir a conversa (divisor)
-	unreadID    string     // primeira não lida: o divisor vai antes dela
-	finding     *chatFind  // busca na conversa (ctrl+f)
+	unreadCount int       // não lidas ao abrir a conversa (divisor)
+	unreadID    string    // primeira não lida: o divisor vai antes dela
+	finding     *chatFind // busca na conversa (ctrl+f)
+
+	emoji       emojiState // ":nome" no campo de escrita
+	emojiRecent []string   // usados por último (primeiro = mais recente)
+	reactQuery  string     // busca de emoji no painel de reações
 	recReview   *recReview // gravação parada esperando você ouvir e decidir
 
 	editing    *ipc.Message // mensagem sua sendo editada (alt+e)
@@ -218,7 +222,7 @@ func Run() error {
 }
 
 func newModel(cli *ipc.Client) *model {
-	m := &model{cli: cli, input: newInput(), search: newSearch(), vp: viewport.New(),
+	m := &model{cli: cli, input: newInput(), search: newSearch(), vp: viewport.New(), emojiRecent: loadRecentEmoji(),
 		status: "conectando", termFocused: true, msgSel: -1, imgs: newImages(),
 		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}, fallbacks: map[string]string{},
 		autoAsked: map[string]bool{}, presence: map[string]*presenceState{},
@@ -509,7 +513,7 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case membersMsg:
 		m.members[msg.chat] = msg.list
-		return m, m.updateMention()
+		return m, tea.Batch(m.updateMention(), m.updateEmoji())
 
 	case presenceTickMsg:
 		return m, nil // só redesenhar: o aviso de digitando venceu

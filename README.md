@@ -147,7 +147,9 @@ O mouse também funciona (clique, botão direito para responder, roda).
 | `alt+n` | abre a próxima conversa com mensagens não lidas |
 | `alt+1`…`alt+4`, `alt+a` | filtros e arquivadas |
 | `ctrl+r` | responder a mensagem selecionada |
-| `ctrl+e` | reagir |
+| `ctrl+e` | reagir: 1–6 as rápidas, ou digite o nome de qualquer emoji (`fogo` → 🔥) |
+| `ctrl+↑` | editar a sua última mensagem |
+| `:nome` | emoji pelo nome no campo: `:kkk` → 😂, `:cora` → ❤️ (português ou inglês) |
 | `ctrl+o` | abrir foto, vídeo, documento, link, ou tocar áudio |
 | `alt+c` `alt+e` | copiar / editar (sua, até 15 min) |
 | `alt+d` `alt+w` | apagar para todos (duas vezes) / encaminhar |

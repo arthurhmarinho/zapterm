@@ -77,6 +77,8 @@ func (m *model) extraHeight() int {
 		return 3
 	case m.mention.open:
 		return len(m.mention.list) + 2
+	case m.emoji.open:
+		return len(m.emoji.list) + 2
 	case m.voting != nil:
 		return m.pollPanelHeight()
 	case m.finding != nil:
@@ -377,6 +379,9 @@ func (m *model) viewExtra(g geometry) string {
 	if m.voting != nil {
 		return fitHeight(m.viewPoll(w), cDefault, w, g.extraH)
 	}
+	if m.emoji.open {
+		return fitHeight("\n"+m.viewEmoji(w), cDefault, w, g.extraH)
+	}
 	if m.finding != nil {
 		return fitHeight(m.viewFind(w), cDefault, w, g.extraH)
 	}
@@ -387,11 +392,18 @@ func (m *model) viewExtra(g geometry) string {
 	}
 	if m.reacting {
 		var opts []string
-		for i, e := range quickReactions {
+		for i, e := range m.reactChoices() {
 			opts = append(opts, sText2.Render(fmt.Sprint(i+1))+" "+e)
 		}
-		line := "  " + sText.Render("Reagir:") + "  " + strings.Join(opts, "   ") + "    " +
-			sText2.Render("0 tira a sua · esc fecha")
+		label, hint := sText.Render("Reagir:"), "0 tira a sua · digite para buscar outro · esc fecha"
+		if m.reactQuery != "" {
+			label = sText.Render("Reagir:") + " " + sGreen.Render(m.reactQuery+"▏")
+			hint = "número ou enter (o 1º) reage · esc limpa"
+			if len(opts) == 0 {
+				opts = []string{sText2.Render("nenhum emoji com esse nome")}
+			}
+		}
+		line := "  " + label + "  " + strings.Join(opts, "   ") + "    " + sText2.Render(hint)
 		return fitHeight("\n"+line, cDefault, w, g.extraH)
 	}
 	if r := m.rec; r != nil {
@@ -666,9 +678,10 @@ func (m *model) viewHelp() string {
 			{keyFor("chat_menu"), "menu do chat: fixar, arquivar, silenciar, marcar como lida (ou botão direito na lista)"},
 		}},
 		{"Mensagem selecionada", [][2]string{
-			{keyFor("reply"), "responder (ou botão direito)"}, {keyFor("react"), "reagir"},
+			{keyFor("reply"), "responder (ou botão direito)"}, {keyFor("react"), "reagir (1–6, ou digite o nome de qualquer emoji)"},
 			{keyFor("open"), "abrir foto, vídeo, documento, link, ou tocar áudio"},
-			{keyFor("copy"), "copiar texto"}, {keyFor("edit"), "editar (sua, até 15 min)"},
+			{keyFor("copy"), "copiar texto"}, {keyFor("edit"), "editar (sua, até 15 min)"}, {"ctrl+↑", "editar a sua última mensagem"},
+			{":nome", "emoji pelo nome (:kkk → 😂, :cora → ❤️)"},
 			{keyFor("delete"), "apagar para todos (sua, duas vezes)"}, {keyFor("forward"), "encaminhar"},
 		}},
 	}

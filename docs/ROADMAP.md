@@ -93,10 +93,10 @@ filtro.
 ### Campo de escrita
 - [x] **Rascunho por conversa** (texto, resposta e anexo), "Rascunho: …"
   na lista. (P) — junto com o problema do item 0.
-- [ ] **Emoji pelo nome**: `:ri` → 😂 🤣, como o `@`, com recentes. (M)
-- [ ] **Reagir com qualquer emoji** (mesmo componente) e **ver quem
+- [x] **Emoji pelo nome**: `:ri` → 😂 🤣, como o `@`, com recentes. (M)
+- [~] **Reagir com qualquer emoji** (feito; falta ver quem reagiu) (mesmo componente) e **ver quem
   reagiu** (já está no banco). (M / P)
-- [ ] **`ctrl+↑` edita a sua última mensagem.** (P)
+- [x] **`ctrl+↑` edita a sua última mensagem.** (P)
 
 ## 2. Depois — menu da mensagem e o que mora nele
 
