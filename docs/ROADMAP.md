@@ -123,11 +123,11 @@ filtro.
   com o remetente. (P)
 
 ### Menu do chat (`alt+m`)
-- [ ] **Marcar como não lida.** `appstate.BuildMarkChatAsRead(…, false, …)`. (P)
-- [ ] **Mensagens temporárias** (24h/7d/90d/desligado).
+- [x] **Marcar como não lida.** `appstate.BuildMarkChatAsRead(…, false, …)`. (P)
+- [x] **Mensagens temporárias** (24h/7d/90d/desligado).
   `cli.SetDisappearingTimer`. (P)
-- [ ] **Bloquear / desbloquear.** `cli.UpdateBlocklist`. (P)
-- [ ] **Sair do grupo** (`cli.LeaveGroup`), **apagar conversa**
+- [x] **Bloquear / desbloquear.** `cli.UpdateBlocklist`. (P)
+- [~] **Sair do grupo** (feito; falta apagar e limpar conversa) (`cli.LeaveGroup`), **apagar conversa**
   (`appstate.BuildDeleteChat`), **limpar conversa** (patch em
   `IndexClearChat`). Pedem confirmação. (P / P / M)
 

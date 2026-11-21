@@ -119,7 +119,7 @@ func (m *model) viewPopup() string {
 	}
 	lines = append(lines, "", sText2.Render("número ou enter · esc fecha"))
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cGreen).Padding(0, 1).
-		Render(sBold.Render(ansi.Truncate(p.title, 30, "…")) + "\n\n" + strings.Join(lines, "\n"))
+		Render(sBold.Render(ansi.Wrap(p.title, 44, " ")) + "\n\n" + strings.Join(lines, "\n"))
 }
 
 // popupY: o menu abre na altura da mensagem selecionada, sem sair da tela.

@@ -47,6 +47,19 @@ func (m *model) openChatMenu(c ipc.Chat) {
 	}
 	if c.Unread > 0 {
 		opts = append(opts, menuOpt{"Marcar como lida", "read", "marcado como lido"})
+	} else if c.Kind != "channel" {
+		opts = append(opts, menuOpt{"Marcar como não lida", "unread", "marcado como não lido"})
+	}
+	if c.Kind != "channel" {
+		opts = append(opts, menuOpt{"Mensagens temporárias…", "ephemeral", ""})
+	}
+	switch {
+	case c.Kind == "dm" && c.Blocked:
+		opts = append(opts, menuOpt{"Desbloquear", "unblock", "desbloqueado"})
+	case c.Kind == "dm":
+		opts = append(opts, menuOpt{"Bloquear…", "block", "bloqueado"})
+	case c.Kind == "group":
+		opts = append(opts, menuOpt{"Sair do grupo…", "leave", "você saiu do grupo"})
 	}
 	m.menu = &chatMenu{chat: c, opts: opts}
 }
@@ -75,6 +88,34 @@ func (m *model) runMenu(i int) tea.Cmd {
 	m.menu = nil
 	o := mn.opts[i]
 	chat := mn.chat
+	switch o.action {
+	case "ephemeral":
+		opt := func(label, secs, done string) popOpt {
+			return popOpt{label, func() tea.Cmd { return m.chatAction(chat, menuOpt{label, "ephemeral:" + secs, done}) }}
+		}
+		m.popup = &popMenu{title: "Mensagens temporárias", opts: []popOpt{
+			opt("24 horas", "86400", "mensagens temporárias: 24 horas"),
+			opt("7 dias", "604800", "mensagens temporárias: 7 dias"),
+			opt("90 dias", "7776000", "mensagens temporárias: 90 dias"),
+			opt("Desligar", "0", "mensagens temporárias desligadas"),
+		}}
+		return nil
+	case "block", "leave":
+		q := "Bloquear " + chat.Name + "? Ele não vai mais conseguir te mandar mensagem nem ligar."
+		if o.action == "leave" {
+			q = "Sair de " + chat.Name + "?"
+		}
+		m.popup = &popMenu{title: q, opts: []popOpt{
+			{strings.TrimSuffix(o.label, "…"), func() tea.Cmd { return m.chatAction(chat, o) }},
+			{"Cancelar", func() tea.Cmd { return nil }},
+		}}
+		return nil
+	}
+	return m.chatAction(chat, o)
+}
+
+// chatAction manda a ação do menu do chat ao daemon.
+func (m *model) chatAction(chat ipc.Chat, o menuOpt) tea.Cmd {
 	cli := m.cli
 	return func() tea.Msg {
 		if err := cli.Call(ipc.Request{Op: ipc.OpChatAction, Chat: chat.JID, Text: o.action}, nil); err != nil {

@@ -182,6 +182,7 @@ func (d *Daemon) onEvent(evt any) {
 		availSent = nil
 		availMu.Unlock()
 		go d.syncAvailability()
+		go d.loadBlocklist()
 	case *events.Disconnected:
 		d.setStatus("offline")
 	case *events.StreamReplaced:
@@ -221,6 +222,8 @@ func (d *Daemon) onEvent(evt any) {
 		}
 	case *events.CallOffer:
 		d.onCallOffer(e)
+	case *events.Blocklist:
+		d.onBlocklist(ctx, e)
 	case *events.Star:
 		d.onStar(ctx, e)
 	case *events.DeleteForMe:
@@ -500,6 +503,7 @@ func (d *Daemon) decorate(ctx context.Context, c *ipc.Chat) {
 	c.Archived = s.Archived
 	c.Pinned = s.Pinned
 	c.Muted = s.MutedUntil.After(time.Now())
+	c.Blocked = d.isBlocked(c.JID)
 }
 
 // chatSettings junta as configurações do celular gravadas pelo número e

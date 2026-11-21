@@ -132,6 +132,7 @@ type Chat struct {
 	Name     string `json:"name"`
 	Kind     string `json:"kind"` // dm, group, channel
 	Archived bool   `json:"archived"`
+	Blocked  bool   `json:"blocked,omitempty"` // contato bloqueado
 	Muted    bool   `json:"muted"`
 	Pinned   bool   `json:"pinned"`
 	IsGroup  bool   `json:"is_group"`

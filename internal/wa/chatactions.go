@@ -3,7 +3,10 @@ package wa
 import (
 	"context"
 	"fmt"
+	"go.mau.fi/whatsmeow/types/events"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow/appstate"
@@ -31,9 +34,49 @@ func (d *Daemon) chatAction(ctx context.Context, chat, action string) error {
 	}
 
 	var patch appstate.PatchInfo
+	if secs, ok := strings.CutPrefix(action, "ephemeral:"); ok {
+		n, err := strconv.Atoi(secs)
+		if err != nil {
+			return fmt.Errorf("prazo inválido: %q", secs)
+		}
+		if err := d.cli.SetDisappearingTimer(ctx, jid, time.Duration(n)*time.Second, time.Now()); err != nil {
+			return err
+		}
+		d.setChatEphemeral(chat, n)
+		return nil
+	}
 	switch action {
 	case "read":
 		return d.markRead(ctx, chat)
+	case "unread":
+		ts, key := d.lastKey(chat, jid, target)
+		if err := d.cli.SendAppState(ctx, appstate.BuildMarkChatAsRead(target, false, ts, key)); err != nil {
+			return err
+		}
+		if err := d.st.SetUnread(chat, 1); err != nil {
+			return err
+		}
+		d.pushChat(chat)
+		d.scheduleUnreadPush()
+		return nil
+	case "block", "unblock":
+		act := events.BlocklistChangeActionBlock
+		if action == "unblock" {
+			act = events.BlocklistChangeActionUnblock
+		}
+		list, err := d.cli.UpdateBlocklist(ctx, jid, act, d.blockHash())
+		if err != nil {
+			return err
+		}
+		d.setBlocklist(list)
+		d.pushChat(chat)
+		return nil
+	case "leave":
+		if err := d.cli.LeaveGroup(ctx, jid); err != nil {
+			return err
+		}
+		d.pushChat(chat)
+		return nil
 	case "pin", "unpin":
 		patch = appstate.BuildPin(target, action == "pin")
 	case "mute8h":
@@ -47,16 +90,7 @@ func (d *Daemon) chatAction(ctx context.Context, chat, action string) error {
 	case "archive", "unarchive":
 		// Arquivar leva a última mensagem do chat (o app usa para saber o
 		// que estava arquivado quando chegar mensagem nova).
-		var ts time.Time
-		var key *waCommon.MessageKey
-		if last, err := d.st.Messages(chat, 1, 0); err == nil && len(last) == 1 {
-			ts = time.UnixMilli(last[0].TS)
-			key = &waCommon.MessageKey{RemoteJID: proto.String(target.String()), FromMe: proto.Bool(last[0].FromMe),
-				ID: proto.String(last[0].ID)}
-			if jid.Server == types.GroupServer && !last[0].FromMe {
-				key.Participant = proto.String(last[0].Sender)
-			}
-		}
+		ts, key := d.lastKey(chat, jid, target)
 		patch = appstate.BuildArchive(target, action == "archive", ts, key)
 	default:
 		return fmt.Errorf("ação desconhecida: %q", action)
@@ -94,4 +128,90 @@ func (d *Daemon) checkNumber(ctx context.Context, phone string) (*ipc.Chat, erro
 	}
 	d.decorate(ctx, &c)
 	return &c, nil
+}
+
+// lastKey: horário e chave da última mensagem do chat (arquivar e marcar
+// como não lida levam isso).
+func (d *Daemon) lastKey(chat string, jid, target types.JID) (time.Time, *waCommon.MessageKey) {
+	last, err := d.st.Messages(chat, 1, 0)
+	if err != nil || len(last) != 1 {
+		return time.Time{}, nil
+	}
+	key := &waCommon.MessageKey{RemoteJID: proto.String(target.String()), FromMe: proto.Bool(last[0].FromMe),
+		ID: proto.String(last[0].ID)}
+	if jid.Server == types.GroupServer && !last[0].FromMe {
+		key.Participant = proto.String(last[0].Sender)
+	}
+	return time.UnixMilli(last[0].TS), key
+}
+
+// ---------- bloqueados ----------
+
+var (
+	blockMu   sync.Mutex
+	blocked   = map[string]bool{} // usuário (número ou LID, sem servidor)
+	blockHash string
+)
+
+func (d *Daemon) loadBlocklist() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	list, err := d.cli.GetBlocklist(ctx, "")
+	if err != nil {
+		d.log.Warn("lista de bloqueados", "err", err)
+		return
+	}
+	d.setBlocklist(list)
+}
+
+func (d *Daemon) setBlocklist(list *types.Blocklist) {
+	if list == nil {
+		return
+	}
+	blockMu.Lock()
+	blocked = map[string]bool{}
+	for _, it := range list.Items {
+		// Cada bloqueado vem pelo LID e, quando se sabe, pelo número.
+		for _, j := range []types.JID{it.LID, it.PN} {
+			if j.User != "" {
+				blocked[j.User] = true
+			}
+		}
+	}
+	blockHash = list.DHash
+	blockMu.Unlock()
+}
+
+func (d *Daemon) blockHash() string {
+	blockMu.Lock()
+	defer blockMu.Unlock()
+	return blockHash
+}
+
+// isBlocked olha pelo número e pelo LID do contato.
+func (d *Daemon) isBlocked(chat string) bool {
+	jid, err := types.ParseJID(chat)
+	if err != nil || jid.Server != types.DefaultUserServer {
+		return false
+	}
+	blockMu.Lock()
+	b := blocked[jid.User]
+	blockMu.Unlock()
+	if b {
+		return true
+	}
+	if lid, err := d.cli.Store.LIDs.GetLIDForPN(context.Background(), jid); err == nil && !lid.IsEmpty() {
+		blockMu.Lock()
+		b = blocked[lid.User]
+		blockMu.Unlock()
+	}
+	return b
+}
+
+// onBlocklist: bloqueou ou desbloqueou alguém no celular.
+func (d *Daemon) onBlocklist(ctx context.Context, e *events.Blocklist) {
+	go d.loadBlocklist() // mais simples e seguro que aplicar as mudanças uma a uma
+	for _, c := range e.Changes {
+		d.pushChat(d.normalize(ctx, c.JID).String())
+	}
 }

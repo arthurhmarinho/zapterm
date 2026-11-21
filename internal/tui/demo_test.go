@@ -827,3 +827,56 @@ func TestSelecaoEEncaminharParaVarios(t *testing.T) {
 		t.Error("seta sem shift não desfez")
 	}
 }
+
+func TestMenuDoChatNovasOpcoes(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	bia, _ := m.chatByJID("5511900000003@s.whatsapp.net")
+	m.openChatMenu(bia)
+	pick := func(label string) {
+		t.Helper()
+		for i, o := range m.menu.opts {
+			if o.label == label {
+				runCmd(m, m.runMenu(i))
+				return
+			}
+		}
+		t.Fatalf("menu sem %q", label)
+	}
+	pick("Mensagens temporárias…")
+	if m.popup == nil || len(m.popup.opts) != 4 {
+		t.Fatal("prazos não apareceram")
+	}
+	runCmd(m, m.keyPopup("2"))
+	if got := demo.LastSent(srv); got.Text != "ephemeral:604800" {
+		t.Fatalf("temporárias: %+v", got)
+	}
+	m.openChatMenu(bia)
+	pick("Bloquear…")
+	if m.popup == nil || !strings.Contains(m.popup.title, "Bloquear Bia Costa?") {
+		t.Fatal("bloquear sem confirmação")
+	}
+	runCmd(m, m.keyPopup("1"))
+	if got := demo.LastSent(srv); got.Text != "block" {
+		t.Fatalf("bloquear: %+v", got)
+	}
+	trilha, _ := m.chatByJID("120000000000000001@g.us")
+	m.openChatMenu(trilha)
+	pick("Sair do grupo…")
+	if m.popup == nil || m.popup.opts[0].label != "Sair do grupo" {
+		t.Fatal("sair sem confirmação")
+	}
+}

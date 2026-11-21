@@ -196,6 +196,7 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		}
 		return nil, errors.New("chat não encontrado")
 	case ipc.OpChatAction:
+		d.lastSent = req
 		for i := range d.chats {
 			c := &d.chats[i]
 			if c.JID != req.Chat {
@@ -206,6 +207,8 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 				c.Pinned = req.Text == "pin"
 			case "archive", "unarchive":
 				c.Archived = req.Text == "archive"
+			case "block", "unblock":
+				c.Blocked = req.Text == "block"
 			case "unmute":
 				c.Muted = false
 			case "mute8h", "mute1w", "muteforever":
