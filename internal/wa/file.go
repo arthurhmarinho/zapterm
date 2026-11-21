@@ -27,7 +27,7 @@ const maxFileBytes = 2 << 30
 // foto vai como foto; MP4 como vídeo; áudio como arquivo de áudio; o resto
 // (inclusive vídeo de outro formato, que o celular não toca) como
 // documento.
-func (d *Daemon) sendFile(ctx context.Context, chat, path, caption, replyTo string) (any, error) {
+func (d *Daemon) sendFile(ctx context.Context, chat, path, caption, replyTo string, o sendOpts) (any, error) {
 	jid, err := types.ParseJID(chat)
 	if err != nil {
 		return nil, fmt.Errorf("chat inválido: %w", err)
@@ -41,8 +41,10 @@ func (d *Daemon) sendFile(ctx context.Context, chat, path, caption, replyTo stri
 	}
 	mt := fileMime(path)
 	switch {
+	case strings.HasPrefix(mt, "image/") && mt != "image/svg+xml" && o.Sticker:
+		return d.sendStickerFile(ctx, chat, path, replyTo)
 	case strings.HasPrefix(mt, "image/") && mt != "image/svg+xml":
-		return d.sendImage(ctx, chat, path, caption, replyTo)
+		return d.sendImage(ctx, chat, path, caption, replyTo, o)
 	}
 
 	data, err := os.ReadFile(path)
@@ -75,6 +77,11 @@ func (d *Daemon) sendFile(ctx context.Context, chat, path, caption, replyTo stri
 		}
 		msg = &waE2E.Message{VideoMessage: vm}
 		m = ipc.Message{Kind: "video", Text: tag(fmt.Sprintf("vídeo %d:%02d", secs/60, secs%60), caption)}
+		if o.Once {
+			vm.ViewOnce = proto.Bool(true)
+			msg = &waE2E.Message{ViewOnceMessageV2: &waE2E.FutureProofMessage{Message: msg}}
+			m = ipc.Message{Kind: "other", Text: "[visualização única]"}
+		}
 
 	case strings.HasPrefix(mt, "audio/"):
 		up, err := d.cli.Upload(ctx, data, whatsmeow.MediaAudio)

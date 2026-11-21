@@ -90,6 +90,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return cmd
 		}
 	}
+	if m.attach != nil && m.keyAttach(s) {
+		return nil
+	}
 	if m.slash.open {
 		if cmd, ok := m.keySlash(s); ok {
 			return cmd
@@ -428,17 +431,9 @@ func (m *model) onEnter() tea.Cmd {
 		m.layout()
 		return m.call(ipc.Request{Op: ipc.OpEdit, Chat: e.Chat, Msg: e.ID, Text: text}, nil, nil)
 	}
-	if a := m.attach; a != nil {
+	if m.attach != nil {
 		// send_file decide pelo tipo: foto, vídeo, áudio ou documento.
-		req := ipc.Request{Op: ipc.OpSendFile, Chat: m.active, Path: a.path, Text: text}
-		if m.replyTo != nil {
-			req.ReplyTo = m.replyRef()
-		}
-		m.attach, m.replyTo, m.msgSel = nil, nil, -1
-		m.input.Reset()
-		m.layout()
-		m.setFlash("enviando " + a.name + "…")
-		return m.send(req)
+		return m.sendAttachments(text)
 	}
 	if text == "" {
 		if m.focus == paneList {

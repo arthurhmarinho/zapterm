@@ -26,7 +26,7 @@ import (
 // objeto Request, e o resultado chega no sinal Response dele.
 // https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.FileChooser.html
 
-type chosenMsg string
+type chosenMsg []string // arquivos escolhidos (pode ser mais de um)
 
 // chooseFile abre o seletor; media = só fotos e vídeos (pelo tipo).
 func chooseFile(media bool) tea.Cmd {
@@ -35,14 +35,14 @@ func chooseFile(media bool) tea.Cmd {
 		if media {
 			title = "Enviar foto ou vídeo pelo zapterm"
 		}
-		path, err := portalOpenFile(title, media)
+		paths, err := portalOpenFile(title, media)
 		switch {
 		case err != nil:
 			return errMsg{fmt.Errorf("seletor de arquivos: %w", err)}
-		case path == "":
+		case len(paths) == 0:
 			return nil // cancelou
 		}
-		return chosenMsg(path)
+		return chosenMsg(paths)
 	}
 }
 
@@ -57,10 +57,10 @@ type portalRule struct {
 	Pattern string
 }
 
-func portalOpenFile(title string, media bool) (string, error) {
+func portalOpenFile(title string, media bool) ([]string, error) {
 	conn, err := dbus.SessionBus()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	tok := make([]byte, 8)
 	rand.Read(tok)
@@ -74,7 +74,7 @@ func portalOpenFile(title string, media bool) (string, error) {
 		dbus.WithMatchInterface("org.freedesktop.portal.Request"),
 		dbus.WithMatchMember("Response"),
 	); err != nil {
-		return "", err
+		return nil, err
 	}
 	defer conn.RemoveMatchSignal(dbus.WithMatchObjectPath(reqPath),
 		dbus.WithMatchInterface("org.freedesktop.portal.Request"), dbus.WithMatchMember("Response"))
@@ -85,7 +85,7 @@ func portalOpenFile(title string, media bool) (string, error) {
 	obj := conn.Object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
 	opts := map[string]dbus.Variant{
 		"handle_token": dbus.MakeVariant(token),
-		"multiple":     dbus.MakeVariant(false),
+		"multiple":     dbus.MakeVariant(true),
 	}
 	if media {
 		f := portalFilter{"Fotos e vídeos", []portalRule{{1, "image/*"}, {1, "video/*"}}}
@@ -93,7 +93,7 @@ func portalOpenFile(title string, media bool) (string, error) {
 		opts["current_filter"] = dbus.MakeVariant(f)
 	}
 	if err := obj.Call("org.freedesktop.portal.FileChooser.OpenFile", 0, "", title, opts).Err; err != nil {
-		return "", err
+		return nil, err
 	}
 
 	timeout := time.After(15 * time.Minute)
@@ -104,20 +104,21 @@ func portalOpenFile(title string, media bool) (string, error) {
 				continue
 			}
 			if code, _ := sig.Body[0].(uint32); code != 0 {
-				return "", nil // 1 = cancelado, 2 = outro motivo
+				return nil, nil // 1 = cancelado, 2 = outro motivo
 			}
 			results, _ := sig.Body[1].(map[string]dbus.Variant)
 			uris, _ := results["uris"].Value().([]string)
-			if len(uris) == 0 {
-				return "", nil
+			var paths []string
+			for _, raw := range uris {
+				u, err := url.Parse(raw)
+				if err != nil || u.Scheme != "file" {
+					return nil, fmt.Errorf("resposta inesperada do portal: %q", raw)
+				}
+				paths = append(paths, u.Path)
 			}
-			u, err := url.Parse(uris[0])
-			if err != nil || u.Scheme != "file" {
-				return "", fmt.Errorf("resposta inesperada do portal: %q", uris[0])
-			}
-			return u.Path, nil
+			return paths, nil
 		case <-timeout:
-			return "", errors.New("o seletor ficou aberto tempo demais")
+			return nil, errors.New("o seletor ficou aberto tempo demais")
 		}
 	}
 }

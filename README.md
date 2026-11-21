@@ -166,6 +166,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `@` | marcar alguém num grupo |
 | `ctrl+v` | colar print para enviar |
 | `alt+f` ou o clipe | menu de anexar: foto ou vídeo, arquivo, figurinha, enquete, evento, contato |
+| painel de envio | `alt+q` HD · `alt+t` como figurinha · `alt+o` visualização única; o seletor aceita vários arquivos, e arrastar arquivos para o kitty também anexa |
 | `/` no campo vazio | os mesmos como comandos: `/foto`, `/arquivo`, `/figurinha`, `/enquete`, `/evento`, `/contato` (`esc` manda o texto como está) |
 | `ctrl+s` | figurinhas (favoritas do celular; `tab` troca para as recentes) |
 | `ctrl+t` | gravar mensagem de voz (espaço para e deixa ouvir antes de enviar) |

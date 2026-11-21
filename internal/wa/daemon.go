@@ -728,7 +728,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 	case ipc.OpSendFile:
 		fctx, fcancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer fcancel()
-		return d.sendFile(fctx, req.Chat, req.Path, req.Text, req.ReplyTo)
+		return d.sendFile(fctx, req.Chat, req.Path, req.Text, req.ReplyTo, parseSendOpts(req.Options))
 	case ipc.OpSendAudio:
 		actx, acancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer acancel()
@@ -736,7 +736,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 	case ipc.OpSendImage:
 		ictx, icancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer icancel()
-		return d.sendImage(ictx, req.Chat, req.Path, req.Text, req.ReplyTo)
+		return d.sendImage(ictx, req.Chat, req.Path, req.Text, req.ReplyTo, parseSendOpts(req.Options))
 	case ipc.OpMedia:
 		// Vídeo grande demora; o prazo de 25s dos outros pedidos é curto.
 		mctx, mcancel := context.WithTimeout(context.Background(), 3*time.Minute)

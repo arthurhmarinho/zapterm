@@ -108,6 +108,12 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpPollVote:
 		d.lastSent = req
 		return nil, nil
+	case ipc.OpSendFile:
+		if req.Path == "" {
+			return nil, errors.New("nenhum arquivo para enviar")
+		}
+		d.lastSent = req // a demonstração só anota; nada sai daqui
+		return nil, nil
 	case ipc.OpSendPoll, ipc.OpSendEvent, ipc.OpSendContact:
 		d.lastSent = req
 		return nil, nil

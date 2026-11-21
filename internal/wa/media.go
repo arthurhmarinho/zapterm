@@ -388,11 +388,32 @@ func pruneMediaCache() (removed int, err error) {
 
 // Lado maior da imagem enviada: o WhatsApp recomprime acima disso, e print
 // de tela grande vira alguns MB à toa.
-const sendMaxPx = 1600
+const (
+	sendMaxPx   = 1600
+	sendHDMaxPx = 4096
+)
+
+// sendOpts: como mandar a foto ou o vídeo (Request.Options).
+type sendOpts struct{ HD, Sticker, Once bool }
+
+func parseSendOpts(opts []string) sendOpts {
+	var o sendOpts
+	for _, x := range opts {
+		switch x {
+		case "hd":
+			o.HD = true
+		case "sticker":
+			o.Sticker = true
+		case "once":
+			o.Once = true
+		}
+	}
+	return o
+}
 
 // sendImage envia um arquivo de imagem (o print colado na TUI) como foto,
 // com legenda opcional. Converte para JPEG, que é o que o app espera.
-func (d *Daemon) sendImage(ctx context.Context, chat, path, caption, replyTo string) (any, error) {
+func (d *Daemon) sendImage(ctx context.Context, chat, path, caption, replyTo string, o sendOpts) (any, error) {
 	jid, err := types.ParseJID(chat)
 	if err != nil {
 		return nil, fmt.Errorf("chat inválido: %w", err)
@@ -406,6 +427,9 @@ func (d *Daemon) sendImage(ctx context.Context, chat, path, caption, replyTo str
 		return nil, fmt.Errorf("não é uma imagem: %w", err)
 	}
 	full, w, h := scaleJPEG(src, sendMaxPx, 85)
+	if o.HD {
+		full, w, h = scaleJPEG(src, sendHDMaxPx, 92) // HD: só reduz o que passa de 4096 px
+	}
 	thumb, _, _ := scaleJPEG(src, 72, 60)
 
 	up, err := d.cli.Upload(ctx, full, whatsmeow.MediaImage)
@@ -433,7 +457,14 @@ func (d *Daemon) sendImage(ctx context.Context, chat, path, caption, replyTo str
 		im.Caption = proto.String(caption)
 	}
 	m := ipc.Message{Kind: "image", Text: tag("imagem", caption), Quote: quote}
-	return d.sendAndStore(ctx, jid, &waE2E.Message{ImageMessage: im}, m, func(id string) *ipc.Media {
+	msg := &waE2E.Message{ImageMessage: im}
+	if o.Once {
+		// Visualização única: some do outro lado depois de aberta.
+		im.ViewOnce = proto.Bool(true)
+		msg = &waE2E.Message{ViewOnceMessageV2: &waE2E.FutureProofMessage{Message: msg}}
+		return d.sendAndStore(ctx, jid, msg, ipc.Message{Kind: "other", Text: "[visualização única]", Quote: quote}, nil)
+	}
+	return d.sendAndStore(ctx, jid, msg, m, func(id string) *ipc.Media {
 		// Já entra no cache com o ID definitivo: aparece no balão na hora.
 		base, err := mediaBase(id)
 		if err != nil {

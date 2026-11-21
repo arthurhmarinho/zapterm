@@ -137,11 +137,11 @@ filtro.
 - [~] **Link de convite** (feito: copiar com alt+c; falta redefinir e QR). `cli.GetGroupInviteLink`. (P)
 
 ### Painéis acima da caixa
-- [ ] **Várias fotos de uma vez** com legenda (álbum). `AlbumMessage`. (M)
-- [ ] **Enviar em HD** / tamanho original. (P)
-- [ ] **Enviar como figurinha** a partir de imagem (WebP 512×512). (M)
-- [ ] **Enviar visualização única.** `ViewOnceMessageV2`. (P)
-- [ ] **Arrastar arquivo para o kitty**: caminho colado vira anexo. (P)
+- [~] **Várias fotos de uma vez** (feito: vários arquivos de uma vez, em sequência, legenda no primeiro; falta agrupar como álbum) com legenda (álbum). `AlbumMessage`. (M)
+- [x] **Enviar em HD** / tamanho original. (P)
+- [x] **Enviar como figurinha** a partir de imagem (WebP 512×512). (M)
+- [x] **Enviar visualização única.** `ViewOnceMessageV2`. (P)
+- [x] **Arrastar arquivo para o kitty**: caminho colado vira anexo. (P)
 - [ ] **Prévia de link ao enviar** (busca og:tags; opcional no TOML). (M)
 - [ ] **Mandar GIF** em `alt+g` (busca via Giphy/Tenor, precisa de chave). (M)
 - [ ] **@todos** no autocompletar (campos `NonJIDMentions`/`GroupMentions`

@@ -59,6 +59,9 @@ type attachment struct {
 	image         bool // foto (prévia e legenda) ou arquivo qualquer
 	name          string
 	size          int64
+	hd, sticker   bool         // foto em HD / como figurinha
+	once          bool         // visualização única
+	more          []attachment // os outros arquivos escolhidos junto
 }
 
 type model struct {
@@ -423,6 +426,11 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onWheel(msg)
 
 	case tea.PasteMsg:
+		// Arquivo arrastado para o kitty chega como o caminho colado.
+		if files := droppedFiles(msg.Content); len(files) > 0 && m.active != "" && !m.searching {
+			m.setAttachments(files)
+			return m, nil
+		}
 		if m.searching {
 			var cmd tea.Cmd
 			m.search, cmd = m.search.Update(msg)
@@ -553,13 +561,7 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case chosenMsg:
-		a, err := fileAttachment(string(msg))
-		if err != nil {
-			m.setFlash(err.Error())
-			return m, nil
-		}
-		m.attach, m.picking = &a, false
-		m.layout()
+		m.setAttachments(msg)
 		return m, nil
 
 	case msgsMsg:

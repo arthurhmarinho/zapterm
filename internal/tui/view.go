@@ -450,6 +450,12 @@ func (m *model) viewExtra(g geometry) string {
 	}
 	if a := m.attach; a != nil {
 		hint := sText2.Render("escreva uma legenda e aperte enter · esc cancela")
+		if opts := m.attachHint(); opts != "" {
+			hint += sText2.Render(" · ") + opts
+		}
+		if n := len(a.more); n > 0 {
+			hint = sGreen.Render(fmt.Sprintf("+%d arquivo(s)", n)) + sText2.Render(" · ") + hint
+		}
 		if !a.image {
 			icon := icons.doc
 			switch strings.ToLower(filepath.Ext(a.name)) {
@@ -465,7 +471,14 @@ func (m *model) viewExtra(g geometry) string {
 		if pic == "" {
 			pic = sText.Render(icons.photo + " " + a.name)
 		}
-		head := "  " + sText.Render(icons.attach+"  Enviar foto") + "   " + hint
+		title := "Enviar foto"
+		switch {
+		case a.sticker:
+			title = "Enviar como figurinha"
+		case len(a.more) > 0:
+			title = fmt.Sprintf("Enviar %d arquivos", len(a.more)+1)
+		}
+		head := "  " + sText.Render(icons.attach+"  "+title) + "   " + hint
 		body := lipgloss.JoinHorizontal(lipgloss.Top, "    ", pic)
 		return fitHeight(paint(head+"\n\n"+body, cDefault, w), cDefault, w, g.extraH)
 	}
