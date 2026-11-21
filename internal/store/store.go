@@ -90,6 +90,10 @@ var migrations = []string{
 	// 9: mensagem favorita (estrela), sincronizada com o celular.
 	`ALTER TABLE messages ADD COLUMN starred INTEGER NOT NULL DEFAULT 0;
 	 CREATE INDEX messages_starred ON messages (starred) WHERE starred = 1;`,
+	// 10: mensagens fixadas no topo da conversa (expires 0 = sem prazo).
+	`CREATE TABLE pins (
+		chat TEXT NOT NULL, msg_id TEXT NOT NULL, ts INTEGER NOT NULL DEFAULT 0,
+		expires INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (chat, msg_id));`,
 }
 
 func migrate(db *sql.DB) error {
@@ -346,6 +350,44 @@ func (s *Store) StarredMessages(limit int) ([]ipc.Message, error) {
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// SetPin fixa (ou, com pinned false, desafixa) uma mensagem. Vale o aviso
+// mais recente: um desafixar antigo não derruba um fixar novo.
+func (s *Store) SetPin(chat, msgID string, pinned bool, ts, expires int64) error {
+	if !pinned {
+		_, err := s.db.Exec(`DELETE FROM pins WHERE chat = ? AND msg_id = ? AND ts <= ?`, chat, msgID, ts)
+		return err
+	}
+	_, err := s.db.Exec(`INSERT INTO pins (chat, msg_id, ts, expires) VALUES (?, ?, ?, ?)
+		ON CONFLICT (chat, msg_id) DO UPDATE SET ts = excluded.ts, expires = excluded.expires
+		WHERE excluded.ts >= pins.ts`, chat, msgID, ts, expires)
+	return err
+}
+
+// Pins devolve as mensagens fixadas e ainda valendo, a fixada por último
+// primeiro.
+func (s *Store) Pins(chat string) ([]ipc.Message, error) {
+	rows, err := s.db.Query(`SELECT p.msg_id FROM pins p WHERE p.chat = ?
+		AND (p.expires = 0 OR p.expires > CAST(strftime('%s','now') AS INTEGER) * 1000) ORDER BY p.ts DESC`, chat)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			ids = append(ids, id)
+		}
+	}
+	rows.Close()
+	out := []ipc.Message{}
+	for _, id := range ids {
+		if m, _, err := s.Message(chat, id); err == nil {
+			out = append(out, m)
+		}
+	}
+	return out, nil
 }
 
 // DeleteMessage tira a mensagem do banco (apagar para mim).

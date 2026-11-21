@@ -242,7 +242,7 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	if e.Info.Chat == types.StatusBroadcastJID {
 		return // status (stories) fica fora do zapterm
 	}
-	if d.onEphemeralSetting(ctx, e) || d.onPollVote(ctx, e) {
+	if d.onEphemeralSetting(ctx, e) || d.onPollVote(ctx, e) || d.onPinMessage(ctx, e) {
 		return
 	}
 	if d.onChange(ctx, e, live) {
@@ -624,6 +624,10 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return d.profile(pctx, req.Chat)
 	case ipc.OpPollVote:
 		return nil, d.pollVote(ctx, req.Chat, req.Msg, req.Options)
+	case ipc.OpPin:
+		return nil, d.pin(ctx, req.Chat, req.Msg, req.Seconds)
+	case ipc.OpPins:
+		return d.pins(ctx, req.Chat)
 	case ipc.OpStar:
 		return nil, d.star(ctx, req.Chat, req.Msg, req.Text == "1")
 	case ipc.OpStarred:

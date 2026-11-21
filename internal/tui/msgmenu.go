@@ -49,6 +49,11 @@ func (m *model) openMsgMenu() tea.Cmd {
 		add("Editar", m.startEdit)
 	}
 	add("Encaminhar", m.startForward)
+	if m.isPinned(msg.ID) {
+		add("Desafixar", func() tea.Cmd { return m.openPinMenu(msg) })
+	} else {
+		add("Fixar…", func() tea.Cmd { return m.openPinMenu(msg) })
+	}
 	if msg.Starred {
 		add("Desfavoritar", m.toggleStar)
 	} else {

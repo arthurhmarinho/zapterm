@@ -207,6 +207,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return m.setTab(int(s[4] - '1'))
 	case "alt+s":
 		return m.toggleStar()
+	case "alt+p":
+		return m.jumpPin()
 	case "alt+a":
 		m.setArchived(!m.archived)
 		return nil
@@ -487,6 +489,9 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 			return m.openGallery(0) // clique em "Mídia, links e docs"
 		}
 		return nil
+	}
+	if y == headerH && m.pinBarH() > 0 {
+		return m.jumpPin() // clique na faixa da fixada
 	}
 	if y < headerH {
 		return m.openProfile() // clique no cabeçalho, como no app

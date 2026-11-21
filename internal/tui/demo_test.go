@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -105,7 +106,7 @@ func TestAcoesNaMensagem(t *testing.T) {
 	for _, o := range m.popup.opts {
 		labels = append(labels, o.label)
 	}
-	if got := strings.Join(labels, ","); got != "Responder,Reagir,Copiar,Editar,Encaminhar,Favoritar,Apagar…" {
+	if got := strings.Join(labels, ","); got != "Responder,Reagir,Copiar,Editar,Encaminhar,Fixar…,Favoritar,Apagar…" {
 		t.Fatalf("menu: %s", got)
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -692,5 +693,58 @@ func TestFavoritas(t *testing.T) {
 	runCmd(m, m.open(m.list[0]))
 	if m.sel() < 0 || m.msgs[m.sel()].ID != "m3" {
 		t.Fatal("enter na favorita não pulou para a mensagem")
+	}
+}
+
+func TestFixarMensagem(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	chat := "5511900000001@s.whatsapp.net"
+	runCmd(m, m.open(m.chatFor(chat, "Marina")))
+	for i, x := range m.msgs {
+		if x.ID == "m3" {
+			m.msgSel = i
+		}
+	}
+	vpBefore := m.geom().vpH
+	runCmd(m, m.openMsgMenu())
+	idx := -1
+	for i, o := range m.popup.opts {
+		if o.label == "Fixar…" {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatal("menu sem Fixar…")
+	}
+	runCmd(m, m.keyPopup(fmt.Sprint(idx+1)))
+	runCmd(m, m.keyPopup("2")) // 7 dias
+	runCmd(m, m.loadPins(chat)) // (o EvPins chega pelo canal de eventos)
+	if len(m.pins) != 1 || m.pins[0].ID != "m3" {
+		t.Fatalf("fixadas: %+v", m.pins)
+	}
+	if m.geom().vpH != vpBefore-1 {
+		t.Error("a faixa não ganhou sua linha")
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "Marina Alves: Umas 15h") {
+		t.Error("faixa da fixada não aparece")
+	}
+	m.msgSel = -1
+	runCmd(m, m.jumpPin())
+	if m.sel() < 0 || m.msgs[m.sel()].ID != "m3" {
+		t.Fatal("alt+p não pulou para a fixada")
 	}
 }

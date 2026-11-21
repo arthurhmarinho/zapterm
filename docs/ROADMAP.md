@@ -108,7 +108,7 @@ filtro.
   `appstate.IndexDeleteMessageForMe`; receber `events.DeleteForMe`. (P–M)
 - [x] **Favoritar (★)** em `alt+s` e filtro ★ (`alt+5`) na lista.
   `appstate.BuildStar`, `events.Star`, `WebMessageInfo.GetStarred()`. (P)
-- [ ] **Fixar mensagem** (24 h/7 d/sempre) e **faixa no topo** do chat.
+- [x] **Fixar mensagem** (24 h/7 d/sempre) e **faixa no topo** do chat.
   `PinInChatMessage`, `MessageAddOnDurationInSecs`,
   `WebMessageInfo.GetPinInChat()`. (M)
 - [ ] **Dados da mensagem** (quem recebeu e leu, com horário) e quem

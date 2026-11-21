@@ -111,9 +111,11 @@ type model struct {
 	reactQuery  string     // busca de emoji no painel de reações
 
 	starred    []ipc.SearchHit // mensagens favoritas (filtro ★)
-	popup      *popMenu        // menu da mensagem (alt+.) ou "apagar para quem?"
-	pendingDel *pendingDelete  // apagar para mim esperando os 5 s de desfazer
-	recReview  *recReview      // gravação parada esperando você ouvir e decidir
+	pins       []ipc.Message   // fixadas da conversa aberta (faixa no topo)
+	pinIdx     int
+	popup      *popMenu       // menu da mensagem (alt+.) ou "apagar para quem?"
+	pendingDel *pendingDelete // apagar para mim esperando os 5 s de desfazer
+	recReview  *recReview     // gravação parada esperando você ouvir e decidir
 
 	editing    *ipc.Message // mensagem sua sendo editada (alt+e)
 	forwarding *ipc.Message // mensagem a encaminhar (alt+w): a busca escolhe o destino
@@ -466,6 +468,9 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case pinsMsg:
+		m.onPins(msg)
+		return m, nil
 	case starredMsg:
 		m.starred = msg.hits
 		if m.tab == tabStarred {
@@ -648,6 +653,8 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 		if c.JID == m.active {
 			m.activeChat = c
 		}
+	case ipc.EvPins:
+		return m.onPinsEvent(f.Data)
 	case ipc.EvOpen:
 		var o ipc.Open
 		if json.Unmarshal(f.Data, &o) == nil {
@@ -781,7 +788,8 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.loadingOld, m.noMoreOld, m.gap = false, false, false
 	m.layout()
 	m.refreshMessages(true)
-	cmds := []tea.Cmd{m.loadMessages(c.JID, 0), stop}
+	m.pins, m.pinIdx = nil, 0
+	cmds := []tea.Cmd{m.loadMessages(c.JID, 0), stop, m.loadPins(c.JID)}
 	if c.Unread > 0 {
 		cmds = append(cmds, m.markRead(c.JID))
 	}

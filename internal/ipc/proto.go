@@ -25,6 +25,8 @@ const (
 	OpReact       = "react"        // reage à mensagem Msg com o emoji em Text ("" remove)
 	OpTyping      = "typing"       // Text: "composing", "recording" ou "paused" em Chat
 	OpRevoke      = "revoke"       // apaga para todos a sua mensagem Msg
+	OpPin         = "pin"          // fixa a mensagem Msg por Seconds (0 = desafixa)
+	OpPins        = "pins"         // mensagens fixadas do Chat
 	OpStar        = "star"         // favorita (Text "1") ou desfavorita ("0") a mensagem Msg
 	OpStarred     = "starred"      // mensagens favoritas de todas as conversas ([]SearchHit)
 	OpDeleteMe    = "delete_me"    // apaga só para você a mensagem Msg (sincroniza com o celular)
@@ -51,6 +53,7 @@ const (
 	EvUpdate   = "update"   // mensagem existente mudou (editada, apagada, reação, recibo)
 	EvPresence = "presence" // digitando, gravando, online, visto por último
 	EvOpen     = "open"     // abra este chat (clique na notificação)
+	EvPins     = "pins"     // mudaram as fixadas do chat (Data: o JID)
 )
 
 // Request vai da TUI para o daemon.

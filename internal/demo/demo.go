@@ -23,7 +23,8 @@ var demoNames = map[string]string{
 }
 
 type server struct {
-	lastSent ipc.Request // para os testes conferirem o que a TUI mandou
+	pins     map[string][]string // chat → fixadas (a mais nova primeiro)
+	lastSent ipc.Request         // para os testes conferirem o que a TUI mandou
 	srv      *ipc.Server
 	mu       sync.Mutex
 	chats    []ipc.Chat
@@ -107,6 +108,32 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpPollVote:
 		d.lastSent = req
 		return nil, nil
+	case ipc.OpPin:
+		if d.pins == nil {
+			d.pins = map[string][]string{}
+		}
+		var keep []string
+		for _, id := range d.pins[req.Chat] {
+			if id != req.Msg {
+				keep = append(keep, id)
+			}
+		}
+		if req.Seconds > 0 {
+			keep = append([]string{req.Msg}, keep...)
+		}
+		d.pins[req.Chat] = keep
+		go d.srv.Broadcast(ipc.EvPins, req.Chat)
+		return nil, nil
+	case ipc.OpPins:
+		out := []ipc.Message{}
+		for _, id := range d.pins[req.Chat] {
+			for _, m := range d.msgs[req.Chat] {
+				if m.ID == id {
+					out = append(out, m)
+				}
+			}
+		}
+		return out, nil
 	case ipc.OpStar:
 		for i, m := range d.msgs[req.Chat] {
 			if m.ID == req.Msg {

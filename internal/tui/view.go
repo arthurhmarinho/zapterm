@@ -57,7 +57,7 @@ func (m *model) geom() geometry {
 	g.extraH = m.extraHeight()
 	g.extraY = g.inputY - g.extraH
 	g.headerH = headerH
-	g.vpY = headerH
+	g.vpY = headerH + m.pinBarH()
 	g.vpH = max(1, g.extraY-g.vpY)
 	return g
 }
@@ -146,7 +146,11 @@ func (m *model) View() tea.View {
 	} else if m.profileOpen {
 		right = m.viewProfile(g)
 	} else {
-		parts := []string{m.viewHeader(g), fitHeight(m.vp.View(), cBgChat, g.chatW, g.vpH)}
+		parts := []string{m.viewHeader(g)}
+		if m.pinBarH() > 0 {
+			parts = append(parts, m.viewPinBar(g.chatW))
+		}
+		parts = append(parts, fitHeight(m.vp.View(), cBgChat, g.chatW, g.vpH))
 		if g.extraH > 0 {
 			parts = append(parts, m.viewExtra(g))
 		}
@@ -689,7 +693,8 @@ func (m *model) viewHelp() string {
 			{":nome", "emoji pelo nome (:kkk → 😂, :cora → ❤️)"},
 			{keyFor("delete"), "apagar: para mim ou para todos (alt+z desfaz o para mim)"},
 			{"alt+. ou botão direito", "menu da mensagem (responder em privado, abrir, copiar…)"},
-			{"alt+s", "favoritar a mensagem (★); alt+5 lista as favoritas"}, {keyFor("forward"), "encaminhar"},
+			{"alt+s", "favoritar a mensagem (★); alt+5 lista as favoritas"},
+			{"alt+p", "ir para a mensagem fixada (fixar: menu da mensagem)"}, {keyFor("forward"), "encaminhar"},
 		}},
 	}
 	var b strings.Builder
