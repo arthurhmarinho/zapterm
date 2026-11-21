@@ -67,8 +67,8 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
 	// Silenciado ou arquivado no celular não notifica. Arquivado conta como
 	// silenciado, como no app com "manter conversas arquivadas".
 	// Silenciado não notifica, a não ser que te marquem (como no app).
-	if !d.cfg.Privacy.Notifications {
-		return
+	if !d.cfg.Privacy.Notifications || d.st.IsLocked(m.Chat) {
+		return // trancada no celular: nem o nome aparece
 	}
 	mentionOK := m.MentionsMe && d.cfg.Privacy.NotifyMentions
 	if s := d.chatSettings(ctx, chat); s.Archived || (s.MutedUntil.After(time.Now()) && !mentionOK) {
