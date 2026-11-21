@@ -18,6 +18,9 @@ import (
 
 const mentionShown = 6
 
+// allMembers é o "JID" da entrada @todos do autocompletar.
+const allMembers = "todos"
+
 var mentionTailRe = regexp.MustCompile(`(?:^|\s)@([^\s@]*)$`)
 
 type mentionState struct {
@@ -59,6 +62,11 @@ func (m *model) updateMention() tea.Cmd {
 			func() tea.Msg { return membersMsg{chat: chat, list: out} })
 	}
 	ms.list = ms.list[:0]
+	// @todos marca todo mundo; em grupo grande (mais de 32), só admin,
+	// como no app.
+	if strings.HasPrefix("todos", strings.ToLower(ms.query)) && (len(members) <= 32 || m.admins[m.active]) {
+		ms.list = append(ms.list, ipc.Member{JID: allMembers, Name: "todos"})
+	}
 	if ms.query == "" {
 		ms.list = append(ms.list, members[:min(len(members), mentionShown)]...)
 	} else {
@@ -116,6 +124,13 @@ func (m *model) resolveMentions(text string) (string, []string) {
 	var jids []string
 	for display, jid := range m.mentioned {
 		if !strings.Contains(text, display) {
+			continue
+		}
+		if jid == allMembers {
+			// O texto fica "@todos"; a lista de marcados leva cada um.
+			for _, mb := range m.members[m.active] {
+				jids = append(jids, mb.JID)
+			}
 			continue
 		}
 		user, _, _ := strings.Cut(jid, "@")

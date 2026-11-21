@@ -1076,3 +1076,39 @@ func TestAdminConversaELinkDeConvite(t *testing.T) {
 		t.Error("QR vazio")
 	}
 }
+
+func TestMencionarTodos(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	m.Update(m.loadChats()())
+	runCmd(m, m.open(m.chatFor("120000000000000001@g.us", "Trilha")))
+	typ := func(s string) {
+		for _, r := range s {
+			_, cmd := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+			runCmd(m, cmd)
+		}
+	}
+	typ("bora @tod")
+	if !m.mention.open || m.mention.list[0].Name != "todos" {
+		t.Fatalf("lista: %+v", m.mention.list)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(m, cmd)
+	sent := demo.LastSent(srv)
+	if sent.Text != "bora @todos" || len(sent.Mentions) != len(m.members[m.active]) || len(sent.Mentions) < 2 {
+		t.Fatalf("enviado: %+v (membros %d)", sent, len(m.members[m.active]))
+	}
+}

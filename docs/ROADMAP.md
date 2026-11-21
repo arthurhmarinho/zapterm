@@ -144,7 +144,7 @@ filtro.
 - [x] **Arrastar arquivo para o kitty**: caminho colado vira anexo. (P)
 - [x] **Prévia de link ao enviar** (busca og:tags; opcional no TOML). (M)
 - [ ] **Mandar GIF** em `alt+g` (busca via Giphy/Tenor, precisa de chave). (M)
-- [ ] **@todos** no autocompletar (campos `NonJIDMentions`/`GroupMentions`
+- [x] **@todos** no autocompletar (campos `NonJIDMentions`/`GroupMentions`
   a confirmar). (?)
 - [x] **Abrir link de convite `chat.whatsapp.com`**: mostra o grupo e
   oferece "Entrar". `cli.GetGroupInfoFromLink`, `cli.JoinGroupWithLink`. (P)

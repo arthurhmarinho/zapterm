@@ -158,6 +158,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `:nome` | emoji pelo nome no campo: `:kkk` → 😂, `:cora` → ❤️ (português ou inglês) |
 | `ctrl+o` | abrir foto, vídeo, documento, link, ou tocar áudio |
 | `alt+c` `alt+e` | copiar / editar (sua, até 15 min) |
+| `@` em grupo | marca alguém (autocompleta); `@todos` marca todo mundo (em grupo com mais de 32, só admin) |
 | `alt+.` | menu da mensagem: responder, responder em privado, reagir, abrir, copiar, editar, encaminhar, apagar (ou botão direito) |
 | `alt+d` | apagar: pergunta se é para você ou para todos; `alt+z` desfaz o "para mim" por 5 s |
 | `alt+w` | encaminhar: na busca, `enter` marca até 5 conversas e `alt+w` envia |
