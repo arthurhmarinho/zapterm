@@ -100,7 +100,7 @@ filtro.
 
 ## 2. Depois — menu da mensagem e o que mora nele
 
-- [~] **Menu da mensagem (`alt+.`)** (feito com as ações que já existem; os itens novos entram conforme ficam prontos): lista numerada só com o que vale
+- [x] **Menu da mensagem (`alt+.`)**: lista numerada só com o que vale
   para aquela mensagem. (M)
 - [x] **Responder em privado** (`alt+r`): abre a conversa individual com a
   citação. `ContextInfo{StanzaID, Participant, RemoteJID: grupo}`. (P)
