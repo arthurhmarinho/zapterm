@@ -49,6 +49,16 @@ func (m *model) openMsgMenu() tea.Cmd {
 		add("Editar", m.startEdit)
 	}
 	add("Encaminhar", m.startForward)
+	if msg.Expires > 0 {
+		label, on, done := "Salvar na conversa", "1", "mensagem salva: não vai sumir"
+		if msg.Kept {
+			label, on, done = "Deixar de salvar", "0", "mensagem volta a ser temporária"
+		}
+		add(label, func() tea.Cmd {
+			return m.call(ipc.Request{Op: ipc.OpKeep, Chat: msg.Chat, Msg: msg.ID, Text: on}, nil,
+				func() tea.Msg { return flashMsg(done) })
+		})
+	}
 	if m.isPinned(msg.ID) {
 		add("Desafixar", func() tea.Cmd { return m.openPinMenu(msg) })
 	} else {

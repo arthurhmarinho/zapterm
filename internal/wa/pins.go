@@ -87,3 +87,47 @@ func (d *Daemon) pins(ctx context.Context, chat string) ([]ipc.Message, error) {
 	d.fillMentions(ctx, msgs)
 	return msgs, nil
 }
+
+// onKeepInChat: alguém salvou (ou deixou de salvar) uma temporária.
+func (d *Daemon) onKeepInChat(ctx context.Context, e *events.Message) bool {
+	k := e.Message.GetKeepInChatMessage()
+	if k == nil {
+		return false
+	}
+	chat := d.normalize(ctx, e.Info.Chat).String()
+	keep := k.GetKeepType() == waE2E.KeepType_KEEP_FOR_ALL
+	if changed, err := d.st.SetKept(chat, k.GetKey().GetID(), keep); err == nil && changed {
+		d.pushUpdate(chat, k.GetKey().GetID())
+	}
+	return true
+}
+
+// keepInChat salva a temporária na conversa (vale para todos).
+func (d *Daemon) keepInChat(ctx context.Context, chat, msgID string, keep bool) error {
+	orig, _, err := d.st.Message(chat, msgID)
+	if err != nil {
+		return err
+	}
+	jid, err := types.ParseJID(chat)
+	if err != nil {
+		return err
+	}
+	key := &waCommon.MessageKey{RemoteJID: proto.String(chat), FromMe: proto.Bool(orig.FromMe), ID: proto.String(msgID)}
+	if jid.Server == types.GroupServer && !orig.FromMe {
+		key.Participant = proto.String(orig.Sender)
+	}
+	typ := waE2E.KeepType_KEEP_FOR_ALL
+	if !keep {
+		typ = waE2E.KeepType_UNDO_KEEP_FOR_ALL
+	}
+	msg := &waE2E.Message{KeepInChatMessage: &waE2E.KeepInChatMessage{
+		Key: key, KeepType: typ.Enum(), TimestampMS: proto.Int64(time.Now().UnixMilli()),
+	}}
+	if _, err := d.cli.SendMessage(ctx, jid, msg); err != nil {
+		return err
+	}
+	if changed, err := d.st.SetKept(chat, msgID, keep); err == nil && changed {
+		d.pushUpdate(chat, msgID)
+	}
+	return nil
+}

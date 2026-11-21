@@ -100,6 +100,8 @@ var migrations = []string{
 		chat TEXT NOT NULL, msg_id TEXT NOT NULL, user TEXT NOT NULL,
 		delivered INTEGER NOT NULL DEFAULT 0, read INTEGER NOT NULL DEFAULT 0, played INTEGER NOT NULL DEFAULT 0,
 		PRIMARY KEY (chat, msg_id, user));`,
+	// 12: mensagem temporária salva na conversa (não vence enquanto salva).
+	`ALTER TABLE messages ADD COLUMN kept INTEGER NOT NULL DEFAULT 0;`,
 }
 
 func migrate(db *sql.DB) error {
@@ -381,6 +383,16 @@ func (s *Store) ReactionsBy(chat, msgID string) ([][2]string, error) {
 	return out, rows.Err()
 }
 
+// SetKept salva (ou deixa de salvar) a temporária na conversa.
+func (s *Store) SetKept(chat, id string, kept bool) (bool, error) {
+	res, err := s.db.Exec(`UPDATE messages SET kept = ? WHERE chat = ? AND id = ? AND kept != ?`, kept, chat, id, kept)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 // SetStarred marca ou desmarca a estrela; true se mudou.
 func (s *Store) SetStarred(chat, id string, starred bool) (bool, error) {
 	res, err := s.db.Exec(`UPDATE messages SET starred = ? WHERE chat = ? AND id = ? AND starred != ?`,
@@ -642,12 +654,12 @@ func (s *Store) Messages(chat string, limit int, before int64) ([]ipc.Message, e
 	return out, rows.Err()
 }
 
-const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw IS NOT NULL, edited, status, starred`
+const msgCols = `id, chat, sender, sender_name, from_me, ts, kind, text, quote_id, quote_sender, quote_text, raw IS NOT NULL, edited, status, starred, expire_ts, kept`
 
 func scanMessage(r interface{ Scan(...any) error }) (ipc.Message, error) {
 	var m ipc.Message
 	var q ipc.Quote
-	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &m.Status, &m.Starred)
+	err := r.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &m.Status, &m.Starred, &m.Expires, &m.Kept)
 	if q.ID != "" {
 		m.Quote = &q
 	}
@@ -682,7 +694,7 @@ func (s *Store) Message(chat, id string) (ipc.Message, []byte, error) {
 	row := s.db.QueryRow(`SELECT `+msgCols+`, raw FROM messages WHERE chat = ? AND id = ?`, chat, id)
 	var m ipc.Message
 	var q ipc.Quote
-	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &m.Status, &m.Starred, &raw)
+	err := row.Scan(&m.ID, &m.Chat, &m.Sender, &m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &q.ID, &q.Sender, &q.Text, &m.HasRaw, &m.Edited, &m.Status, &m.Starred, &m.Expires, &m.Kept, &raw)
 	if q.ID != "" {
 		m.Quote = &q
 	}
@@ -727,12 +739,12 @@ const chatCols = `jid, name, is_group, last_ts, last_text, unread, ephemeral,
 		AND m.from_me = 1 LIMIT 1), -1)`
 
 // notExpired filtra mensagens temporárias já vencidas.
-const notExpired = `(expire_ts = 0 OR expire_ts > CAST(strftime('%s','now') AS INTEGER) * 1000)`
+const notExpired = `(expire_ts = 0 OR kept = 1 OR expire_ts > CAST(strftime('%s','now') AS INTEGER) * 1000)`
 
 // PurgeExpired apaga as mensagens temporárias vencidas (o celular e os
 // outros aparelhos apagam as deles também). Devolve quantas.
 func (s *Store) PurgeExpired() (int64, error) {
-	res, err := s.db.Exec(`DELETE FROM messages WHERE expire_ts > 0
+	res, err := s.db.Exec(`DELETE FROM messages WHERE expire_ts > 0 AND kept = 0
 		AND expire_ts <= CAST(strftime('%s','now') AS INTEGER) * 1000`)
 	if err != nil {
 		return 0, err

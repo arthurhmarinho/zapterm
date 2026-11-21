@@ -418,6 +418,9 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 	if m.Starred {
 		stampText = "★ " + stampText
 	}
+	if m.Kept {
+		stampText = "salva · " + stampText
+	}
 	stamp := sText2.Render(stampText)
 	if m.FromMe && m.Kind != "revoked" {
 		stamp += " " + ticks(m.Status)

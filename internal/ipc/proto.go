@@ -36,6 +36,7 @@ const (
 	OpInviteLink  = "invite_link"  // link de convite do grupo Chat (Text "reset" gera outro)
 	OpPin         = "pin"          // fixa a mensagem Msg por Seconds (0 = desafixa)
 	OpPins        = "pins"         // mensagens fixadas do Chat
+	OpKeep        = "keep"         // salva (Text "1") ou deixa de salvar ("0") a temporária Msg na conversa
 	OpStar        = "star"         // favorita (Text "1") ou desfavorita ("0") a mensagem Msg
 	OpStarred     = "starred"      // mensagens favoritas de todas as conversas ([]SearchHit)
 	OpDeleteMe    = "delete_me"    // apaga só para você a mensagem Msg (sincroniza com o celular)
@@ -183,6 +184,8 @@ type Message struct {
 	MentionsMe bool `json:"mentions_me,omitempty"`
 	// Expires: quando a mensagem temporária vence (unix ms; 0 = não vence).
 	Expires int64 `json:"expires,omitempty"`
+	// Kept: temporária salva na conversa (não some).
+	Kept bool `json:"kept,omitempty"`
 	// Starred: favorita (estrela), sincronizada com o celular.
 	Starred bool `json:"starred,omitempty"`
 	// Forwarded: a mensagem foi encaminhada (selo "Encaminhada").

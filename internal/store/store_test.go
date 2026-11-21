@@ -281,3 +281,28 @@ func TestVotoDeEnquete(t *testing.T) {
 		t.Fatalf("votos: %v", v)
 	}
 }
+
+func TestSalvaNaConversa(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	const c = "1@s.whatsapp.net"
+	now := time.Now().UnixMilli()
+	s.SaveMessage(ipc.Message{ID: "x", Chat: c, Sender: c, TS: now - 5000, Kind: "text", Text: "fica", Expires: now - 1000}, nil, false, false)
+	if changed, _ := s.SetKept(c, "x", true); !changed {
+		t.Fatal("não salvou")
+	}
+	if n, _ := s.PurgeExpired(); n != 0 {
+		t.Fatal("apagou a salva")
+	}
+	m, _, err := s.Message(c, "x")
+	if err != nil || !m.Kept || m.Expires == 0 {
+		t.Fatalf("leitura: %+v %v", m, err)
+	}
+	s.SetKept(c, "x", false)
+	if n, _ := s.PurgeExpired(); n != 1 {
+		t.Fatal("desfeito o salvar, a vencida devia sumir")
+	}
+}

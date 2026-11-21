@@ -117,7 +117,7 @@ filtro.
 - [x] **Seleção múltipla** com `shift+↑/↓`: encaminhar, apagar, copiar no
   formato `[14:03] Fulano: texto`. (M)
 - [x] **Encaminhar para até 5 conversas** (espaço marca no seletor). (P)
-- [ ] **Salvar na conversa** (mensagem temporária que não some).
+- [x] **Salvar na conversa** (mensagem temporária que não some).
   `KeepInChatMessage`. (M)
 - [x] **Apagar como admin** a mensagem de um membro. `cli.BuildRevoke`
   com o remetente. (P)
