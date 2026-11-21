@@ -114,7 +114,7 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		}
 		d.lastSent = req // a demonstração só anota; nada sai daqui
 		return nil, nil
-	case ipc.OpSendPoll, ipc.OpSendEvent, ipc.OpSendContact:
+	case ipc.OpSendPoll, ipc.OpSendEvent, ipc.OpSendContact, ipc.OpSendAlbum:
 		d.lastSent = req
 		return nil, nil
 	case ipc.OpAmAdmin:

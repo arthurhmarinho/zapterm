@@ -26,6 +26,7 @@ const (
 	OpTyping      = "typing"       // Text: "composing", "recording" ou "paused" em Chat
 	OpRevoke      = "revoke"       // apaga para todos a sua mensagem Msg
 	OpMsgInfo     = "msg_info"     // dados da mensagem Msg: quem recebeu, leu, ouviu e reagiu
+	OpSendAlbum   = "send_album"   // fotos e vídeos (Paths) como um álbum; legenda (Text) no primeiro
 	OpSendPoll    = "send_poll"    // enquete: Text pergunta, Options opções, Seconds 1 = uma escolha só
 	OpSendEvent   = "send_event"   // evento: Text nome, Before início (unix ms), Options [descrição, local]
 	OpSendContact = "send_contact" // contato: Msg o JID da pessoa, Text o nome
@@ -89,8 +90,10 @@ type Request struct {
 	Mentions []string `json:"mentions,omitempty"`
 	// Seconds é a duração do áudio gravado (OpSendAudio).
 	Seconds int `json:"seconds,omitempty"`
-	// Options são as opções escolhidas (OpPollVote).
+	// Options são as opções escolhidas (OpPollVote) ou de envio (hd…).
 	Options []string `json:"options,omitempty"`
+	// Paths são os arquivos de um álbum (OpSendAlbum).
+	Paths []string `json:"paths,omitempty"`
 }
 
 // Sticker é uma figurinha do seletor: a mensagem de onde ela veio e a

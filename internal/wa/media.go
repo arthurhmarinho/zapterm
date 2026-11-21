@@ -394,7 +394,21 @@ const (
 )
 
 // sendOpts: como mandar a foto ou o vídeo (Request.Options).
-type sendOpts struct{ HD, Sticker, Once bool }
+type sendOpts struct {
+	HD, Sticker, Once bool
+	Assoc             *waE2E.MessageAssociation // item de álbum
+}
+
+// withAssoc liga a mensagem ao álbum, se for item de um.
+func withAssoc(msg *waE2E.Message, o sendOpts) {
+	if o.Assoc == nil {
+		return
+	}
+	if msg.MessageContextInfo == nil {
+		msg.MessageContextInfo = &waE2E.MessageContextInfo{}
+	}
+	msg.MessageContextInfo.MessageAssociation = o.Assoc
+}
 
 func parseSendOpts(opts []string) sendOpts {
 	var o sendOpts
@@ -464,6 +478,7 @@ func (d *Daemon) sendImage(ctx context.Context, chat, path, caption, replyTo str
 		msg = &waE2E.Message{ViewOnceMessageV2: &waE2E.FutureProofMessage{Message: msg}}
 		return d.sendAndStore(ctx, jid, msg, ipc.Message{Kind: "other", Text: "[visualização única]", Quote: quote}, nil)
 	}
+	withAssoc(msg, o)
 	return d.sendAndStore(ctx, jid, msg, m, func(id string) *ipc.Media {
 		// Já entra no cache com o ID definitivo: aparece no balão na hora.
 		base, err := mediaBase(id)

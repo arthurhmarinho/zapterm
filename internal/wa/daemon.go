@@ -645,6 +645,10 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.pollVote(ctx, req.Chat, req.Msg, req.Options)
 	case ipc.OpMsgInfo:
 		return d.msgInfo(ctx, req.Chat, req.Msg)
+	case ipc.OpSendAlbum:
+		actx, acancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer acancel()
+		return d.sendAlbum(actx, req.Chat, req.Paths, req.Text, req.ReplyTo, parseSendOpts(req.Options))
 	case ipc.OpSendPoll:
 		return d.sendPoll(ctx, req.Chat, req.Text, req.Options, req.Seconds == 1)
 	case ipc.OpSendEvent:

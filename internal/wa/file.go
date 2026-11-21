@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
@@ -77,6 +78,7 @@ func (d *Daemon) sendFile(ctx context.Context, chat, path, caption, replyTo stri
 		}
 		msg = &waE2E.Message{VideoMessage: vm}
 		m = ipc.Message{Kind: "video", Text: tag(fmt.Sprintf("vídeo %d:%02d", secs/60, secs%60), caption)}
+		withAssoc(msg, o)
 		if o.Once {
 			vm.ViewOnce = proto.Bool(true)
 			msg = &waE2E.Message{ViewOnceMessageV2: &waE2E.FutureProofMessage{Message: msg}}
@@ -162,4 +164,53 @@ func mediaSeconds(ctx context.Context, path string) int {
 	mi, _ := strconv.Atoi(m[2])
 	s, _ := strconv.Atoi(m[3])
 	return h*3600 + mi*60 + s
+}
+
+// sendAlbum manda fotos e vídeos MP4 como um álbum: primeiro a mensagem do
+// álbum (quantos vêm), depois cada item ligado a ela; a legenda e a
+// resposta vão no primeiro.
+func (d *Daemon) sendAlbum(ctx context.Context, chat string, paths []string, caption, replyTo string, o sendOpts) (any, error) {
+	jid, err := types.ParseJID(chat)
+	if err != nil {
+		return nil, err
+	}
+	var imgs, vids uint32
+	for _, p := range paths {
+		switch mt := fileMime(p); {
+		case strings.HasPrefix(mt, "image/") && mt != "image/svg+xml":
+			imgs++
+		case mt == "video/mp4":
+			vids++
+		default:
+			return nil, fmt.Errorf("%s não é foto nem vídeo MP4", filepath.Base(p))
+		}
+	}
+	if imgs+vids < 2 {
+		return nil, fmt.Errorf("álbum precisa de pelo menos 2 fotos ou vídeos")
+	}
+	parent := &waE2E.Message{AlbumMessage: &waE2E.AlbumMessage{
+		ExpectedImageCount: proto.Uint32(imgs), ExpectedVideoCount: proto.Uint32(vids),
+	}}
+	resp, err := d.cli.SendMessage(ctx, jid, parent)
+	if err != nil {
+		return nil, fmt.Errorf("álbum: %w", err)
+	}
+	key := &waCommon.MessageKey{RemoteJID: proto.String(chat), FromMe: proto.Bool(true), ID: proto.String(resp.ID)}
+	var last any
+	for i, p := range paths {
+		item := o
+		item.Assoc = &waE2E.MessageAssociation{
+			AssociationType:  waE2E.MessageAssociation_MEDIA_ALBUM.Enum(),
+			ParentMessageKey: key,
+			MessageIndex:     proto.Int32(int32(i)),
+		}
+		c, r := "", ""
+		if i == 0 {
+			c, r = caption, replyTo
+		}
+		if last, err = d.sendFile(ctx, chat, p, c, r, item); err != nil {
+			return nil, fmt.Errorf("%s: %w", filepath.Base(p), err)
+		}
+	}
+	return last, nil
 }

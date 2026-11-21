@@ -180,6 +180,13 @@ func (m *model) sendAttachments(caption string) tea.Cmd {
 	} else {
 		m.setFlash(fmt.Sprintf("enviando %d arquivos…", len(all)))
 	}
+	if albumOK(all) {
+		req := ipc.Request{Op: ipc.OpSendAlbum, Chat: chat, Text: caption, ReplyTo: reply, Options: all[0].options()}
+		for _, x := range all {
+			req.Paths = append(req.Paths, x.path)
+		}
+		return m.send(req)
+	}
 	return func() tea.Msg {
 		for i, x := range all {
 			req := ipc.Request{Op: ipc.OpSendFile, Chat: chat, Path: x.path, Options: x.options()}
@@ -214,4 +221,19 @@ func (m *model) attachHint() string {
 		parts = append(parts, opt("alt+o", "visualização única", a.once))
 	}
 	return strings.Join(parts, sText2.Render(" · "))
+}
+
+// albumOK: 2+ fotos ou vídeos MP4, sem figurinha nem visualização única,
+// vão juntos como um álbum (no celular, um bloco só).
+func albumOK(all []attachment) bool {
+	if len(all) < 2 {
+		return false
+	}
+	for _, a := range all {
+		mp4 := strings.EqualFold(filepath.Ext(a.name), ".mp4")
+		if (!a.image && !mp4) || a.sticker || a.once {
+			return false
+		}
+	}
+	return true
 }

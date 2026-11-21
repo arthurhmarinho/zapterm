@@ -84,7 +84,17 @@ func TestVariosAnexosEOpcoes(t *testing.T) {
 	m.keyAttach("alt+q")
 	runCmd(m, m.sendAttachments("legenda"))
 	got := demo.LastSent(srv)
-	if got.Op != ipc.OpSendFile || got.Path != paths[1] || got.Text != "" || strings.Join(got.Options, ",") != "hd" {
-		t.Fatalf("último envio: %+v", got)
+	if got.Op != ipc.OpSendAlbum || strings.Join(got.Paths, ",") != strings.Join(paths, ",") || got.Text != "legenda" ||
+		strings.Join(got.Options, ",") != "hd" {
+		t.Fatalf("álbum: %+v", got)
+	}
+
+	// Com um PDF no meio não é álbum: vão um a um, a legenda no primeiro.
+	pdf := filepath.Join(dir, "x.pdf")
+	os.WriteFile(pdf, []byte("%PDF"), 0o600)
+	m.setAttachments([]string{paths[0], pdf})
+	runCmd(m, m.sendAttachments("oi"))
+	if got := demo.LastSent(srv); got.Op != ipc.OpSendFile || got.Path != pdf || got.Text != "" {
+		t.Fatalf("sequência: %+v", got)
 	}
 }

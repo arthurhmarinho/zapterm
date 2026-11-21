@@ -137,7 +137,7 @@ filtro.
 - [x] **Link de convite** (copiar, QR, redefinir). `cli.GetGroupInviteLink`. (P)
 
 ### Painéis acima da caixa
-- [~] **Várias fotos de uma vez** (feito: vários arquivos de uma vez, em sequência, legenda no primeiro; falta agrupar como álbum) com legenda (álbum). `AlbumMessage`. (M)
+- [x] **Várias fotos de uma vez** (álbum quando são só fotos e vídeos MP4; o resto vai em sequência) com legenda (álbum). `AlbumMessage`. (M)
 - [x] **Enviar em HD** / tamanho original. (P)
 - [x] **Enviar como figurinha** a partir de imagem (WebP 512×512). (M)
 - [x] **Enviar visualização única.** `ViewOnceMessageV2`. (P)
