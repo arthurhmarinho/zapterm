@@ -25,6 +25,7 @@ const (
 	OpReact       = "react"        // reage à mensagem Msg com o emoji em Text ("" remove)
 	OpTyping      = "typing"       // Text: "composing", "recording" ou "paused" em Chat
 	OpRevoke      = "revoke"       // apaga para todos a sua mensagem Msg
+	OpDeleteMe    = "delete_me"    // apaga só para você a mensagem Msg (sincroniza com o celular)
 	OpEdit        = "edit"         // troca o texto da sua mensagem Msg por Text
 	OpForward     = "forward"      // encaminha SrcChat/Msg para Chat
 	OpMembers     = "members"      // participantes de um grupo, para o "@"
@@ -60,7 +61,8 @@ type Request struct {
 	Before int64  `json:"before,omitempty"` // unix ms; 0 = mais recentes
 	// After pede as mensagens posteriores (OpMessages), em vez das anteriores.
 	After int64 `json:"after,omitempty"`
-	// ReplyTo é o ID da mensagem respondida (só em OpSend).
+	// ReplyTo é o ID da mensagem respondida. "conversa|id" cita uma
+	// mensagem de outra conversa (responder em privado a alguém do grupo).
 	ReplyTo string `json:"reply_to,omitempty"`
 	// Msg é o ID da mensagem alvo (OpMedia).
 	Msg string `json:"msg,omitempty"`

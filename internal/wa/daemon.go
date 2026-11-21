@@ -221,6 +221,8 @@ func (d *Daemon) onEvent(evt any) {
 		}
 	case *events.CallOffer:
 		d.onCallOffer(e)
+	case *events.DeleteForMe:
+		d.onDeleteForMe(ctx, e)
 	case *events.Receipt:
 		d.onReceipt(ctx, e)
 	case *events.MarkChatAsRead:
@@ -617,6 +619,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return d.profile(pctx, req.Chat)
 	case ipc.OpPollVote:
 		return nil, d.pollVote(ctx, req.Chat, req.Msg, req.Options)
+	case ipc.OpDeleteMe:
+		return nil, d.deleteForMe(ctx, req.Chat, req.Msg)
 	case ipc.OpRefetch:
 		return nil, d.refetch(ctx, req.Chat, req.Before)
 	case ipc.OpGallery:
@@ -738,7 +742,12 @@ func (d *Daemon) replyContext(chat, replyTo string) (*waE2E.ContextInfo, *ipc.Qu
 	if replyTo == "" {
 		return nil, nil, nil
 	}
-	orig, origRaw, err := d.st.Message(chat, replyTo)
+	// "grupo|id": responder em privado cita a mensagem do grupo.
+	src := chat
+	if c, id, ok := strings.Cut(replyTo, "|"); ok {
+		src, replyTo = c, id
+	}
+	orig, origRaw, err := d.st.Message(src, replyTo)
 	if err != nil {
 		return nil, nil, fmt.Errorf("mensagem respondida não encontrada: %w", err)
 	}
@@ -760,6 +769,9 @@ func (d *Daemon) replyContext(chat, replyTo string) (*waE2E.ContextInfo, *ipc.Qu
 		StanzaID:      proto.String(orig.ID),
 		Participant:   proto.String(participant),
 		QuotedMessage: quoted,
+	}
+	if src != chat {
+		ci.RemoteJID = proto.String(src) // a citação vem de outra conversa
 	}
 	return ci, &ipc.Quote{ID: orig.ID, Sender: participant, Text: orig.Text}, nil
 }

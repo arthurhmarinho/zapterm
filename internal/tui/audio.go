@@ -438,7 +438,7 @@ func (m *model) onAudioMsg(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		req := ipc.Request{Op: ipc.OpSendAudio, Chat: m.active, Path: msg.path, Seconds: msg.seconds}
 		if m.replyTo != nil {
-			req.ReplyTo = m.replyTo.ID
+			req.ReplyTo = m.replyRef()
 			m.replyTo = nil
 			m.layout()
 		}

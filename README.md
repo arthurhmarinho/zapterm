@@ -133,7 +133,7 @@ zapterm demo
 ## Atalhos
 
 O campo de escrita fica sempre ativo, como no Claude Code: é só digitar.
-O mouse também funciona (clique, botão direito para responder, roda).
+O mouse também funciona (clique, botão direito para o menu da mensagem ou do chat, roda).
 
 | Tecla | Faz |
 |---|---|
@@ -152,7 +152,9 @@ O mouse também funciona (clique, botão direito para responder, roda).
 | `:nome` | emoji pelo nome no campo: `:kkk` → 😂, `:cora` → ❤️ (português ou inglês) |
 | `ctrl+o` | abrir foto, vídeo, documento, link, ou tocar áudio |
 | `alt+c` `alt+e` | copiar / editar (sua, até 15 min) |
-| `alt+d` `alt+w` | apagar para todos (duas vezes) / encaminhar |
+| `alt+.` | menu da mensagem: responder, responder em privado, reagir, abrir, copiar, editar, encaminhar, apagar (ou botão direito) |
+| `alt+d` | apagar: pergunta se é para você ou para todos; `alt+z` desfaz o "para mim" por 5 s |
+| `alt+w` | encaminhar |
 | `alt+m` | menu do chat: fixar, arquivar, silenciar (ou botão direito) |
 | `alt+i` | perfil do contato ou grupo (ou clique no cabeçalho) |
 | `@` | marcar alguém num grupo |

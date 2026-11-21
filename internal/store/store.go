@@ -314,6 +314,15 @@ func (s *Store) PollVotes(chat, pollID string) (map[string][]string, error) {
 	return out, rows.Err()
 }
 
+// DeleteMessage tira a mensagem do banco (apagar para mim).
+func (s *Store) DeleteMessage(chat, id string) error {
+	if _, err := s.db.Exec(`DELETE FROM reactions WHERE chat = ? AND msg_id = ?`, chat, id); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM messages WHERE chat = ? AND id = ?`, chat, id)
+	return err
+}
+
 // NewerThan devolve a primeira mensagem do chat depois de ts (a âncora de
 // um pedido de histórico ao celular, que manda as anteriores a ela).
 func (s *Store) NewerThan(chat string, ts int64) (ipc.Message, error) {

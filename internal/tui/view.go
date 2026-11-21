@@ -160,6 +160,11 @@ func (m *model) View() tea.View {
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
 			lipgloss.NewLayer(pop).X(4).Y(y).Z(1)).Render()
 	}
+	if m.popup != nil {
+		pop := m.viewPopup()
+		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
+			lipgloss.NewLayer(pop).X(g.listW+6).Y(m.popupY(g, lipgloss.Height(pop))).Z(1)).Render()
+	}
 	v.SetContent(screen)
 
 	// Cursor real do terminal no campo em uso.
@@ -521,7 +526,7 @@ func (m *model) viewFooter() string {
 	case m.focus == paneList:
 		help = "↑/↓ chats · enter abrir · tab conversa · " + keyFor("search") + " pesquisar · alt+1..4 filtros · " + keyFor("archived") + " arquivadas · " + strings.ToUpper(keyFor("help")) + " ajuda"
 	default:
-		help = "↑/↓ mensagem · " + keyFor("reply") + " responder · " + keyFor("react") + " reagir · " + keyFor("open") + " abrir · " + keyFor("copy") + " copiar · " + keyFor("edit") + " editar · " + keyFor("delete") + " apagar · " + keyFor("forward") + " encaminhar · " + strings.ToUpper(keyFor("help")) + " ajuda"
+		help = "↑/↓ mensagem · alt+. menu · " + keyFor("reply") + " responder · " + keyFor("react") + " reagir · " + keyFor("open") + " abrir · " + keyFor("copy") + " copiar · " + keyFor("edit") + " editar · " + keyFor("delete") + " apagar · " + keyFor("forward") + " encaminhar · " + strings.ToUpper(keyFor("help")) + " ajuda"
 	}
 	left := sText2.Render(help)
 	if m.flash != "" && time.Since(m.flashAt) < 6*time.Second {
@@ -682,7 +687,8 @@ func (m *model) viewHelp() string {
 			{keyFor("open"), "abrir foto, vídeo, documento, link, ou tocar áudio"},
 			{keyFor("copy"), "copiar texto"}, {keyFor("edit"), "editar (sua, até 15 min)"}, {"ctrl+↑", "editar a sua última mensagem"},
 			{":nome", "emoji pelo nome (:kkk → 😂, :cora → ❤️)"},
-			{keyFor("delete"), "apagar para todos (sua, duas vezes)"}, {keyFor("forward"), "encaminhar"},
+			{keyFor("delete"), "apagar: para mim ou para todos (alt+z desfaz o para mim)"},
+			{"alt+. ou botão direito", "menu da mensagem (responder em privado, abrir, copiar…)"}, {keyFor("forward"), "encaminhar"},
 		}},
 	}
 	var b strings.Builder

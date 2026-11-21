@@ -108,13 +108,14 @@ type model struct {
 	emoji       emojiState // ":nome" no campo de escrita
 	emojiRecent []string   // usados por último (primeiro = mais recente)
 	reactQuery  string     // busca de emoji no painel de reações
-	recReview   *recReview // gravação parada esperando você ouvir e decidir
+
+	popup      *popMenu       // menu da mensagem (alt+.) ou "apagar para quem?"
+	pendingDel *pendingDelete // apagar para mim esperando os 5 s de desfazer
+	recReview  *recReview     // gravação parada esperando você ouvir e decidir
 
 	editing    *ipc.Message // mensagem sua sendo editada (alt+e)
 	forwarding *ipc.Message // mensagem a encaminhar (alt+w): a busca escolhe o destino
-	delArmed   string       // alt+d apertado uma vez nesta mensagem
-	delArmedAt time.Time
-	help       bool // tela de ajuda (F1)
+	help       bool         // tela de ajuda (F1)
 
 	menu          *chatMenu         // menu do chat (alt+m)
 	keyRemap      map[string]string // teclas do config → teclas padrão
@@ -463,6 +464,8 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case deleteCommitMsg:
+		return m, m.onDeleteCommit(msg)
 	case findMsg:
 		return m, m.onFind(msg)
 	case galleryMsg:
@@ -652,6 +655,13 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 			return nil
 		}
 		for i := range m.msgs {
+			if m.msgs[i].ID == msg.ID && msg.Kind == "deleted" {
+				// Apagada para você (aqui ou em outro aparelho): some.
+				m.msgs = append(m.msgs[:i], m.msgs[i+1:]...)
+				m.msgSel = -1
+				m.rerenderKeepingPlace()
+				break
+			}
 			if m.msgs[i].ID == msg.ID {
 				m.msgs[i] = msg
 				m.rerenderKeepingPlace()
@@ -907,7 +917,7 @@ func (m *model) sendSticker(i int) tea.Cmd {
 	st := m.stickers[i]
 	req := ipc.Request{Op: ipc.OpSendSticker, Chat: m.active, SrcChat: st.Chat, Msg: st.ID}
 	if m.replyTo != nil {
-		req.ReplyTo = m.replyTo.ID
+		req.ReplyTo = m.replyRef()
 	}
 	m.replyTo, m.msgSel = nil, -1
 	m.closeStickers()

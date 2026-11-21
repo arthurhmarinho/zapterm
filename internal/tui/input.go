@@ -61,6 +61,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.picking {
 		return m.keyStickers(k)
 	}
+	if m.popup != nil {
+		return m.keyPopup(s)
+	}
 	if m.voting != nil {
 		return m.keyPoll(s)
 	}
@@ -171,7 +174,12 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	case "alt+e":
 		return m.startEdit()
 	case "alt+d":
-		return m.revokeSelected()
+		return m.openDeleteMenu()
+	case "alt+.":
+		return m.openMsgMenu()
+	case "alt+z":
+		m.undoDelete()
+		return nil
 	case "alt+w":
 		return m.startForward()
 	case "ctrl+e":
@@ -377,7 +385,7 @@ func (m *model) onEnter() tea.Cmd {
 		// send_file decide pelo tipo: foto, vídeo, áudio ou documento.
 		req := ipc.Request{Op: ipc.OpSendFile, Chat: m.active, Path: a.path, Text: text}
 		if m.replyTo != nil {
-			req.ReplyTo = m.replyTo.ID
+			req.ReplyTo = m.replyRef()
 		}
 		m.attach, m.replyTo, m.msgSel = nil, nil, -1
 		m.input.Reset()
@@ -400,7 +408,7 @@ func (m *model) onEnter() tea.Cmd {
 	text, mentions := m.resolveMentions(text)
 	req := ipc.Request{Op: ipc.OpSend, Chat: m.active, Text: text, Mentions: mentions}
 	if m.replyTo != nil {
-		req.ReplyTo = m.replyTo.ID
+		req.ReplyTo = m.replyRef()
 	}
 	m.replyTo, m.msgSel = nil, -1
 	m.input.Reset()
@@ -498,7 +506,7 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 		}
 		if c.Button == tea.MouseRight {
 			m.setSel(i)
-			return m.startReply()
+			return m.openMsgMenu() // botão direito: menu da mensagem
 		}
 		// Clique na mensagem já selecionada abre a mídia dela.
 		if wasChat && i == m.sel() {
@@ -712,28 +720,6 @@ func (m *model) startEdit() tea.Cmd {
 	m.input.SetValue(msg.Text)
 	m.layout()
 	return nil
-}
-
-// revokeSelected apaga para todos; pede o alt+d duas vezes.
-func (m *model) revokeSelected() tea.Cmd {
-	msg, ok := m.selectedMsg()
-	switch {
-	case !ok || msg.Kind == "revoked":
-		return nil
-	case !msg.FromMe:
-		m.setFlash("só dá para apagar para todos as suas mensagens")
-		return nil
-	case time.Since(time.UnixMilli(msg.TS)) > 60*time.Hour:
-		m.setFlash("o WhatsApp só deixa apagar para todos até ~60 horas depois")
-		return nil
-	}
-	if m.delArmed != msg.ID || time.Since(m.delArmedAt) > 4*time.Second {
-		m.delArmed, m.delArmedAt = msg.ID, time.Now()
-		m.setFlash("alt+d de novo para apagar para todos")
-		return nil
-	}
-	m.delArmed = ""
-	return m.call(ipc.Request{Op: ipc.OpRevoke, Chat: msg.Chat, Msg: msg.ID}, nil, nil)
 }
 
 func (m *model) startForward() tea.Cmd {

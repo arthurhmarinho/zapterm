@@ -100,11 +100,11 @@ filtro.
 
 ## 2. Depois — menu da mensagem e o que mora nele
 
-- [ ] **Menu da mensagem (`alt+.`)**: lista numerada só com o que vale
+- [~] **Menu da mensagem (`alt+.`)** (feito com as ações que já existem; os itens novos entram conforme ficam prontos): lista numerada só com o que vale
   para aquela mensagem. (M)
-- [ ] **Responder em privado** (`alt+r`): abre a conversa individual com a
+- [x] **Responder em privado** (`alt+r`): abre a conversa individual com a
   citação. `ContextInfo{StanzaID, Participant, RemoteJID: grupo}`. (P)
-- [ ] **Apagar para mim**, com "alt+z desfaz" por 5 s. Patch em
+- [x] **Apagar para mim**, com "alt+z desfaz" por 5 s. Patch em
   `appstate.IndexDeleteMessageForMe`; receber `events.DeleteForMe`. (P–M)
 - [ ] **Favoritar (★)** em `alt+s` e linha "★ Favoritas" na lista.
   `appstate.BuildStar`, `events.Star`, `WebMessageInfo.GetStarred()`. (P)
@@ -204,13 +204,13 @@ filtro.
 
 ## Decisões pendentes (antes da leva 2)
 
-1. **Botão direito na mensagem abre o menu?** Hoje responde direto; com o
-   menu, responder vira dois cliques.
+1. ~~**Botão direito na mensagem abre o menu?**~~ Decidido em 21/11: sim.
 2. ~~**`ctrl+f` vira busca dentro da conversa?**~~ Decidido em 21/11: sim.
-3. **`alt+d` vira escolha "para mim / para todos"?** Troca o "apertar duas
-   vezes" de hoje.
-4. **Comandos com `/`?** Mensagem que começa com `/` abre a lista; `esc`
-   fecha e manda como está.
+3. ~~**`alt+d` vira escolha "para mim / para todos"?**~~ Decidido em 21/11:
+   sim.
+4. ~~**Comandos com `/`?**~~ Decidido em 21/11: sim, e também pelo clipe:
+   o clipe vira um menu (Foto/vídeo, Documento, Enquete, Evento, Contato…)
+   e só as opções de mídia abrem o explorador de arquivos.
 
 ## Atalhos livres (para não colidir)
 

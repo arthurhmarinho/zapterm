@@ -86,10 +86,40 @@ func TestAcoesNaMensagem(t *testing.T) {
 		t.Fatal("esc não cancelou a edição")
 	}
 
-	// Apagar pede confirmação.
+	// Apagar pergunta para quem (a sua, recente: as duas opções).
 	alt('d')
-	if m.delArmed == "" || !strings.Contains(m.flash, "de novo") {
-		t.Fatalf("apagar sem confirmação: %q", m.flash)
+	if m.popup == nil || len(m.popup.opts) != 3 || m.popup.opts[1].label != "Apagar para todos" {
+		t.Fatalf("apagar: %+v", m.popup)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "Apagar mensagem?") {
+		t.Fatal("pergunta não aparece")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.popup != nil {
+		t.Fatal("esc não fechou a pergunta")
+	}
+
+	// Menu da mensagem: só o que vale (a sua, de texto, recente).
+	alt('.')
+	var labels []string
+	for _, o := range m.popup.opts {
+		labels = append(labels, o.label)
+	}
+	if got := strings.Join(labels, ","); got != "Responder,Reagir,Copiar,Editar,Encaminhar,Apagar…" {
+		t.Fatalf("menu: %s", got)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	// Apagar para mim: some na hora, alt+z devolve.
+	n := len(m.msgs)
+	alt('d')
+	m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
+	if len(m.msgs) != n-1 || m.pendingDel == nil {
+		t.Fatal("apagar para mim não tirou a mensagem")
+	}
+	alt('z')
+	if len(m.msgs) != n || m.msgs[n-1].ID != "m7" {
+		t.Fatal("alt+z não devolveu a mensagem")
 	}
 
 	// Encaminhar abre a busca.
@@ -103,7 +133,7 @@ func TestAcoesNaMensagem(t *testing.T) {
 	}
 
 	m.Update(tea.KeyPressMsg{Code: tea.KeyF1})
-	if !m.help || !strings.Contains(ansi.Strip(m.View().Content), "apagar para todos") {
+	if !m.help || !strings.Contains(ansi.Strip(m.View().Content), "para mim ou para todos") {
 		t.Fatal("ajuda não abriu")
 	}
 }
@@ -586,5 +616,41 @@ func TestEditarUltima(t *testing.T) {
 	runCmd(m, m.editLast())
 	if m.editing == nil || m.editing.ID != "m7" || m.input.Value() != "fechado, te vejo lá!" {
 		t.Fatalf("ctrl+↑ editando %+v", m.editing)
+	}
+}
+
+func TestResponderEmPrivado(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m.Update(m.loadChats()())
+	const grupo = "120000000000000001@g.us"
+	runCmd(m, m.open(m.chatFor(grupo, "Trilha")))
+	for i, x := range m.msgs {
+		if x.ID == "t1" {
+			m.msgSel = i
+		}
+	}
+	runCmd(m, m.openMsgMenu())
+	if m.popup.opts[1].label != "Responder em privado a Rafa" {
+		t.Fatalf("menu: %q", m.popup.opts[1].label)
+	}
+	runCmd(m, m.keyPopup("2"))
+	if m.active == grupo || m.replyTo == nil || m.replyTo.ID != "t1" {
+		t.Fatalf("ativo %q, resposta %+v", m.active, m.replyTo)
+	}
+	if got := m.replyRef(); got != grupo+"|t1" {
+		t.Fatalf("referência %q", got)
 	}
 }

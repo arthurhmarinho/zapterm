@@ -9,8 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waSyncAction"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
@@ -176,4 +179,57 @@ func copyCachedMedia(srcID, dstID string) *ipc.Media {
 		return nil
 	}
 	return out
+}
+
+// deleteForMe apaga a mensagem só para você: manda a mudança pelo app state
+// (o celular e os outros aparelhos apagam também) e tira do banco.
+func (d *Daemon) deleteForMe(ctx context.Context, chat, msgID string) error {
+	m, _, err := d.st.Message(chat, msgID)
+	if err != nil {
+		return err
+	}
+	jid, err := types.ParseJID(chat)
+	if err != nil {
+		return err
+	}
+	fromMe, sender := "0", "0"
+	if m.FromMe {
+		fromMe = "1"
+	} else if jid.Server == types.GroupServer {
+		sender = m.Sender
+	}
+	del := true
+	patch := appstate.PatchInfo{
+		Type: appstate.WAPatchRegularHigh,
+		Mutations: []appstate.MutationInfo{{
+			Index:   []string{appstate.IndexDeleteMessageForMe, chat, msgID, fromMe, sender},
+			Version: 3,
+			Value: &waSyncAction.SyncActionValue{DeleteMessageForMeAction: &waSyncAction.DeleteMessageForMeAction{
+				DeleteMedia: &del, MessageTimestamp: proto.Int64(m.TS / 1000),
+			}},
+		}},
+	}
+	if err := d.cli.SendAppState(ctx, patch); err != nil {
+		return fmt.Errorf("avisando o WhatsApp: %w", err)
+	}
+	d.removeLocal(chat, msgID)
+	return nil
+}
+
+// onDeleteForMe: você apagou para si em outro aparelho.
+func (d *Daemon) onDeleteForMe(ctx context.Context, e *events.DeleteForMe) {
+	d.removeLocal(d.normalize(ctx, e.ChatJID).String(), e.MessageID)
+}
+
+// removeLocal tira a mensagem do banco e avisa as TUIs (Kind "deleted").
+func (d *Daemon) removeLocal(chat, msgID string) {
+	if _, _, err := d.st.Message(chat, msgID); err != nil {
+		return
+	}
+	if err := d.st.DeleteMessage(chat, msgID); err != nil {
+		d.log.Warn("apagando para mim", "err", err)
+		return
+	}
+	d.srv.Broadcast(ipc.EvUpdate, ipc.Message{ID: msgID, Chat: chat, Kind: "deleted"})
+	d.pushChat(chat)
 }
