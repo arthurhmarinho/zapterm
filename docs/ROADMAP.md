@@ -119,7 +119,7 @@ filtro.
 - [x] **Encaminhar para até 5 conversas** (espaço marca no seletor). (P)
 - [ ] **Salvar na conversa** (mensagem temporária que não some).
   `KeepInChatMessage`. (M)
-- [ ] **Apagar como admin** a mensagem de um membro. `cli.BuildRevoke`
+- [x] **Apagar como admin** a mensagem de um membro. `cli.BuildRevoke`
   com o remetente. (P)
 
 ### Menu do chat (`alt+m`)
@@ -127,14 +127,14 @@ filtro.
 - [x] **Mensagens temporárias** (24h/7d/90d/desligado).
   `cli.SetDisappearingTimer`. (P)
 - [x] **Bloquear / desbloquear.** `cli.UpdateBlocklist`. (P)
-- [~] **Sair do grupo** (feito; falta apagar e limpar conversa) (`cli.LeaveGroup`), **apagar conversa**
+- [~] **Sair do grupo** e **apagar conversa** (feitos; falta limpar conversa) (`cli.LeaveGroup`), **apagar conversa**
   (`appstate.BuildDeleteChat`), **limpar conversa** (patch em
   `IndexClearChat`). Pedem confirmação. (P / P / M)
 
 ### Perfil
 - [x] **`enter` num participante**: Conversar · (admin) Remover ·
   Promover. `cli.UpdateGroupParticipants`. (M)
-- [~] **Link de convite** (feito: copiar com alt+c; falta redefinir e QR). `cli.GetGroupInviteLink`. (P)
+- [x] **Link de convite** (copiar, QR, redefinir). `cli.GetGroupInviteLink`. (P)
 
 ### Painéis acima da caixa
 - [~] **Várias fotos de uma vez** (feito: vários arquivos de uma vez, em sequência, legenda no primeiro; falta agrupar como álbum) com legenda (álbum). `AlbumMessage`. (M)
@@ -146,7 +146,7 @@ filtro.
 - [ ] **Mandar GIF** em `alt+g` (busca via Giphy/Tenor, precisa de chave). (M)
 - [ ] **@todos** no autocompletar (campos `NonJIDMentions`/`GroupMentions`
   a confirmar). (?)
-- [ ] **Abrir link de convite `chat.whatsapp.com`**: mostra o grupo e
+- [x] **Abrir link de convite `chat.whatsapp.com`**: mostra o grupo e
   oferece "Entrar". `cli.GetGroupInfoFromLink`, `cli.JoinGroupWithLink`. (P)
 
 ### Canais

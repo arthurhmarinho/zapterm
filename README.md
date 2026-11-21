@@ -48,8 +48,11 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 - **Perfil** (clique no cabeçalho ou `alt+i`): foto grande, número e
   recado do contato, ou descrição e participantes do grupo.
 - **Participantes** (perfil do grupo): `↓` escolhe, `enter` abre conversar
-  e, se você é admin, tornar/tirar admin e remover; `alt+c` copia o link de
-  convite.
+  e, se você é admin, tornar/tirar admin e remover; `alt+c` abre o link de
+  convite: copiar, mostrar o QR, redefinir (admin).
+- **Link `chat.whatsapp.com`** recebido: `ctrl+o` mostra o grupo (nome,
+  participantes) e oferece entrar.
+- **Admin** apaga para todos a mensagem de um membro (`alt+d`).
 - **Mídia, links e docs** (`enter` no perfil): abas Fotos, Vídeos, Docs,
   Links e Áudios, separadas por mês; `ctrl+g` mostra o item na conversa.
   Mídia antiga sem prévia é pedida de novo ao seu celular.
@@ -161,7 +164,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `shift+↑` / `shift+↓` | seleciona várias mensagens; aí `alt+c` copia todas, `alt+w` encaminha, `alt+d` apaga para você |
 | `alt+p` | pula para a mensagem fixada (alterna se houver mais de uma); fixar e desafixar ficam no menu da mensagem |
 | `alt+s` | favoritar / desfavoritar a mensagem (sincroniza com o celular); o filtro **★** (`alt+5`) lista as favoritas |
-| `alt+m` | menu do chat: fixar, arquivar, silenciar, marcar como (não) lida, mensagens temporárias, bloquear, sair do grupo (ou botão direito) |
+| `alt+m` | menu do chat: fixar, arquivar, silenciar, marcar como (não) lida, mensagens temporárias, bloquear, sair do grupo, apagar conversa (ou botão direito) |
 | `alt+i` | perfil do contato ou grupo (ou clique no cabeçalho) |
 | `@` | marcar alguém num grupo |
 | `ctrl+v` | colar print para enviar |
