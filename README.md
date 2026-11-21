@@ -216,3 +216,7 @@ zapterm media <jid> <id>   # baixa a mídia de uma mensagem
 [GPL-3.0](LICENSE). Usa o [whatsmeow](https://github.com/tulir/whatsmeow)
 (MPL-2.0) e o [Bubble Tea](https://github.com/charmbracelet/bubbletea)
 (MIT).
+
+Os nomes dos emojis (`internal/tui/emoji.tsv`) vêm do
+[CLDR](https://cldr.unicode.org/) e da lista `emoji-test.txt` do Unicode,
+© Unicode, Inc., sob a [Licença Unicode v3](https://www.unicode.org/license.txt).
