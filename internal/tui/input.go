@@ -61,8 +61,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.picking {
 		return m.keyStickers(k)
 	}
-	if m.msgInfo != nil {
-		m.msgInfo = nil // qualquer tecla fecha
+	if m.msgInfo != nil || m.qrView != "" {
+		m.msgInfo, m.qrView = nil, "" // qualquer tecla fecha
 		return nil
 	}
 	if m.form != nil {

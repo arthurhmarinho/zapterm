@@ -450,6 +450,25 @@ func (s *Store) Pins(chat string) ([]ipc.Message, error) {
 	return out, nil
 }
 
+// DeleteChat apaga a conversa e tudo dela.
+func (s *Store) DeleteChat(chat string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, q := range []string{
+		`DELETE FROM reactions WHERE chat = ?`, `DELETE FROM poll_votes WHERE chat = ?`,
+		`DELETE FROM receipts WHERE chat = ?`, `DELETE FROM pins WHERE chat = ?`,
+		`DELETE FROM messages WHERE chat = ?`, `DELETE FROM chats WHERE jid = ?`,
+	} {
+		if _, err := tx.Exec(q, chat); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // DeleteMessage tira a mensagem do banco (apagar para mim).
 func (s *Store) DeleteMessage(chat, id string) error {
 	if _, err := s.db.Exec(`DELETE FROM reactions WHERE chat = ? AND msg_id = ?`, chat, id); err != nil {

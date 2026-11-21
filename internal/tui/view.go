@@ -168,6 +168,11 @@ func (m *model) View() tea.View {
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
 			lipgloss.NewLayer(pop).X(4).Y(y).Z(1)).Render()
 	}
+	if m.qrView != "" {
+		pop := m.qrView
+		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
+			lipgloss.NewLayer(pop).X(max(0, (m.w-lipgloss.Width(pop))/2)).Y(max(0, (m.h-lipgloss.Height(pop))/2)).Z(2)).Render()
+	}
 	if m.msgInfo != nil {
 		pop := m.viewMsgInfo()
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),

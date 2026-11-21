@@ -29,6 +29,9 @@ const (
 	OpSendPoll    = "send_poll"    // enquete: Text pergunta, Options opções, Seconds 1 = uma escolha só
 	OpSendEvent   = "send_event"   // evento: Text nome, Before início (unix ms), Options [descrição, local]
 	OpSendContact = "send_contact" // contato: Msg o JID da pessoa, Text o nome
+	OpAmAdmin     = "am_admin"     // você é admin do grupo Chat? (bool)
+	OpGroupByLink = "group_link"   // dados do grupo de um link de convite (Text); GroupPreview
+	OpJoinLink    = "join_link"    // entra no grupo do link (Text); devolve o JID
 	OpGroupMember = "group_member" // Text "promote|demote|remove" no participante Msg (JID cru) do grupo Chat
 	OpInviteLink  = "invite_link"  // link de convite do grupo Chat (Text "reset" gera outro)
 	OpPin         = "pin"          // fixa a mensagem Msg por Seconds (0 = desafixa)
@@ -219,6 +222,15 @@ type Who struct {
 	Name  string `json:"name"`
 	TS    int64  `json:"ts,omitempty"`
 	Emoji string `json:"emoji,omitempty"`
+}
+
+// GroupPreview: o grupo de um link de convite, antes de entrar.
+type GroupPreview struct {
+	Name    string `json:"name"`
+	Topic   string `json:"topic,omitempty"`
+	Members int    `json:"members"`
+	JID     string `json:"jid"`
+	Joined  bool   `json:"joined,omitempty"` // você já está nele
 }
 
 type CardOption struct {

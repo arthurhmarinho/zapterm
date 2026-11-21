@@ -224,6 +224,14 @@ func (d *Daemon) onEvent(evt any) {
 		d.onCallOffer(e)
 	case *events.Blocklist:
 		d.onBlocklist(ctx, e)
+	case *events.DeleteChat:
+		// Conversa apagada no celular: some daqui também.
+		if !e.FromFullSync {
+			if err := d.st.DeleteChat(d.normalize(ctx, e.JID).String()); err == nil {
+				d.srv.Broadcast(ipc.EvReload, nil)
+				d.scheduleUnreadPush()
+			}
+		}
 	case *events.Star:
 		d.onStar(ctx, e)
 	case *events.DeleteForMe:
@@ -644,6 +652,12 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return d.sendEvent(ctx, req.Chat, req.Text, req.Before, desc, place)
 	case ipc.OpSendContact:
 		return d.sendContact(ctx, req.Chat, req.Msg, req.Text)
+	case ipc.OpAmAdmin:
+		return d.amAdmin(ctx, req.Chat)
+	case ipc.OpGroupByLink:
+		return d.groupByLink(ctx, req.Text)
+	case ipc.OpJoinLink:
+		return d.joinLink(ctx, req.Text)
 	case ipc.OpGroupMember:
 		return nil, d.groupMember(ctx, req.Chat, req.Msg, req.Text)
 	case ipc.OpInviteLink:

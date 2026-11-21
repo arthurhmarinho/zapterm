@@ -46,6 +46,9 @@ func (d *Daemon) ownMessage(chat, id string, window time.Duration, what string) 
 
 // revoke apaga uma mensagem sua para todos.
 func (d *Daemon) revoke(ctx context.Context, chat, id string) error {
+	if orig, _, err := d.st.Message(chat, id); err == nil && !orig.FromMe {
+		return d.adminRevoke(ctx, chat, orig)
+	}
 	m, jid, err := d.ownMessage(chat, id, revokeWindow, "apagar")
 	if err != nil {
 		return err

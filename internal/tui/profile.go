@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -71,7 +70,7 @@ func (m *model) keyProfile(s string) tea.Cmd {
 		return m.openGallery(0)
 	case "alt+c":
 		if m.profile != nil && m.profile.Kind == "group" {
-			return m.copyInviteLink()
+			return m.openInviteMenu()
 		}
 	}
 	return nil
@@ -79,16 +78,8 @@ func (m *model) keyProfile(s string) tea.Cmd {
 
 type inviteMsg struct{ link string }
 
-func (m *model) copyInviteLink() tea.Cmd {
-	var link string
-	m.setFlash("pedindo o link de convite…")
-	return m.call(ipc.Request{Op: ipc.OpInviteLink, Chat: m.active}, &link, func() tea.Msg { return inviteMsg{link} })
-}
-
 func (m *model) onInvite(msg inviteMsg) {
-	cmd := exec.Command("wl-copy")
-	cmd.Stdin = strings.NewReader(msg.link)
-	if err := cmd.Run(); err != nil {
+	if err := copyText(msg.link); err != nil {
 		m.setFlash("wl-copy: " + err.Error())
 		return
 	}
@@ -260,7 +251,7 @@ func (m *model) viewProfile(g geometry) string {
 		if p.IAmAdmin {
 			hint += ", admin, remover"
 		}
-		hint += " · alt+c copia o link de convite"
+		hint += " · alt+c link de convite"
 		lines = append(lines, "", "  "+sGreen.Bold(true).Render(fmt.Sprintf("Participantes (%d)", p.MemberCount))+"   "+sText2.Render(hint))
 		used := strings.Count(strings.Join(lines, "\n"), "\n") + 1
 		room := max(1, h-used-1)

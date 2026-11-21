@@ -71,6 +71,8 @@ func (d *Daemon) chatAction(ctx context.Context, chat, action string) error {
 		d.setBlocklist(list)
 		d.pushChat(chat)
 		return nil
+	case "delete":
+		return d.deleteChat(ctx, chat)
 	case "leave":
 		if err := d.cli.LeaveGroup(ctx, jid); err != nil {
 			return err

@@ -117,6 +117,13 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpSendPoll, ipc.OpSendEvent, ipc.OpSendContact:
 		d.lastSent = req
 		return nil, nil
+	case ipc.OpAmAdmin:
+		return strings.HasSuffix(req.Chat, "@g.us"), nil
+	case ipc.OpGroupByLink:
+		return ipc.GroupPreview{Name: "Corrida de domingo", Topic: "5 km no parque", Members: 42, JID: "120000000000000009@g.us"}, nil
+	case ipc.OpJoinLink:
+		d.lastSent = req
+		return "120000000000000009@g.us", nil
 	case ipc.OpGroupMember:
 		d.lastSent = req
 		return nil, nil

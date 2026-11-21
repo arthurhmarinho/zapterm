@@ -73,6 +73,11 @@ func (m *model) openDeleteMenu() tea.Cmd {
 		return nil
 	}
 	opts := []popOpt{{"Apagar para mim", func() tea.Cmd { return m.deleteForMe(msg) }}}
+	if !msg.FromMe && m.admins[m.active] {
+		opts = append(opts, popOpt{"Apagar para todos (admin)", func() tea.Cmd {
+			return m.call(ipc.Request{Op: ipc.OpRevoke, Chat: msg.Chat, Msg: msg.ID}, nil, nil)
+		}})
+	}
 	if msg.FromMe && time.Since(time.UnixMilli(msg.TS)) < 60*time.Hour {
 		opts = append(opts, popOpt{"Apagar para todos", func() tea.Cmd {
 			return m.call(ipc.Request{Op: ipc.OpRevoke, Chat: msg.Chat, Msg: msg.ID}, nil, nil)

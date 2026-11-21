@@ -116,13 +116,15 @@ type model struct {
 	starred        []ipc.SearchHit // mensagens favoritas (filtro ★)
 	pins           []ipc.Message   // fixadas da conversa aberta (faixa no topo)
 	pinIdx         int
-	popup          *popMenu       // menu da mensagem (alt+.) ou "apagar para quem?"
-	msgInfo        *ipc.MsgInfo   // "Dados da mensagem" aberto
-	slash          slashState     // comandos / no começo do campo
-	form           *form          // formulário de enquete/evento
-	pickingContact bool           // a busca escolhe um contato para mandar
-	pendingDel     *pendingDelete // apagar para mim esperando os 5 s de desfazer
-	recReview      *recReview     // gravação parada esperando você ouvir e decidir
+	popup          *popMenu        // menu da mensagem (alt+.) ou "apagar para quem?"
+	msgInfo        *ipc.MsgInfo    // "Dados da mensagem" aberto
+	slash          slashState      // comandos / no começo do campo
+	form           *form           // formulário de enquete/evento
+	pickingContact bool            // a busca escolhe um contato para mandar
+	admins         map[string]bool // você é admin do grupo?
+	qrView         string          // QR do link de convite aberto
+	pendingDel     *pendingDelete  // apagar para mim esperando os 5 s de desfazer
+	recReview      *recReview      // gravação parada esperando você ouvir e decidir
 
 	editing    *ipc.Message  // mensagem sua sendo editada (alt+e)
 	forwarding []ipc.Message // a encaminhar (alt+w): a busca escolhe os destinos
@@ -483,6 +485,21 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case adminMsg:
+		if m.admins == nil {
+			m.admins = map[string]bool{}
+		}
+		m.admins[msg.chat] = msg.admin
+		return m, nil
+	case qrMsg:
+		m.qrView = qrBox(msg.link)
+		return m, nil
+	case groupLinkMsg:
+		m.onGroupLink(msg)
+		return m, nil
+	case joinedMsg:
+		m.setFlash("você entrou em " + msg.chat.Name)
+		return m, m.open(msg.chat)
 	case inviteMsg:
 		m.onInvite(msg)
 		return m, nil
@@ -805,7 +822,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	m.layout()
 	m.refreshMessages(true)
 	m.pins, m.pinIdx = nil, 0
-	cmds := []tea.Cmd{m.loadMessages(c.JID, 0), stop, m.loadPins(c.JID)}
+	cmds := []tea.Cmd{m.loadMessages(c.JID, 0), stop, m.loadPins(c.JID), m.loadAdmin(c.JID)}
 	if c.Unread > 0 {
 		cmds = append(cmds, m.markRead(c.JID))
 	}
@@ -846,6 +863,9 @@ func (m *model) openMedia(i int) tea.Cmd {
 		u := firstURL(msg.Text)
 		if c := msg.Card; c != nil && c.URL != "" {
 			u = c.URL
+		}
+		if isInviteLink(u) {
+			return m.openInviteLink(u) // mostra o grupo e oferece entrar
 		}
 		if u != "" {
 			if err := openURL(u); err != nil {

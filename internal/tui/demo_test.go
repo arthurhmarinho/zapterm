@@ -903,7 +903,7 @@ func TestParticipanteNoPerfil(t *testing.T) {
 	if m.memberSel != 0 {
 		t.Fatalf("seleção %d", m.memberSel)
 	}
-	if !strings.Contains(ansi.Strip(m.View().Content), "alt+c copia o link de convite") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "alt+c link de convite") {
 		t.Error("perfil sem a dica dos participantes")
 	}
 	runCmd(m, m.keyProfile("enter"))
@@ -1009,5 +1009,70 @@ func TestCriarEnqueteEventoContato(t *testing.T) {
 	got = demo.LastSent(srv)
 	if got.Op != ipc.OpSendContact || got.Msg != "5511900000003@s.whatsapp.net" || got.Chat != chat {
 		t.Fatalf("contato: %+v", got)
+	}
+}
+
+func TestAdminConversaELinkDeConvite(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	const grupo = "120000000000000001@g.us"
+	runCmd(m, m.open(m.chatFor(grupo, "Trilha")))
+	if !m.admins[grupo] {
+		t.Fatal("não soube que é admin")
+	}
+	for i, x := range m.msgs {
+		if x.ID == "t1" {
+			m.msgSel = i
+		}
+	}
+	runCmd(m, m.openDeleteMenu())
+	if m.popup.opts[1].label != "Apagar para todos (admin)" {
+		t.Fatalf("apagar: %+v", m.popup.opts)
+	}
+	m.popup = nil
+
+	// Apagar conversa pede confirmação.
+	trilha, _ := m.chatByJID(grupo)
+	m.openChatMenu(trilha)
+	for i, o := range m.menu.opts {
+		if o.label == "Apagar conversa…" {
+			runCmd(m, m.runMenu(i))
+		}
+	}
+	if m.popup == nil || !strings.Contains(m.popup.title, "Apagar a conversa com") {
+		t.Fatal("apagar conversa sem confirmação")
+	}
+	runCmd(m, m.keyPopup("1"))
+	if got := demo.LastSent(srv); got.Op != ipc.OpChatAction || got.Text != "delete" {
+		t.Fatalf("apagar conversa: %+v", got)
+	}
+
+	// Link chat.whatsapp.com: mostra o grupo e entra.
+	runCmd(m, m.openInviteLink("https://chat.whatsapp.com/ABCdef123"))
+	if m.popup == nil || !strings.Contains(m.popup.title, "Corrida de domingo · 42 participantes") {
+		t.Fatalf("prévia do grupo: %+v", m.popup)
+	}
+	runCmd(m, m.keyPopup("1"))
+	if got := demo.LastSent(srv); got.Op != ipc.OpJoinLink || m.active != "120000000000000009@g.us" {
+		t.Fatalf("entrar: %+v, ativo %q", got, m.active)
+	}
+	if !isInviteLink("https://chat.whatsapp.com/X") || isInviteLink("https://whatsapp.com/") {
+		t.Error("isInviteLink")
+	}
+	if qr := ansi.Strip(qrBox("https://chat.whatsapp.com/X")); !strings.Contains(qr, "▀") && !strings.Contains(qr, "█") {
+		t.Error("QR vazio")
 	}
 }
