@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -107,6 +108,9 @@ var migrations = []string{
 	`ALTER TABLE messages ADD COLUMN server_id INTEGER NOT NULL DEFAULT 0;`,
 	// 14: conversa restrita (o dono limitou aparelhos conectados).
 	`ALTER TABLE chats ADD COLUMN restricted INTEGER NOT NULL DEFAULT 0;`,
+	// 15: central de mídia (galeria de todas as conversas) ordena por data
+	// dentro de cada tipo.
+	`CREATE INDEX messages_kind_ts ON messages (kind, ts);`,
 }
 
 func migrate(db *sql.DB) error {
@@ -586,8 +590,18 @@ func (s *Store) NewerThan(chat string, ts int64) (ipc.Message, error) {
 		ORDER BY ts ASC LIMIT 1`, chat, ts))
 }
 
-// Gallery devolve uma página de uma aba da galeria do chat, do mais novo
-// ao mais antigo, a partir de before (0 = do começo). more diz se há mais.
+// galleryChat filtra a galeria pelo chat; chat "" é a central de mídia,
+// de todas as conversas menos as trancadas.
+func galleryChat(chat string) (string, []any) {
+	if chat == "" {
+		return `chat NOT IN (SELECT jid FROM chats WHERE locked = 1)`, nil
+	}
+	return `chat = ?`, []any{chat}
+}
+
+// Gallery devolve uma página de uma aba da galeria do chat (chat "" = de
+// todos), do mais novo ao mais antigo, a partir de before (0 = do começo).
+// more diz se há mais.
 func (s *Store) Gallery(chat, tab string, before int64, limit int) (items []ipc.Message, more bool, err error) {
 	where, ok := galleryWhere[tab]
 	if !ok {
@@ -596,8 +610,9 @@ func (s *Store) Gallery(chat, tab string, before int64, limit int) (items []ipc.
 	if before <= 0 {
 		before = 1 << 62
 	}
-	rows, err := s.db.Query(`SELECT `+msgCols+` FROM messages WHERE chat = ? AND ts < ? AND `+where+`
-		AND `+notExpired+` ORDER BY ts DESC LIMIT ?`, chat, before, limit+1)
+	cw, args := galleryChat(chat)
+	rows, err := s.db.Query(`SELECT `+msgCols+` FROM messages WHERE `+cw+` AND ts < ? AND `+where+`
+		AND `+notExpired+` ORDER BY ts DESC LIMIT ?`, append(args, before, limit+1)...)
 	if err != nil {
 		return nil, false, err
 	}
@@ -616,12 +631,14 @@ func (s *Store) Gallery(chat, tab string, before int64, limit int) (items []ipc.
 	return items, more, rows.Err()
 }
 
-// GalleryCounts conta os itens de cada aba da galeria do chat.
+// GalleryCounts conta os itens de cada aba da galeria do chat (chat "" =
+// de todos).
 func (s *Store) GalleryCounts(chat string) (map[string]int, error) {
 	out := map[string]int{}
+	cw, args := galleryChat(chat)
 	for tab, where := range galleryWhere {
 		var n int
-		if err := s.db.QueryRow(`SELECT count(*) FROM messages WHERE chat = ? AND `+where+` AND `+notExpired, chat).Scan(&n); err != nil {
+		if err := s.db.QueryRow(`SELECT count(*) FROM messages WHERE `+cw+` AND `+where+` AND `+notExpired, args...).Scan(&n); err != nil {
 			return nil, err
 		}
 		out[tab] = n
@@ -672,19 +689,72 @@ func (s *Store) MessagesAfter(chat string, limit int, after int64) ([]ipc.Messag
 	return out, rows.Err()
 }
 
-// SearchMessages percorre as mensagens da mais nova para a mais antiga e
-// devolve as primeiras limit em que match(texto) é verdadeiro. A
-// comparação fica em Go para ignorar acento e maiúscula, o que o LIKE do
-// SQLite não faz fora do ASCII.
-func (s *Store) SearchMessages(chat string, match func(string) bool, limit int) ([]ipc.Message, error) {
-	// Varre só chat, id e texto; a mensagem completa é lida só nos achados.
-	// chat != "": só naquela conversa.
-	filter, args := "", []any{}
-	if chat != "" {
-		filter, args = " AND chat = ?", append(args, chat)
+// SearchFilter restringe a busca: conversa, tipo, extensão de documento e
+// intervalo de datas. Vazio = só texto, em todas as conversas.
+type SearchFilter struct {
+	Chat     string // só nesta conversa
+	Type     string // chave de searchTypes ("fotos", "pdf" não: use Ext)
+	Ext      string // documento com esta extensão ("pdf")
+	From, To int64  // unix ms: ts >= From e ts < To (0 = sem limite)
+}
+
+// Active diz se o filtro restringe algo além da conversa.
+func (f SearchFilter) Active() bool { return f.Type != "" || f.Ext != "" || f.From > 0 || f.To > 0 }
+
+// searchTypes: filtro SQL de cada tipo:… da busca.
+var searchTypes = map[string]string{
+	"fotos":       `kind = 'image'`,
+	"videos":      `kind = 'video'`,
+	"gifs":        `kind = 'video' AND text LIKE '[GIF%'`,
+	"audios":      `kind = 'audio'`,
+	"docs":        `kind = 'document'`,
+	"links":       galleryWhere["links"],
+	"figurinhas":  `kind = 'sticker'`,
+	"enquetes":    `kind = 'other' AND text LIKE '[enquete:%'`,
+	"eventos":     `kind = 'other' AND text LIKE '[evento%'`,
+	"contatos":    `kind = 'other' AND (text LIKE '[contato:%' OR text LIKE '[% contatos]')`,
+	"localizacao": `kind = 'other' AND text LIKE '[localização%'`,
+}
+
+// SearchTypes devolve os tipos aceitos pelo filtro.
+func SearchTypes() []string {
+	out := make([]string, 0, len(searchTypes))
+	for k := range searchTypes {
+		out = append(out, k)
 	}
-	rows, err := s.db.Query(`SELECT chat, id, text FROM messages
-		WHERE kind NOT IN ('revoked', 'sticker', 'audio') AND text != '' AND `+notExpired+filter+`
+	sort.Strings(out)
+	return out
+}
+
+// SearchMessages percorre as mensagens da mais nova para a mais antiga e
+// devolve as primeiras limit que passam no filtro e em que match(texto) é
+// verdadeiro. A comparação do texto fica em Go para ignorar acento e
+// maiúscula, o que o LIKE do SQLite não faz fora do ASCII.
+func (s *Store) SearchMessages(f SearchFilter, match func(string) bool, limit int) ([]ipc.Message, error) {
+	// Varre só chat, id e texto; a mensagem completa é lida só nos achados.
+	where, args := []string{notExpired}, []any{}
+	switch {
+	case f.Ext != "":
+		where, args = append(where, `kind = 'document' AND text LIKE ?`), append(args, "[documento: %."+f.Ext+"]%")
+	case f.Type != "":
+		w, ok := searchTypes[f.Type]
+		if !ok {
+			return nil, fmt.Errorf("tipo desconhecido: %s", f.Type)
+		}
+		where = append(where, w)
+	default:
+		where = append(where, `kind NOT IN ('revoked', 'sticker', 'audio') AND text != ''`)
+	}
+	if f.Chat != "" {
+		where, args = append(where, "chat = ?"), append(args, f.Chat)
+	}
+	if f.From > 0 {
+		where, args = append(where, "ts >= ?"), append(args, f.From)
+	}
+	if f.To > 0 {
+		where, args = append(where, "ts < ?"), append(args, f.To)
+	}
+	rows, err := s.db.Query(`SELECT chat, id, text FROM messages WHERE (`+strings.Join(where, ") AND (")+`)
 		AND chat NOT IN (SELECT jid FROM chats WHERE locked = 1) ORDER BY ts DESC`, args...)
 	if err != nil {
 		return nil, err

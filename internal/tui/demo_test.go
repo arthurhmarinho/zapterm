@@ -1160,3 +1160,43 @@ func TestEnterQuebraLinha(t *testing.T) {
 		t.Fatalf("alt+enter enviou %q", got.Text)
 	}
 }
+
+func TestCentralDeMidia(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	// Sem chat aberto: alt+g abre a galeria de todas as conversas.
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'g', Mod: tea.ModAlt}))
+	if m.gallery == nil || !m.gallery.all() || !m.galleryShown() {
+		t.Fatal("alt+g não abriu a central de mídia")
+	}
+	for range 3 {
+		runCmd(m, m.keyGallery("tab")) // fotos → vídeos → docs → links
+	}
+	screen := ansi.Strip(m.View().Content)
+	if os.Getenv("ZAPTERM_SHOW") != "" {
+		t.Log("\n" + screen)
+	}
+	for _, want := range []string{"Central de mídia", "museu.exemplo.org/agenda", "Marina Alves ·"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("faltou %q", want)
+		}
+	}
+	// ctrl+g leva à conversa do item, mesmo sem chat aberto antes.
+	runCmd(m, m.keyGallery("ctrl+g"))
+	if m.gallery != nil || m.active != "5511900000001@s.whatsapp.net" {
+		t.Fatalf("ctrl+g: galeria %v, chat %q", m.gallery, m.active)
+	}
+}

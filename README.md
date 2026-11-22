@@ -18,7 +18,9 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 - **Conversas:** lista com fotos de perfil, fixados, não lidas, filtros
   (Tudo · Não lidas · Grupos · Canais), arquivadas e busca, inclusive no
   texto das mensagens (sem diferenciar acento e maiúscula), pulando para a
-  mensagem achada.
+  mensagem achada. Filtros na busca: `tipo:pdf`, `tipo:foto`, `tipo:link`,
+  `tipo:enquete`…, `data:12/10`, `data:ontem`, `antes:1/10`, `depois:1/9`
+  (juntos ou com texto: `contrato tipo:pdf depois:1/9`).
 - **Mensagens:** responder com citação, reagir (❤️ 👍 😂 😮 😢 🙏),
   copiar, editar, apagar para todos e encaminhar; formatação do WhatsApp
   (*negrito*, _itálico_, ~riscado~, `código`) e links clicáveis;
@@ -56,6 +58,8 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 - **Mídia, links e docs** (`enter` no perfil): abas Fotos, Vídeos, Docs,
   Links e Áudios, separadas por mês; `ctrl+g` mostra o item na conversa.
   Mídia antiga sem prévia é pedida de novo ao seu celular.
+- **Central de mídia** (`alt+g`): as mesmas abas com tudo de todas as
+  conversas, dizendo de onde é cada item; `ctrl+g` abre a conversa nele.
 
 ## Como funciona
 
@@ -151,6 +155,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `shift+enter` | nova linha |
 | `ctrl+p` | pesquisar conversa (ou digite um número para conversa nova) |
 | `ctrl+f` | procurar nesta conversa: enter/↑ vai ao mais antigo, ↓ ao mais novo |
+| `alt+g` | central de mídia: fotos, vídeos, docs, links e áudios de todas as conversas |
 | `alt+↑` / `alt+↓` | abre a conversa de cima / de baixo na lista |
 | `alt+n` | abre a próxima conversa com mensagens não lidas |
 | `alt+1`…`alt+5`, `alt+a` | filtros (Tudo, Não lidas, Grupos, Canais, ★ favoritas) e arquivadas |

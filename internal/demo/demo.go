@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -184,7 +185,14 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpGallery:
 		kinds := map[string]string{"fotos": "image", "videos": "video", "docs": "document", "audios": "audio"}
 		page := ipc.GalleryPage{Items: []ipc.Message{}, Counts: map[string]int{}}
-		for _, m := range d.msgs[req.Chat] {
+		var src []ipc.Message
+		for _, c := range d.chats {
+			if req.Chat == "" || c.JID == req.Chat { // "" = central de mídia
+				src = append(src, d.msgs[c.JID]...)
+			}
+		}
+		sort.SliceStable(src, func(i, j int) bool { return src[i].TS < src[j].TS })
+		for _, m := range src {
 			for tab, k := range kinds {
 				if m.Kind == k {
 					page.Counts[tab]++

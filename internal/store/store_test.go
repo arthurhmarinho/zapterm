@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -196,7 +197,7 @@ func TestBuscaEDepois(t *testing.T) {
 	for i, txt := range []string{"bom dia", "Não sei", "nao vou", "tchau"} {
 		s.SaveMessage(ipc.Message{ID: string(rune('a' + i)), Chat: c, Sender: c, TS: int64(i + 1), Kind: "text", Text: txt}, nil, false, false)
 	}
-	hits, _ := s.SearchMessages("", func(t string) bool { return strings.Contains(strings.ToLower(t), "na") }, 10)
+	hits, _ := s.SearchMessages(SearchFilter{}, func(t string) bool { return strings.Contains(strings.ToLower(t), "na") }, 10)
 	if len(hits) != 1 || hits[0].ID != "c" { // ToLower não tira acento: só "nao vou"
 		t.Fatalf("busca: %+v", hits)
 	}
@@ -260,7 +261,7 @@ func TestTrancadaETemporarias(t *testing.T) {
 	if chats, _ := s.Chats(); len(chats) != 0 || !s.IsLocked(c) {
 		t.Fatalf("trancada apareceu na lista: %+v", chats)
 	}
-	if hits, _ := s.SearchMessages("", func(string) bool { return true }, 10); len(hits) != 0 {
+	if hits, _ := s.SearchMessages(SearchFilter{}, func(string) bool { return true }, 10); len(hits) != 0 {
 		t.Fatal("busca achou mensagem de conversa trancada")
 	}
 }
@@ -356,5 +357,77 @@ func TestLimparConversa(t *testing.T) {
 	}
 	if ms, _ := s.Messages(c, 10, 0); len(ms) != 0 {
 		t.Fatalf("sobraram %d mensagens", len(ms))
+	}
+}
+
+func TestBuscaComFiltro(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	const c = "1@s.whatsapp.net"
+	for i, m := range []ipc.Message{
+		{Kind: "document", Text: "[documento: contrato.PDF] assinado"},
+		{Kind: "document", Text: "[documento: planilha.xlsx]"},
+		{Kind: "image", Text: "[imagem] praia"},
+		{Kind: "sticker", Text: "[figurinha]"},
+		{Kind: "other", Text: "[enquete: almoço?]"},
+	} {
+		m.ID, m.Chat, m.Sender, m.TS = string(rune('a'+i)), c, c, int64(1000*(i+1))
+		s.SaveMessage(m, nil, false, false)
+	}
+	all := func(string) bool { return true }
+	ids := func(f SearchFilter) string {
+		hits, err := s.SearchMessages(f, all, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := ""
+		for _, h := range hits {
+			out += h.ID
+		}
+		return out
+	}
+	for f, want := range map[SearchFilter]string{
+		{Ext: "pdf"}:                   "a",
+		{Type: "docs"}:                 "ba",
+		{Type: "figurinhas"}:           "d",
+		{Type: "enquetes"}:             "e",
+		{From: 2000, To: 4000}:         "cb",
+		{Type: "fotos", Chat: "outro"}: "",
+		{Type: "fotos", From: 3000}:    "c",
+	} {
+		if got := ids(f); got != want {
+			t.Errorf("%+v: %q, quer %q", f, got, want)
+		}
+	}
+	if _, err := s.SearchMessages(SearchFilter{Type: "xyz"}, all, 10); err == nil {
+		t.Error("tipo desconhecido passou")
+	}
+}
+
+func TestCentralDeMidia(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for i, c := range []string{"1@s.whatsapp.net", "2@s.whatsapp.net", "3@s.whatsapp.net"} {
+		s.SaveMessage(ipc.Message{ID: fmt.Sprint(i), Chat: c, Sender: c, TS: int64(i + 1), Kind: "image", Text: "[imagem]"}, nil, false, false)
+	}
+	s.SetLocked("3@s.whatsapp.net", true)
+	items, more, err := s.Gallery("", "fotos", 0, 1)
+	if err != nil || len(items) != 1 || items[0].ID != "1" || !more {
+		t.Fatalf("primeira página: %+v %v %v", items, more, err)
+	}
+	if items, _, _ := s.Gallery("", "fotos", items[0].TS, 10); len(items) != 1 || items[0].ID != "0" {
+		t.Fatalf("segunda página: %+v", items)
+	}
+	if n, _ := s.GalleryCounts(""); n["fotos"] != 2 {
+		t.Fatalf("contagem: %v (a trancada não entra)", n)
+	}
+	if n, _ := s.GalleryCounts("1@s.whatsapp.net"); n["fotos"] != 1 {
+		t.Fatalf("contagem do chat: %v", n)
 	}
 }

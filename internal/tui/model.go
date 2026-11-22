@@ -372,7 +372,7 @@ func reconnect() tea.Cmd {
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.update(msg)
 	m.prepareAvatars()
-	if m.profileOpen && m.w > 0 {
+	if (m.profileOpen || m.galleryShown()) && m.w > 0 {
 		// Dispara as transmissões das fotos neste Update.
 		if m.gallery != nil {
 			m.viewGallery(m.geom())
@@ -812,6 +812,9 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 		m.stopSearch(true)
 	}
 	if c.JID == m.active {
+		if m.gallery != nil && m.gallery.all() {
+			m.gallery = nil // abrir o chat de novo fecha a central de mídia
+		}
 		if c.Unread > 0 {
 			return m.markRead(c.JID)
 		}
@@ -1170,8 +1173,10 @@ func (m *model) applyFilter() {
 			list = append(list, ipc.Chat{JID: newChatMarker + q, Name: "Nova conversa com " + q, Kind: "dm",
 				LastText: "enter confere se o número tem WhatsApp e abre", LastStatus: -1})
 		}
-		for _, i := range fuzzyChats(q, m.chats) {
-			list = append(list, m.chats[i])
+		if !hasFilter(q) {
+			for _, i := range fuzzyChats(q, m.chats) {
+				list = append(list, m.chats[i])
+			}
 		}
 		if q == m.hitsQuery {
 			list = append(list, m.hitEntries()...)

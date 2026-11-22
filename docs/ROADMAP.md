@@ -170,7 +170,7 @@ filtro.
   (`cli.GetSubGroups`). (M)
 - [ ] **Canais**: diretório e busca (só por API interna, frágil), criar
   canal (`cli.CreateNewsletter`). (G)
-- [ ] **Busca por data e por tipo** (`data:12/10`, `tipo:pdf`) e **central
+- [x] **Busca por data e por tipo** (`data:12/10`, `tipo:pdf`) e **central
   de mídia** de todas as conversas. (P–M)
 - [ ] **Tela "Eu"**: privacidade da conta (`cli.SetPrivacySetting`), nome
   (`appstate.BuildSettingPushName`), recado (`cli.SetStatusMessage`). (M)

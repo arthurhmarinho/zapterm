@@ -32,6 +32,7 @@ const (
 )
 
 type gallery struct {
+	chat    string // "" = central de mídia, de todas as conversas (alt+g)
 	tab     int
 	items   []ipc.Message
 	counts  map[string]int
@@ -62,11 +63,35 @@ type refetchDoneMsg struct {
 func (g *gallery) tabName() string { return ipc.GalleryTabs[g.tab] }
 func (g *gallery) isGrid() bool    { return g.tab <= 1 }
 
+func (g *gallery) all() bool { return g.chat == "" }
+
+// openGallery abre a galeria do chat aberto (pelo perfil).
 func (m *model) openGallery(tab int) tea.Cmd {
 	if m.active == "" {
 		return nil
 	}
-	m.gallery = &gallery{tab: tab}
+	m.gallery = &gallery{chat: m.active, tab: tab}
+	return m.loadGallery(false)
+}
+
+// openMediaCenter abre a central de mídia: a galeria de todas as conversas.
+func (m *model) openMediaCenter() tea.Cmd {
+	if m.searching {
+		m.stopSearch(false)
+	}
+	m.profileOpen, m.profile = false, nil
+	m.gallery = &gallery{}
+	return m.loadGallery(false)
+}
+
+// galleryShown: a galeria ocupa o painel da conversa.
+func (m *model) galleryShown() bool {
+	return m.gallery != nil && (m.profileOpen || m.gallery.all())
+}
+
+// switchGalleryTab troca de aba mantendo a galeria (do chat ou central).
+func (m *model) switchGalleryTab(tab int) tea.Cmd {
+	m.gallery = &gallery{chat: m.gallery.chat, tab: tab}
 	return m.loadGallery(false)
 }
 
@@ -76,18 +101,18 @@ func (m *model) loadGallery(more bool) tea.Cmd {
 		return nil
 	}
 	g.loading = true
-	req := ipc.Request{Op: ipc.OpGallery, Chat: m.active, Text: g.tabName(), Limit: galleryPage}
+	req := ipc.Request{Op: ipc.OpGallery, Chat: g.chat, Text: g.tabName(), Limit: galleryPage}
 	if more && len(g.items) > 0 {
 		req.Before = g.items[len(g.items)-1].TS
 	}
-	chat, tab := m.active, g.tab
+	chat, tab := g.chat, g.tab
 	var out ipc.GalleryPage
 	return m.call(req, &out, func() tea.Msg { return galleryMsg{chat: chat, tab: tab, append: more, page: &out} })
 }
 
 func (m *model) onGallery(msg galleryMsg) tea.Cmd {
 	g := m.gallery
-	if g == nil || msg.chat != m.active || msg.tab != g.tab {
+	if g == nil || msg.chat != g.chat || msg.tab != g.tab {
 		return nil
 	}
 	g.loading = false
@@ -112,8 +137,8 @@ func (m *model) reloadGallery() tea.Cmd {
 		return nil
 	}
 	g.loading = true
-	req := ipc.Request{Op: ipc.OpGallery, Chat: m.active, Text: g.tabName(), Limit: max(galleryPage, len(g.items))}
-	chat, tab := m.active, g.tab
+	req := ipc.Request{Op: ipc.OpGallery, Chat: g.chat, Text: g.tabName(), Limit: max(galleryPage, len(g.items))}
+	chat, tab := g.chat, g.tab
 	var out ipc.GalleryPage
 	return m.call(req, &out, func() tea.Msg { return galleryMsg{chat: chat, tab: tab, reload: true, page: &out} })
 }
@@ -136,7 +161,7 @@ func (m *model) maybeRefetch() tea.Cmd {
 		}
 		g.asked[it.ID], g.refetching, g.refetchID = true, true, it.ID
 		m.setFlash("pedindo ao celular as mídias antigas…")
-		req := ipc.Request{Op: ipc.OpRefetch, Chat: m.active, Before: it.TS - 1}
+		req := ipc.Request{Op: ipc.OpRefetch, Chat: it.Chat, Before: it.TS - 1}
 		return tea.Batch(m.call(req, nil, func() tea.Msg { return refetchDoneMsg{id: it.ID} }),
 			tea.Tick(20*time.Second, func(time.Time) tea.Msg { return refetchDoneMsg{id: it.ID, err: errRefetchTimeout} }))
 	}
@@ -164,7 +189,7 @@ func (m *model) keyGallery(s string) tea.Cmd {
 		per, _, _ = m.galleryGrid()
 	}
 	switch s {
-	case "esc", "ctrl+c", "alt+i":
+	case "esc", "ctrl+c", "alt+i", "alt+g":
 		m.gallery = nil
 		return nil
 	case "tab", "shift+tab":
@@ -172,7 +197,7 @@ func (m *model) keyGallery(s string) tea.Cmd {
 		if s == "shift+tab" {
 			d = len(ipc.GalleryTabs) - 1
 		}
-		return m.openGallery((g.tab + d) % len(ipc.GalleryTabs))
+		return m.switchGalleryTab((g.tab + d) % len(ipc.GalleryTabs))
 	case "left":
 		g.sel = max(0, g.sel-1)
 	case "right":
@@ -213,7 +238,11 @@ func (m *model) keyGallery(s string) tea.Cmd {
 		it := g.items[g.sel]
 		m.gallery = nil
 		m.closeProfile()
-		m.hits = append(m.hits, ipc.SearchHit{Chat: m.activeChat, Message: it})
+		c, ok := m.chatByJID(it.Chat)
+		if !ok {
+			c = ipc.Chat{JID: it.Chat, Name: it.Chat}
+		}
+		m.hits = append(m.hits, ipc.SearchHit{Chat: c, Message: it})
 		return m.openHit(ipc.Chat{JID: fmt.Sprintf("%s%d", hitMarker, len(m.hits)-1)})
 	}
 	// Perto do fim do que foi carregado: pede a próxima página.
@@ -273,7 +302,11 @@ func (m *model) galleryRows(per int) []galleryRow {
 func (m *model) viewGallery(gm geometry) string {
 	w, h := gm.chatW, gm.footerY
 	g := m.gallery
-	top := "  " + sText.Render(icons.back) + "  " + sBold.Render("Mídia, links e docs") + "   " +
+	title := "Mídia, links e docs"
+	if g.all() {
+		title = "Central de mídia · todas as conversas"
+	}
+	top := "  " + sText.Render(icons.back) + "  " + sBold.Render(title) + "   " +
 		sText2.Render("esc volta")
 	var tabs []string
 	for i, t := range ipc.GalleryTabs {
@@ -289,6 +322,10 @@ func (m *model) viewGallery(gm geometry) string {
 	}
 	head := []string{top, "", "  " + strings.Join(tabs, "   "), ""}
 	hint := "tab troca a aba · setas escolhem · enter abre · ctrl+g mostra na conversa"
+	if g.all() && g.isGrid() && g.sel < len(g.items) {
+		// Na grade não cabe o nome: a dica diz de onde é a selecionada.
+		hint = m.galleryOrigin(g.items[g.sel]) + " · " + hint
+	}
 	room := h - len(head) - 2
 
 	if len(g.items) == 0 {
@@ -452,6 +489,9 @@ func (m *model) galleryItem(msg ipc.Message, selected bool, w int) []string {
 		who = "você"
 	}
 	sub := who + " · " + time.UnixMilli(msg.TS).Format("02/01/2006 15:04")
+	if m.gallery.all() {
+		sub = m.galleryOrigin(msg)
+	}
 	if extra != "" {
 		sub += " · " + extra
 	}
@@ -464,6 +504,22 @@ func (m *model) galleryItem(msg ipc.Message, selected bool, w int) []string {
 		mark + sText2.Render(ansi.Truncate(sub, tw, "…")),
 		"",
 	}
+}
+
+// galleryOrigin: de que conversa é o item da central, quem mandou e quando.
+func (m *model) galleryOrigin(msg ipc.Message) string {
+	name := msg.Chat
+	if c, ok := m.chatByJID(msg.Chat); ok && c.Name != "" {
+		name = c.Name
+	}
+	who := msg.SenderName
+	if msg.FromMe {
+		who = "você"
+	}
+	if who != "" && who != name {
+		name += " · " + who
+	}
+	return name + " · " + time.UnixMilli(msg.TS).Format("02/01/2006 15:04")
 }
 
 // coverCrop grava (uma vez) a imagem cortada no centro na proporção

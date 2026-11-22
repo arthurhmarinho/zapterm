@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -50,12 +51,22 @@ func (m *model) scheduleSearch() tea.Cmd {
 	return tea.Tick(searchDelay, func(time.Time) tea.Msg { return searchTickMsg{q} })
 }
 
+// filterRe acha os filtros da busca (tipo:pdf, data:12/10, antes:, depois:),
+// que o daemon separa do texto.
+var filterRe = regexp.MustCompile(`(?i)(^|\s)(tipo|data|antes|depois):\S`)
+
+func hasFilter(q string) bool { return filterRe.MatchString(q) }
+
 func (m *model) runSearch(q string) tea.Cmd {
 	if q != m.searchQuery() || q == m.hitsQuery {
 		return nil // o texto mudou de novo, ou já procurado
 	}
+	limit := 30
+	if hasFilter(q) {
+		limit = 100 // "tipo:pdf" quer a lista inteira, não só o começo
+	}
 	var out []ipc.SearchHit
-	return m.call(ipc.Request{Op: ipc.OpSearch, Text: q, Limit: 30}, &out,
+	return m.call(ipc.Request{Op: ipc.OpSearch, Text: q, Limit: limit}, &out,
 		func() tea.Msg { return hitsMsg{query: q, hits: out} })
 }
 

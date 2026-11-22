@@ -143,7 +143,9 @@ func (m *model) View() tea.View {
 	left := m.viewList(g)
 	divider := paint(strings.TrimSuffix(strings.Repeat(fg(cDivider).Render("│")+"\n", g.footerY), "\n"), cBgList, 1)
 	var right string
-	if m.active == "" {
+	if m.galleryShown() {
+		right = m.viewGallery(g)
+	} else if m.active == "" {
 		right = m.viewEmpty(g)
 	} else if m.profileOpen && m.gallery != nil {
 		right = m.viewGallery(g)
@@ -714,6 +716,8 @@ func (m *model) viewHelp() string {
 			{"↑ ↓", "chats na lista, ou mensagens na conversa"}, {"tab", "troca entre lista e conversa"},
 			{"pgup pgdn", "rolar a conversa"}, {keyFor("search"), "pesquisar conversa"},
 			{"ctrl+f", "procurar nesta conversa (enter/↑ mais antigo, ↓ mais novo)"},
+			{"tipo: data:", "filtros da busca: tipo:pdf, tipo:foto, data:12/10, antes:/depois:, data:hoje"},
+			{"alt+g", "central de mídia: fotos, vídeos, docs, links e áudios de todas as conversas"},
 			{"alt+↑ alt+↓", "conversa de cima / de baixo"}, {"alt+n", "próxima conversa com não lidas"},
 			{"alt+1…5", "filtros (Tudo, Não lidas, Grupos, Canais, ★ favoritas)"}, {keyFor("archived"), "arquivadas"},
 			{"esc", "cancela o que estiver aberto"}, {"ctrl+c", "limpa o campo; vazio, duas vezes, sai"},

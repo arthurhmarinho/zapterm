@@ -45,7 +45,7 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.menu != nil {
 		return m.keyChatMenu(s)
 	}
-	if m.gallery != nil && m.profileOpen && !m.searching {
+	if m.galleryShown() && !m.searching {
 		return m.keyGallery(s)
 	}
 	if m.profileOpen && !m.searching {
@@ -236,6 +236,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case "alt+1", "alt+2", "alt+3", "alt+4", "alt+5":
 		return m.setTab(int(s[4] - '1'))
+	case "alt+g":
+		return m.openMediaCenter()
 	case "alt+s":
 		return m.toggleStar()
 	case "alt+p":
@@ -525,6 +527,12 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 	}
 	if m.searching {
 		m.stopSearch(false)
+	}
+	if m.galleryShown() && m.gallery.all() {
+		if y <= 1 {
+			m.gallery = nil // seta de voltar da central de mídia
+		}
+		return nil
 	}
 	if m.active == "" {
 		return nil
