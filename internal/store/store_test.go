@@ -306,3 +306,55 @@ func TestSalvaNaConversa(t *testing.T) {
 		t.Fatal("desfeito o salvar, a vencida devia sumir")
 	}
 }
+
+func TestLimparConversa(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	const c = "5584@s.whatsapp.net"
+	for i, txt := range []string{"um", "dois", "tres"} {
+		m := ipc.Message{ID: string(rune('a' + i)), Chat: c, Sender: c, SenderName: "Ana",
+			TS: int64(1000 * (i + 1)), Kind: "text", Text: txt}
+		if _, err := s.SaveMessage(m, nil, false, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetReaction(c, "b", c, "❤️", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetStarred(c, "a", true); err != nil {
+		t.Fatal(err)
+	}
+
+	// Até a segunda, guardando a favorita: sai só a "b".
+	n, err := s.ClearChat(c, 2000, true)
+	if err != nil || n != 1 {
+		t.Fatalf("limpar até 2000: n=%d err=%v", n, err)
+	}
+	ms, _ := s.Messages(c, 10, 0)
+	if len(ms) != 2 {
+		t.Fatalf("deviam sobrar 2, sobraram %d", len(ms))
+	}
+	rs, _ := s.Reactions(c, []string{"b"}, "")
+	if len(rs["b"]) != 0 {
+		t.Fatal("reação da mensagem apagada ficou")
+	}
+
+	// Tudo: a conversa fica na lista, vazia e lida.
+	if _, err := s.ClearChat(c, 0, false); err != nil {
+		t.Fatal(err)
+	}
+	ch, err := s.Chat(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ch.LastText != "" || ch.Unread != 0 || ch.LastTS != 3000 {
+		t.Fatalf("chat depois de limpar: %+v", ch)
+	}
+	if ms, _ := s.Messages(c, 10, 0); len(ms) != 0 {
+		t.Fatalf("sobraram %d mensagens", len(ms))
+	}
+}

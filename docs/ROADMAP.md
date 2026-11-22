@@ -127,7 +127,7 @@ filtro.
 - [x] **Mensagens temporárias** (24h/7d/90d/desligado).
   `cli.SetDisappearingTimer`. (P)
 - [x] **Bloquear / desbloquear.** `cli.UpdateBlocklist`. (P)
-- [~] **Sair do grupo** e **apagar conversa** (feitos; falta limpar conversa) (`cli.LeaveGroup`), **apagar conversa**
+- [x] **Sair do grupo**, **apagar** e **limpar conversa** (limpar guarda as favoritas e segue o celular) (`cli.LeaveGroup`), **apagar conversa**
   (`appstate.BuildDeleteChat`), **limpar conversa** (patch em
   `IndexClearChat`). Pedem confirmação. (P / P / M)
 

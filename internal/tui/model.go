@@ -689,6 +689,12 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 		}
 	case ipc.EvPins:
 		return m.onPinsEvent(f.Data)
+	case ipc.EvCleared:
+		var chat string
+		if json.Unmarshal(f.Data, &chat) == nil && chat == m.active {
+			m.msgSel = -1
+			return tea.Batch(m.loadMessages(chat, 0), m.loadPins(chat))
+		}
 	case ipc.EvOpen:
 		var o ipc.Open
 		if json.Unmarshal(f.Data, &o) == nil {

@@ -65,6 +65,7 @@ const (
 	EvPresence = "presence" // digitando, gravando, online, visto por último
 	EvOpen     = "open"     // abra este chat (clique na notificação)
 	EvPins     = "pins"     // mudaram as fixadas do chat (Data: o JID)
+	EvCleared  = "cleared"  // conversa limpa (Data: o JID): recarregue as mensagens
 )
 
 // Request vai da TUI para o daemon.

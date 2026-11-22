@@ -10,12 +10,16 @@ import (
 	"time"
 
 	"go.mau.fi/whatsmeow/appstate"
+	"go.mau.fi/whatsmeow/proto/waCommon"
+	"go.mau.fi/whatsmeow/proto/waSyncAction"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
 
-// Coisas de admin de grupo, apagar conversa e links de convite.
+// Coisas de admin de grupo, apagar e limpar conversa e links de convite.
 
 var (
 	adminMu    sync.Mutex
@@ -108,6 +112,83 @@ func (d *Daemon) deleteChat(ctx context.Context, chat string) error {
 	d.srv.Broadcast(ipc.EvReload, nil)
 	d.scheduleUnreadPush()
 	return nil
+}
+
+// clearChat limpa as mensagens da conversa (no celular também), guardando
+// as favoritas, como o padrão do app. A conversa fica na lista.
+func (d *Daemon) clearChat(ctx context.Context, chat string) error {
+	jid, err := types.ParseJID(chat)
+	if err != nil {
+		return err
+	}
+	target := jid
+	if jid.Server == types.DefaultUserServer {
+		if lid, err := d.cli.Store.LIDs.GetLIDForPN(ctx, jid); err == nil && !lid.IsEmpty() {
+			target = lid
+		}
+	}
+	ts, key := d.lastKey(chat, jid, target)
+	if err := d.cli.SendAppState(ctx, buildClearChat(target, ts, key, true)); err != nil {
+		return fmt.Errorf("avisando o WhatsApp: %w", err)
+	}
+	upTo := ts.UnixMilli()
+	if ts.IsZero() {
+		upTo = 0
+	}
+	if _, err := d.st.ClearChat(chat, upTo, true); err != nil {
+		return err
+	}
+	d.srv.Broadcast(ipc.EvCleared, chat)
+	d.srv.Broadcast(ipc.EvReload, nil)
+	d.scheduleUnreadPush()
+	return nil
+}
+
+// buildClearChat monta o patch de limpar conversa, que o whatsmeow só sabe
+// receber. Índice como o do WhatsApp Web: clearChat, conversa, "0" para
+// guardar as favoritas ("1" apaga também), "0" para guardar a mídia no
+// aparelho.
+func buildClearChat(target types.JID, ts time.Time, key *waCommon.MessageKey, keepStarred bool) appstate.PatchInfo {
+	if ts.IsZero() {
+		ts = time.Now()
+	}
+	rng := &waSyncAction.SyncActionMessageRange{LastMessageTimestamp: proto.Int64(ts.Unix())}
+	if key != nil {
+		rng.Messages = []*waSyncAction.SyncActionMessage{{Key: key, Timestamp: proto.Int64(ts.Unix())}}
+	}
+	starred := "1"
+	if keepStarred {
+		starred = "0"
+	}
+	return appstate.PatchInfo{
+		Type: appstate.WAPatchRegularHigh,
+		Mutations: []appstate.MutationInfo{{
+			Index:   []string{appstate.IndexClearChat, target.String(), starred, "0"},
+			Version: 6,
+			Value:   &waSyncAction.SyncActionValue{ClearChatAction: &waSyncAction.ClearChatAction{MessageRange: rng}},
+		}},
+	}
+}
+
+// onClearChat: conversa limpa no celular. Apaga até o instante da última
+// mensagem que ele tinha (o que chegou depois fica).
+func (d *Daemon) onClearChat(ctx context.Context, e *events.ClearChat) {
+	if e.FromFullSync {
+		return
+	}
+	var upTo int64
+	if r := e.Action.GetMessageRange(); r.GetLastMessageTimestamp() > 0 {
+		upTo = r.GetLastMessageTimestamp()*1000 + 999
+	}
+	// O evento não diz se as favoritas ficaram; o padrão do app é ficar.
+	chat := d.normalize(ctx, e.JID).String()
+	if _, err := d.st.ClearChat(chat, upTo, true); err != nil {
+		d.log.Warn("limpar conversa", "chat", chat, "err", err)
+		return
+	}
+	d.srv.Broadcast(ipc.EvCleared, chat)
+	d.srv.Broadcast(ipc.EvReload, nil)
+	d.scheduleUnreadPush()
 }
 
 // inviteCode tira o código de "https://chat.whatsapp.com/CODIGO".

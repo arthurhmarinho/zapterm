@@ -62,7 +62,9 @@ func (m *model) openChatMenu(c ipc.Chat) {
 		opts = append(opts, menuOpt{"Sair do grupo…", "leave", "você saiu do grupo"})
 	}
 	if c.Kind != "channel" {
-		opts = append(opts, menuOpt{"Apagar conversa…", "delete", "conversa apagada"})
+		opts = append(opts,
+			menuOpt{"Limpar conversa…", "clear", "conversa limpa"},
+			menuOpt{"Apagar conversa…", "delete", "conversa apagada"})
 	} else {
 		opts = append(opts, menuOpt{"Deixar de seguir…", "unfollow", "você deixou de seguir o canal"})
 	}
@@ -83,6 +85,9 @@ func (m *model) keyChatMenu(s string) tea.Cmd {
 	default:
 		if len(s) == 1 && s[0] >= '1' && int(s[0]-'1') < len(mn.opts) {
 			return m.runMenu(int(s[0] - '1'))
+		}
+		if s == "0" && len(mn.opts) >= 10 { // a décima opção
+			return m.runMenu(9)
 		}
 	}
 	return nil
@@ -105,11 +110,13 @@ func (m *model) runMenu(i int) tea.Cmd {
 			opt("Desligar", "0", "mensagens temporárias desligadas"),
 		}}
 		return nil
-	case "block", "leave", "delete", "unfollow":
+	case "block", "leave", "clear", "delete", "unfollow":
 		q := "Bloquear " + chat.Name + "? Ele não vai mais conseguir te mandar mensagem nem ligar."
 		switch o.action {
 		case "leave":
 			q = "Sair de " + chat.Name + "?"
+		case "clear":
+			q = "Limpar a conversa com " + chat.Name + "? As mensagens somem aqui e no celular; as favoritas ficam."
 		case "delete":
 			q = "Apagar a conversa com " + chat.Name + "? Some aqui e no celular, com as mídias."
 		case "unfollow":
@@ -141,7 +148,7 @@ func (m *model) viewChatMenu() string {
 	mn := m.menu
 	var lines []string
 	for i, o := range mn.opts {
-		n := sText2.Render(fmt.Sprintf("%d", i+1))
+		n := sText2.Render(fmt.Sprintf("%d", (i+1)%10))
 		if i == mn.sel {
 			lines = append(lines, sGreen.Render("▸ ")+n+" "+sGreen.Bold(true).Render(o.label))
 		} else {

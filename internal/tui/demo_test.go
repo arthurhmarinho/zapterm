@@ -1060,6 +1060,21 @@ func TestAdminConversaELinkDeConvite(t *testing.T) {
 		t.Fatalf("apagar conversa: %+v", got)
 	}
 
+	// Limpar conversa também pede confirmação.
+	m.openChatMenu(trilha)
+	for i, o := range m.menu.opts {
+		if o.label == "Limpar conversa…" {
+			runCmd(m, m.runMenu(i))
+		}
+	}
+	if m.popup == nil || !strings.Contains(m.popup.title, "Limpar a conversa com") {
+		t.Fatal("limpar conversa sem confirmação")
+	}
+	runCmd(m, m.keyPopup("1"))
+	if got := demo.LastSent(srv); got.Op != ipc.OpChatAction || got.Text != "clear" {
+		t.Fatalf("limpar conversa: %+v", got)
+	}
+
 	// Link chat.whatsapp.com: mostra o grupo e entra.
 	runCmd(m, m.openInviteLink("https://chat.whatsapp.com/ABCdef123"))
 	if m.popup == nil || !strings.Contains(m.popup.title, "Corrida de domingo · 42 participantes") {

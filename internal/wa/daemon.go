@@ -251,6 +251,8 @@ func (d *Daemon) onEvent(evt any) {
 				d.scheduleUnreadPush()
 			}
 		}
+	case *events.ClearChat:
+		d.onClearChat(ctx, e)
 	case *events.Star:
 		d.onStar(ctx, e)
 	case *events.DeleteForMe:

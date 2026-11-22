@@ -7,6 +7,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -511,6 +512,62 @@ func (s *Store) DeleteChat(chat string) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// ClearChat apaga as mensagens da conversa até upTo (unix ms; 0 = todas),
+// menos as favoritas se keepStarred, com o que depende delas. A conversa
+// fica na lista, na mesma posição, com a prévia da mensagem que sobrou (ou
+// vazia). Devolve quantas mensagens saíram.
+func (s *Store) ClearChat(chat string, upTo int64, keepStarred bool) (int, error) {
+	if upTo <= 0 {
+		upTo = math.MaxInt64
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	gone := `SELECT id FROM messages WHERE chat = ? AND ts <= ?`
+	if keepStarred {
+		gone += ` AND starred = 0`
+	}
+	for _, q := range []string{
+		`DELETE FROM reactions WHERE chat = ? AND msg_id IN (` + gone + `)`,
+		`DELETE FROM poll_votes WHERE chat = ? AND poll_id IN (` + gone + `)`,
+		`DELETE FROM receipts WHERE chat = ? AND msg_id IN (` + gone + `)`,
+		`DELETE FROM pins WHERE chat = ? AND msg_id IN (` + gone + `)`,
+	} {
+		if _, err := tx.Exec(q, chat, chat, upTo); err != nil {
+			return 0, err
+		}
+	}
+	del := `DELETE FROM messages WHERE chat = ? AND ts <= ?`
+	if keepStarred {
+		del += ` AND starred = 0`
+	}
+	res, err := tx.Exec(del, chat, upTo)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+
+	// Prévia: a mensagem mais nova que ficou, ou nada.
+	var m ipc.Message
+	var isGroup bool
+	err = tx.QueryRow(`SELECT m.sender_name, m.from_me, m.ts, m.kind, m.text, c.is_group FROM messages m
+		JOIN chats c ON c.jid = m.chat WHERE m.chat = ? ORDER BY m.ts DESC LIMIT 1`, chat).
+		Scan(&m.SenderName, &m.FromMe, &m.TS, &m.Kind, &m.Text, &isGroup)
+	switch {
+	case err == sql.ErrNoRows:
+		_, err = tx.Exec(`UPDATE chats SET last_text = '', unread = 0 WHERE jid = ?`, chat)
+	case err == nil:
+		m.Chat = chat
+		_, err = tx.Exec(`UPDATE chats SET last_text = ?, unread = 0 WHERE jid = ?`, preview(m, isGroup), chat)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return int(n), tx.Commit()
 }
 
 // DeleteMessage tira a mensagem do banco (apagar para mim).

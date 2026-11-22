@@ -94,6 +94,8 @@ func (d *Daemon) chatAction(ctx context.Context, chat, action string) error {
 		return nil
 	case "delete":
 		return d.deleteChat(ctx, chat)
+	case "clear":
+		return d.clearChat(ctx, chat)
 	case "leave":
 		if err := d.cli.LeaveGroup(ctx, jid); err != nil {
 			return err
