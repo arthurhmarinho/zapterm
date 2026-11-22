@@ -99,8 +99,7 @@ func (m *model) toggleAudio(i int) tea.Cmd {
 	}
 	if msg.Media == nil {
 		if !msg.HasRaw {
-			m.setFlash("áudio de mensagem antiga (do pareamento) não pode ser baixado")
-			return nil
+			return m.refetchOld(msg)
 		}
 		m.setFlash("baixando áudio…")
 		chat, id := m.active, msg.ID

@@ -375,6 +375,9 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 			d.log.Error("history: chat", "err", err)
 			continue
 		}
+		if c.LimitSharing != nil {
+			_, _ = d.st.SetRestricted(jid.String(), c.GetLimitSharing())
+		}
 		// Só com o campo presente: pedaços parciais do histórico vêm sem ele
 		// e não podem zerar um prazo conhecido.
 		if c.GetEphemeralExpiration() > 0 || c.GetEphemeralSettingTimestamp() > 0 {

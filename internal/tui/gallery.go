@@ -515,3 +515,24 @@ func coverCrop(src string, pxW, pxH int) (string, bool) {
 	cropDone[out] = true
 	return out, true
 }
+
+// ---------- mídia antiga na conversa ----------
+
+// refetchOld: mídia do histórico do pareamento não tem a chave para baixar.
+// Pede ao celular as mensagens daquela época; quando a resposta chega
+// (EvReload), recarrega o trecho e a mensagem fica pronta para o ctrl+o.
+func (m *model) refetchOld(msg ipc.Message) tea.Cmd {
+	m.oldWanted = &msg
+	m.setFlash("mídia antiga: pedindo ao celular (ele precisa estar online)…")
+	return m.call(ipc.Request{Op: ipc.OpRefetch, Chat: msg.Chat, Before: msg.TS - 1}, nil, nil)
+}
+
+func (m *model) afterRefetch() tea.Cmd {
+	w := m.oldWanted
+	if w == nil || w.Chat != m.active {
+		return nil
+	}
+	m.oldWanted = nil
+	m.setFlash("o celular mandou: ctrl+o de novo abre")
+	return m.loadAround(w.Chat, w.ID, w.TS)
+}

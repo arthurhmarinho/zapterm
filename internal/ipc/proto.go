@@ -145,12 +145,14 @@ type Chat struct {
 	Kind     string `json:"kind"` // dm, group, channel
 	Archived bool   `json:"archived"`
 	Blocked  bool   `json:"blocked,omitempty"` // contato bloqueado
-	Muted    bool   `json:"muted"`
-	Pinned   bool   `json:"pinned"`
-	IsGroup  bool   `json:"is_group"`
-	LastTS   int64  `json:"last_ts"` // unix ms
-	LastText string `json:"last_text"`
-	Unread   int    `json:"unread"`
+	// Restricted: o dono limitou aparelhos conectados nesta conversa.
+	Restricted bool   `json:"restricted,omitempty"`
+	Muted      bool   `json:"muted"`
+	Pinned     bool   `json:"pinned"`
+	IsGroup    bool   `json:"is_group"`
+	LastTS     int64  `json:"last_ts"` // unix ms
+	LastText   string `json:"last_text"`
+	Unread     int    `json:"unread"`
 	// LastStatus: situação da última mensagem, se for sua (ver Message.Status);
 	// -1 se a última não é sua.
 	LastStatus int `json:"last_status"`

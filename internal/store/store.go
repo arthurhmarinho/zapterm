@@ -104,6 +104,8 @@ var migrations = []string{
 	`ALTER TABLE messages ADD COLUMN kept INTEGER NOT NULL DEFAULT 0;`,
 	// 13: ID da mensagem no servidor (canais: reagir e marcar visto usam).
 	`ALTER TABLE messages ADD COLUMN server_id INTEGER NOT NULL DEFAULT 0;`,
+	// 14: conversa restrita (o dono limitou aparelhos conectados).
+	`ALTER TABLE chats ADD COLUMN restricted INTEGER NOT NULL DEFAULT 0;`,
 }
 
 func migrate(db *sql.DB) error {
@@ -264,7 +266,7 @@ func (s *Store) MarkRead(jid string) error {
 func (s *Store) Chat(jid string) (ipc.Chat, error) {
 	var c ipc.Chat
 	err := s.db.QueryRow(`SELECT `+chatCols+` FROM chats WHERE jid = ?`, jid).
-		Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread, &c.Ephemeral, &c.LastStatus)
+		Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread, &c.Ephemeral, &c.Restricted, &c.LastStatus)
 	return c, err
 }
 
@@ -281,7 +283,7 @@ func (s *Store) Chats() ([]ipc.Chat, error) {
 	out := []ipc.Chat{}
 	for rows.Next() {
 		var c ipc.Chat
-		if err := rows.Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread, &c.Ephemeral, &c.LastStatus); err != nil {
+		if err := rows.Scan(&c.JID, &c.Name, &c.IsGroup, &c.LastTS, &c.LastText, &c.Unread, &c.Ephemeral, &c.Restricted, &c.LastStatus); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -401,6 +403,16 @@ func (s *Store) ServerIDs(chat string, ids []string) (map[string]int, error) {
 		}
 	}
 	return out, nil
+}
+
+// SetRestricted marca a conversa como restrita (ou não).
+func (s *Store) SetRestricted(jid string, on bool) (bool, error) {
+	res, err := s.db.Exec(`UPDATE chats SET restricted = ? WHERE jid = ? AND restricted != ?`, on, jid, on)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }
 
 // SetKept salva (ou deixa de salvar) a temporária na conversa.
@@ -754,7 +766,7 @@ func (s *Store) UpdateMessage(chat, id, kind, text string, edited bool) (bool, e
 }
 
 // chatCols inclui a situação da última mensagem, se for sua (-1 se não).
-const chatCols = `jid, name, is_group, last_ts, last_text, unread, ephemeral,
+const chatCols = `jid, name, is_group, last_ts, last_text, unread, ephemeral, restricted,
 	COALESCE((SELECT m.status FROM messages m WHERE m.chat = chats.jid AND m.ts = chats.last_ts
 		AND m.from_me = 1 LIMIT 1), -1)`
 

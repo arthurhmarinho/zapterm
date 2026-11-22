@@ -374,6 +374,9 @@ func (m *model) viewHeader(g geometry) string {
 	if c.Ephemeral > 0 {
 		sub += " · temporárias: " + ephemeralLabel(c.Ephemeral)
 	}
+	if c.Restricted {
+		sub += " · restrita: o contato limitou aparelhos conectados"
+	}
 	subSt := sText2
 	switch p := m.presence[c.JID]; {
 	case m.typingText(c.JID, true) != "":

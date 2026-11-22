@@ -123,6 +123,7 @@ type model struct {
 	pickingContact bool            // a busca escolhe um contato para mandar
 	admins         map[string]bool // você é admin do grupo?
 	qrView         string          // QR do link de convite aberto
+	oldWanted      *ipc.Message    // mídia antiga pedida ao celular (ctrl+o)
 	pendingDel     *pendingDelete  // apagar para mim esperando os 5 s de desfazer
 	recReview      *recReview      // gravação parada esperando você ouvir e decidir
 
@@ -670,7 +671,7 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 			}
 		}
 	case ipc.EvReload:
-		return tea.Batch(m.loadChats(), m.reloadGallery())
+		return tea.Batch(m.loadChats(), m.reloadGallery(), m.afterRefetch())
 	case ipc.EvChat:
 		var c ipc.Chat
 		if json.Unmarshal(f.Data, &c) != nil {
@@ -893,8 +894,7 @@ func (m *model) openMedia(i int) tea.Cmd {
 		return nil
 	}
 	if !msg.HasRaw {
-		m.setFlash("mídia de mensagem antiga (do pareamento) não pode ser baixada")
-		return nil
+		return m.refetchOld(msg)
 	}
 	m.setFlash("baixando…")
 	chat, id := m.active, msg.ID

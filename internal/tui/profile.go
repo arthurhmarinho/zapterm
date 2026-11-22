@@ -126,7 +126,7 @@ func (m *model) openProfileMedia(msg ipc.Message) tea.Cmd {
 		return func() tea.Msg { return profileMediaMsg{msg: msg, md: msg.Media} }
 	}
 	if !msg.HasRaw {
-		m.setFlash("mídia de mensagem antiga (do pareamento) não pode ser baixada")
+		m.setFlash("mídia antiga: a galeria está pedindo ao celular, tente de novo em instantes")
 		return nil
 	}
 	m.setFlash("baixando…")

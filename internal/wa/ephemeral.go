@@ -24,6 +24,14 @@ import (
 // temporárias". Devolve true se a mensagem era esse aviso.
 func (d *Daemon) onEphemeralSetting(ctx context.Context, e *events.Message) bool {
 	pm := e.Message.GetProtocolMessage()
+	if pm.GetType() == waE2E.ProtocolMessage_LIMIT_SHARING {
+		// O dono ligou/desligou "limitar aparelhos conectados".
+		chat := d.normalize(ctx, e.Info.Chat).String()
+		if changed, err := d.st.SetRestricted(chat, pm.GetLimitSharing().GetSharingLimited()); err == nil && changed {
+			d.pushChat(chat)
+		}
+		return true
+	}
 	if pm == nil || pm.GetType() != waE2E.ProtocolMessage_EPHEMERAL_SETTING {
 		return false
 	}
