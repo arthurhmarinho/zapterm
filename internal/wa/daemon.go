@@ -721,6 +721,13 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.refetch(ctx, req.Chat, req.Before)
 	case ipc.OpGallery:
 		return d.gallery(context.Background(), req)
+	case ipc.OpMe:
+		return d.meScreen(ctx)
+	case ipc.OpSetMe:
+		if len(req.Options) != 1 {
+			return nil, errors.New("falta o valor")
+		}
+		return nil, d.setMe(ctx, req.Text, req.Options[0])
 	case ipc.OpSearch:
 		return d.search(ctx, req.Chat, req.Text, req.Limit)
 	case ipc.OpMessages:

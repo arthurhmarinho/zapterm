@@ -180,6 +180,11 @@ func (m *model) View() tea.View {
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
 			lipgloss.NewLayer(pop).X(g.listW+6).Y(m.popupY(g, lipgloss.Height(pop))).Z(1)).Render()
 	}
+	if m.form != nil && m.active == "" {
+		pop := m.viewMeForm(g.chatW - 4)
+		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
+			lipgloss.NewLayer(pop).X(g.listW+3).Y(max(1, g.footerY-lipgloss.Height(pop)-1)).Z(1)).Render()
+	}
 	if m.popup != nil {
 		pop := m.viewPopup()
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
@@ -731,6 +736,7 @@ func (m *model) viewHelp() string {
 		}},
 		{"Chat", [][2]string{
 			{keyFor("profile"), "perfil do contato ou grupo: foto, recado, participantes, mídia (ou clique no cabeçalho)"},
+			{keyFor("me"), "Eu: seu nome, recado e privacidade (ou clique no seu nome no topo)"},
 			{keyFor("chat_menu"), "menu do chat: fixar, arquivar, silenciar, marcar como lida (ou botão direito na lista)"},
 		}},
 		{"Mensagem selecionada", [][2]string{

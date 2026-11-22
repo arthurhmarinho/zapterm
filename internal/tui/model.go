@@ -562,6 +562,9 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flash = ""
 		return m, m.open(c)
 
+	case meMsg:
+		m.onMe(msg.me)
+		return m, nil
 	case flashMsg:
 		m.setFlash(string(msg))
 		return m, nil

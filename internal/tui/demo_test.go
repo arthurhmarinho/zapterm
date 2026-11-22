@@ -1200,3 +1200,56 @@ func TestCentralDeMidia(t *testing.T) {
 		t.Fatalf("ctrl+g: galeria %v, chat %q", m.gallery, m.active)
 	}
 }
+
+func TestTelaEu(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}))
+	if m.popup == nil || !strings.HasPrefix(m.popup.title, "Eu") {
+		t.Fatal("alt+y não abriu a tela Eu")
+	}
+	screen := ansi.Strip(m.View().Content)
+	for _, want := range []string{"Nome: Você (demonstração)", "Recado: no terminal", "Visto por último: Meus contatos",
+		"Chamadas de desconhecidos: Tocam"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("faltou %q", want)
+		}
+	}
+	// Visto por último → Ninguém.
+	runCmd(m, m.keyPopup("3"))
+	if m.popup == nil || m.popup.title != "Visto por último" {
+		t.Fatalf("submenu: %+v", m.popup)
+	}
+	runCmd(m, m.keyPopup("3"))
+	// Nome: abre o formulário (sem chat aberto, flutuando) e salva.
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}))
+	if !strings.Contains(ansi.Strip(m.View().Content), "Visto por último: Ninguém") {
+		t.Error("a privacidade não mudou")
+	}
+	runCmd(m, m.keyPopup("1"))
+	if m.form == nil || m.form.fields[0].in.Value() != "Você (demonstração)" {
+		t.Fatal("o formulário do nome não abriu com o nome atual")
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "Seu nome") {
+		t.Error("o formulário não aparece sem chat aberto")
+	}
+	m.form.fields[0].in.SetValue("Arthur")
+	runCmd(m, m.keyForm(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}))
+	if !strings.Contains(ansi.Strip(m.View().Content), "Nome: Arthur") {
+		t.Error("o nome não mudou")
+	}
+}

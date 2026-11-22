@@ -30,6 +30,7 @@ type server struct {
 	mu       sync.Mutex
 	chats    []ipc.Chat
 	msgs     map[string][]ipc.Message
+	me       *ipc.Me // tela "Eu"
 }
 
 // Serve abre o socket do modo demonstração e responde em segundo plano.
@@ -180,6 +181,25 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 			}
 		}
 		return hits, nil
+	case ipc.OpMe:
+		if d.me == nil {
+			d.me = &ipc.Me{JID: "5511900000000@s.whatsapp.net", Phone: "+5511900000000", Name: "Você (demonstração)",
+				About: "no terminal", Privacy: map[string]string{"last": "contacts", "online": "all", "profile": "all",
+					"status": "contacts", "readreceipts": "all", "groupadd": "contacts", "calladd": "all"}}
+		}
+		return d.me, nil
+	case ipc.OpSetMe:
+		if d.me != nil && len(req.Options) == 1 {
+			switch k := req.Text; {
+			case k == "name":
+				d.me.Name = req.Options[0]
+			case k == "about":
+				d.me.About = req.Options[0]
+			case strings.HasPrefix(k, "privacy:"):
+				d.me.Privacy[strings.TrimPrefix(k, "privacy:")] = req.Options[0]
+			}
+		}
+		return nil, nil
 	case ipc.OpRefetch:
 		return nil, nil // sem celular na demonstração
 	case ipc.OpGallery:

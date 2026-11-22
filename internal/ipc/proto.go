@@ -54,6 +54,8 @@ const (
 	OpUnread      = "unread"       // resumo de não lidas (para a barra)
 	OpShowUI      = "show_ui"      // traz a TUI para frente, ou abre uma
 	OpRejectCall  = "reject_call"  // recusa a chamada tocando da linha Msg no Chat
+	OpMe          = "me"           // seu nome, número, recado e privacidade (Me)
+	OpSetMe       = "set_me"       // Text "name", "about" ou "privacy:<tipo>"; Options[0] o valor novo
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -338,6 +340,17 @@ type Quote struct {
 	Sender     string `json:"sender"`
 	SenderName string `json:"sender_name"`
 	Text       string `json:"text"`
+}
+
+// Me é a tela "Eu": seu perfil e a privacidade da conta. Privacy: tipo
+// (last, online, profile, status, readreceipts, groupadd, calladd) → valor
+// do whatsmeow (all, contacts, none, match_last_seen, known).
+type Me struct {
+	JID     string            `json:"jid"`
+	Phone   string            `json:"phone"`
+	Name    string            `json:"name"`
+	About   string            `json:"about"`
+	Privacy map[string]string `json:"privacy"`
 }
 
 // Status descreve a conexão com o WhatsApp.

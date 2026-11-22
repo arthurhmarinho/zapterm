@@ -238,6 +238,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return m.setTab(int(s[4] - '1'))
 	case "alt+g":
 		return m.openMediaCenter()
+	case "alt+y":
+		return m.openMe()
 	case "alt+s":
 		return m.toggleStar()
 	case "alt+p":
@@ -667,6 +669,8 @@ func (m *model) clickList(g geometry, x, y int, c tea.MouseClickMsg) tea.Cmd {
 	switch {
 	case y == g.titleY && m.archived:
 		m.setArchived(false)
+	case y <= g.titleY+1 && m.me != "":
+		return m.openMe() // clique no seu nome: tela "Eu"
 	case y >= g.searchY && y < g.searchY+3:
 		m.startSearch()
 	case y == g.chipsY && !m.archived:

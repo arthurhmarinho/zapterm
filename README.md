@@ -58,6 +58,9 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 - **Mídia, links e docs** (`enter` no perfil): abas Fotos, Vídeos, Docs,
   Links e Áudios, separadas por mês; `ctrl+g` mostra o item na conversa.
   Mídia antiga sem prévia é pedida de novo ao seu celular.
+- **Eu** (`alt+y` ou clique no seu nome no topo): trocar seu nome e
+  recado e a privacidade da conta (visto por último, online, foto, status,
+  confirmação de leitura, quem te põe em grupos, chamadas de desconhecidos).
 - **Central de mídia** (`alt+g`): as mesmas abas com tudo de todas as
   conversas, dizendo de onde é cada item; `ctrl+g` abre a conversa nele.
 
@@ -174,6 +177,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `alt+s` | favoritar / desfavoritar a mensagem (sincroniza com o celular); o filtro **★** (`alt+5`) lista as favoritas |
 | `alt+m` | menu do chat: fixar, arquivar, silenciar, marcar como (não) lida, mensagens temporárias, bloquear, sair do grupo, limpar (guarda as favoritas) e apagar conversa (ou botão direito) |
 | `alt+i` | perfil do contato ou grupo (ou clique no cabeçalho) |
+| `alt+y` | Eu: seu nome, recado e privacidade da conta (ou clique no seu nome no topo) |
 | `@` | marcar alguém num grupo |
 | `ctrl+v` | colar print para enviar |
 | `alt+f` ou o clipe | menu de anexar: foto ou vídeo, arquivo, figurinha, enquete, evento, contato |

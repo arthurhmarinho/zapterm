@@ -172,7 +172,7 @@ filtro.
   canal (`cli.CreateNewsletter`). (G)
 - [x] **Busca por data e por tipo** (`data:12/10`, `tipo:pdf`) e **central
   de mídia** de todas as conversas. (P–M)
-- [ ] **Tela "Eu"**: privacidade da conta (`cli.SetPrivacySetting`), nome
+- [x] **Tela "Eu"**: privacidade da conta (`cli.SetPrivacySetting`), nome
   (`appstate.BuildSettingPushName`), recado (`cli.SetStatusMessage`). (M)
 - [x] **Login por código do celular** em vez do QR. `cli.PairPhone`. (P)
 - [x] **Pedir de novo mídia antiga** ao celular (tira o "não pode ser
@@ -214,9 +214,10 @@ filtro.
 
 ## Atalhos livres (para não colidir)
 
-Livres e bons: `alt+. alt+r alt+s alt+g alt+v alt+n alt+z alt+↑ alt+↓
-shift+↑ shift+↓ ctrl+↑`. Também: `alt+j alt+k alt+o alt+q alt+t alt+x
-alt+y ctrl+g ctrl+l ctrl+y`.
+Ainda livres: `alt+r alt+j alt+k ctrl+l ctrl+y` (`alt+o alt+q alt+t` só
+valem no painel de envio; `ctrl+g` só na galeria). Já tomados desta lista:
+`alt+. alt+s alt+v alt+n alt+z alt+↑ alt+↓ shift+↑ shift+↓ ctrl+↑ alt+x`,
+`alt+g` (central de mídia) e `alt+y` (Eu).
 
 Evitar: as teclas de edição da caixa de texto (`ctrl+a b d h k u w`,
 `alt+b u l`, `alt+←/→`), `ctrl+shift+*` e `ctrl+tab` (o kitty pega),

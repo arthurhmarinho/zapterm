@@ -84,6 +84,7 @@ var Actions = map[string]string{
 	"search":    "ctrl+p",
 	"help":      "f1",
 	"archived":  "alt+a",
+	"me":        "alt+y",
 }
 
 // Defaults são os valores sem arquivo de config.
