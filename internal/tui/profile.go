@@ -74,6 +74,8 @@ func (m *model) keyProfile(s string) tea.Cmd {
 		}
 	case "alt+e":
 		return m.openGroupAdmin()
+	case "alt+o":
+		return m.openSubGroups()
 	}
 	return nil
 }
@@ -194,6 +196,9 @@ func (m *model) viewProfile(g geometry) string {
 	switch {
 	case p.Kind == "group":
 		sub = append(sub, fmt.Sprintf("Grupo · %d participantes", p.MemberCount))
+		if c := m.activeChat.Community; c != "" {
+			sub = append(sub, "comunidade "+c+" (alt+o: os grupos dela)")
+		}
 		if p.Created > 0 {
 			sub = append(sub, "criado em "+time.UnixMilli(p.Created).Format("02/01/2006"))
 		}
@@ -273,4 +278,52 @@ func (m *model) viewProfile(g geometry) string {
 		}
 	}
 	return fitHeight(strings.Join(lines, "\n"), cDefault, w, h)
+}
+
+type subGroupsMsg struct {
+	chat   string
+	groups []ipc.SubGroup
+}
+
+// openSubGroups: os grupos da comunidade do grupo aberto.
+func (m *model) openSubGroups() tea.Cmd {
+	if m.activeChat.CommunityJID == "" {
+		return nil
+	}
+	chat := m.active
+	var out []ipc.SubGroup
+	m.setFlash("carregando os grupos da comunidade…")
+	return m.call(ipc.Request{Op: ipc.OpSubGroups, Chat: chat}, &out,
+		func() tea.Msg { return subGroupsMsg{chat, out} })
+}
+
+func (m *model) onSubGroups(msg subGroupsMsg) {
+	m.flash = ""
+	var opts []popOpt
+	for _, g := range msg.groups {
+		label := g.Name
+		if g.Announce {
+			label = "📢 Avisos"
+		}
+		if !g.Joined {
+			label += " (você não participa)"
+		}
+		opts = append(opts, popOpt{label, func() tea.Cmd {
+			if !g.Joined {
+				m.setFlash("para entrar em " + g.Name + ", peça pelo celular (Comunidade → grupo → Pedir para entrar)")
+				return nil
+			}
+			m.closeProfile()
+			c, ok := m.chatByJID(g.JID)
+			if !ok {
+				c = ipc.Chat{JID: g.JID, Name: g.Name, Kind: "group", IsGroup: true, LastStatus: -1}
+			}
+			return m.open(c)
+		}})
+	}
+	if len(opts) == 0 {
+		m.setFlash("a comunidade não tem outros grupos")
+		return
+	}
+	m.popup = &popMenu{title: "Comunidade " + m.activeChat.Community, opts: opts}
 }

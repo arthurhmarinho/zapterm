@@ -166,7 +166,7 @@ filtro.
   pendentes (`GetGroupRequestParticipants`), nome, descrição e foto. (M)
 - [ ] **Status**: ver e responder (hoje descartado em `daemon.go`),
   postar (`SendMessage` para `StatusBroadcastJID`). (M–G)
-- [ ] **Comunidades**: agrupar grupos e Avisos na lista
+- [x] **Comunidades**: agrupar grupos e Avisos na lista
   (`cli.GetSubGroups`). (M)
 - [ ] **Canais**: diretório e busca (só por API interna, frágil), criar
   canal (`cli.CreateNewsletter`). (G)

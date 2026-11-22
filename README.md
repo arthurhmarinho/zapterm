@@ -48,6 +48,9 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
   abre o zapterm no clique ([instruções](noctalia/zapterm/README.md)).
   Fora do Noctalia, `zapterm unread --json` dá o mesmo resumo para outras
   barras.
+- **Comunidades:** os grupos aparecem como "Comunidade › Grupo" (o de
+  avisos como "› Avisos") e ficam juntos no filtro Grupos; `alt+o` no
+  perfil lista os grupos da comunidade.
 - **Perfil** (clique no cabeçalho ou `alt+i`): foto grande, número e
   recado do contato, ou descrição e participantes do grupo.
 - **Participantes** (perfil do grupo): `↓` escolhe, `enter` abre conversar

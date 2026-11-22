@@ -460,3 +460,21 @@ func TestListas(t *testing.T) {
 		t.Fatalf("apagada continuou: %+v", ls)
 	}
 }
+
+func TestComunidades(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	s.PutCommunity("c@g.us", "Bairro")
+	s.SetGroupParent("avisos@g.us", "c@g.us", true)
+	s.SetGroupParent("feira@g.us", "c@g.us", false)
+	if j, n, def := s.GroupCommunity("avisos@g.us"); j != "c@g.us" || n != "Bairro" || !def {
+		t.Fatalf("avisos: %q %q %v", j, n, def)
+	}
+	s.SetGroupParent("feira@g.us", "", false) // saiu da comunidade
+	if j, _, _ := s.GroupCommunity("feira@g.us"); j != "" {
+		t.Fatalf("feira continuou: %q", j)
+	}
+}

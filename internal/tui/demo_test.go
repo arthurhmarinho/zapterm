@@ -1380,3 +1380,51 @@ func TestListasDoCelular(t *testing.T) {
 		t.Fatalf("pedido: %+v", got)
 	}
 }
+
+func TestComunidade(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	if !strings.Contains(ansi.Strip(m.View().Content), "Letras › Clube do livro") {
+		t.Error("a lista não mostra a comunidade")
+	}
+	runCmd(m, m.open(m.chatFor("120000000000000003@g.us", "Clube")))
+	runCmd(m, m.openProfile())
+	if !strings.Contains(ansi.Strip(m.View().Content), "comunidade Letras") {
+		t.Error("o perfil não mostra a comunidade")
+	}
+	runCmd(m, m.keyProfile("alt+o"))
+	if m.popup == nil || len(m.popup.opts) != 3 || m.popup.opts[0].label != "📢 Avisos (você não participa)" {
+		t.Fatalf("grupos da comunidade: %+v", m.popup)
+	}
+	runCmd(m, m.keyPopup("3"))
+	if m.active != "120000000000000003@g.us" || !strings.Contains(m.flash, "Poesia") {
+		t.Errorf("grupo de que não participa: ativo %q, aviso %q", m.active, m.flash)
+	}
+}
+
+func TestJuntarComunidades(t *testing.T) {
+	list := []ipc.Chat{
+		{JID: "a", CommunityJID: "c1"}, {JID: "x"}, {JID: "b", CommunityJID: "c1", CommunityAnnounce: true},
+		{JID: "p", CommunityJID: "c1", Pinned: true}, {JID: "y"},
+	}
+	var got []string
+	for _, c := range groupCommunities(list) {
+		got = append(got, c.JID)
+	}
+	if strings.Join(got, ",") != "b,a,x,p,y" {
+		t.Errorf("ordem: %v", got)
+	}
+}

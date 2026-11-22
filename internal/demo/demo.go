@@ -206,6 +206,13 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 			}
 		}
 		return hits, nil
+	case ipc.OpSubGroups:
+		if req.Chat != "120000000000000003@g.us" {
+			return nil, errors.New("este grupo não é de uma comunidade")
+		}
+		return []ipc.SubGroup{{JID: "120000000000000091@g.us", Name: "Letras", Announce: true},
+			{JID: "120000000000000003@g.us", Name: "Clube do livro 📚", Joined: true},
+			{JID: "120000000000000092@g.us", Name: "Poesia"}}, nil
 	case ipc.OpLists:
 		out := []ipc.List{{ID: "1", Name: "Favoritas", Type: 3}, {ID: "7", Name: "Trabalho", Type: 5}}
 		for i := range out {
@@ -344,7 +351,8 @@ func (d *server) seed(now time.Time) {
 		{JID: "5511900000002@s.whatsapp.net", Name: "Diego Rocha", Kind: "dm", LastTS: at(42), LastText: "[áudio 0:18]", Unread: 1, LastStatus: -1},
 		{JID: "120000000000000002@g.us", Name: "Família", Kind: "group", IsGroup: true, Muted: true, LastTS: at(95), LastText: "Mãe: [imagem] olha o bolo", Unread: 12, LastStatus: -1},
 		{JID: "5511900000003@s.whatsapp.net", Name: "Bia Costa", Kind: "dm", LastTS: at(60 * 20), LastText: "você: valeu demais!", LastStatus: 2},
-		{JID: "120000000000000003@g.us", Name: "Clube do livro 📚", Kind: "group", IsGroup: true, LastTS: at(60 * 26), LastText: "Lu: próximo é Duna", LastStatus: -1},
+		{JID: "120000000000000003@g.us", Name: "Clube do livro 📚", Kind: "group", IsGroup: true, LastTS: at(60 * 26), LastText: "Lu: próximo é Duna", LastStatus: -1,
+			Community: "Letras", CommunityJID: "120000000000000090@g.us"},
 		{JID: "5511900000004@s.whatsapp.net", Name: "Oficina do Zé", Kind: "dm", LastTS: at(60 * 50), LastText: "[documento: orcamento.pdf]", LastStatus: -1, Lists: []string{"7"}},
 		{JID: "120000000000000004@newsletter", Name: "Notícias do Bairro", Kind: "channel", LastTS: at(60 * 3), LastText: "Feira de domingo confirmada", Unread: 2, LastStatus: -1},
 		{JID: "120000000000000005@g.us", Name: "Vendas e trocas", Kind: "group", IsGroup: true, Archived: true, Muted: true, LastTS: at(30), LastText: "[imagem] bicicleta aro 29", Unread: 31, LastStatus: -1},

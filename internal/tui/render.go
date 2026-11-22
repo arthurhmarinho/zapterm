@@ -183,7 +183,21 @@ func renderChatItem(c ipc.Chat, w int, selected bool, av string, typing, draft s
 		whenSt = sGreen
 	}
 	name := ansi.Truncate(oneLine(c.Name), tw-lipgloss.Width(when)-1, "…")
-	l1 := sText.Render(name) + strings.Repeat(" ", max(1, tw-lipgloss.Width(name)-lipgloss.Width(when))) + whenSt.Render(when)
+	shown := sText.Render(name)
+	if c.Community != "" {
+		// Grupo de comunidade: "Comunidade › Grupo", a comunidade apagada.
+		group := oneLine(c.Name)
+		if c.CommunityAnnounce {
+			group = "Avisos"
+		}
+		name = ansi.Truncate(oneLine(c.Community)+" › "+group, tw-lipgloss.Width(when)-1, "…")
+		if cut := strings.Index(name, " › "); cut >= 0 {
+			shown = sText2.Render(name[:cut+len(" › ")]) + sText.Render(name[cut+len(" › "):])
+		} else {
+			shown = sText2.Render(name)
+		}
+	}
+	l1 := shown + strings.Repeat(" ", max(1, tw-lipgloss.Width(name)-lipgloss.Width(when))) + whenSt.Render(when)
 
 	var right []string
 	if c.Muted {

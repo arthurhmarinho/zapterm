@@ -57,6 +57,7 @@ const (
 	OpNewGroup    = "new_group"    // cria o grupo Text com os participantes Options (JIDs); devolve o JID
 	OpGroupSet    = "group_set"    // muda Text (name, topic, photo, announce, locked, approval, addmode, approve, reject) do grupo Chat para Options[0]
 	OpGroupReqs   = "group_reqs"   // pedidos para entrar no grupo Chat ([]ProfileMember)
+	OpSubGroups   = "sub_groups"   // grupos da comunidade do grupo Chat ([]SubGroup)
 	OpLists       = "lists"        // listas do celular ([]List)
 	OpMe          = "me"           // seu nome, número, recado e privacidade (Me)
 	OpSetMe       = "set_me"       // Text "name", "about" ou "privacy:<tipo>"; Options[0] o valor novo
@@ -168,6 +169,19 @@ type Chat struct {
 	Ephemeral int `json:"ephemeral,omitempty"`
 	// Lists: IDs das listas do celular em que a conversa está (List.ID).
 	Lists []string `json:"lists,omitempty"`
+	// Community: comunidade do grupo (nome e JID); CommunityAnnounce: é o
+	// grupo de avisos dela.
+	Community         string `json:"community,omitempty"`
+	CommunityJID      string `json:"community_jid,omitempty"`
+	CommunityAnnounce bool   `json:"community_announce,omitempty"`
+}
+
+// SubGroup é um grupo de uma comunidade; Joined: você participa.
+type SubGroup struct {
+	JID      string `json:"jid"`
+	Name     string `json:"name"`
+	Announce bool   `json:"announce,omitempty"` // grupo de avisos
+	Joined   bool   `json:"joined,omitempty"`
 }
 
 // List é uma lista do celular: Favoritas (Type 3), personalizada (5) ou

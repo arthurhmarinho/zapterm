@@ -117,6 +117,10 @@ var migrations = []string{
 		id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', type INTEGER NOT NULL DEFAULT 0,
 		ord INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0);
 	 CREATE TABLE label_chats (label TEXT NOT NULL, chat TEXT NOT NULL, PRIMARY KEY (label, chat));`,
+	// 17: comunidades e de qual cada grupo faz parte (default = o grupo de
+	// avisos da comunidade).
+	`CREATE TABLE communities (jid TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '');
+	 CREATE TABLE community_groups (grp TEXT PRIMARY KEY, parent TEXT NOT NULL, is_default INTEGER NOT NULL DEFAULT 0);`,
 }
 
 func migrate(db *sql.DB) error {
@@ -1212,4 +1216,32 @@ func (s *Store) ChatLabels(chat string) []string {
 		}
 	}
 	return out
+}
+
+// ---------- comunidades ----------
+
+// PutCommunity grava o nome da comunidade.
+func (s *Store) PutCommunity(jid, name string) error {
+	_, err := s.db.Exec(`INSERT INTO communities (jid, name) VALUES (?, ?)
+		ON CONFLICT (jid) DO UPDATE SET name = excluded.name`, jid, name)
+	return err
+}
+
+// SetGroupParent liga o grupo à comunidade (parent "" desliga).
+func (s *Store) SetGroupParent(group, parent string, isDefault bool) error {
+	if parent == "" {
+		_, err := s.db.Exec(`DELETE FROM community_groups WHERE grp = ?`, group)
+		return err
+	}
+	_, err := s.db.Exec(`INSERT INTO community_groups (grp, parent, is_default) VALUES (?, ?, ?)
+		ON CONFLICT (grp) DO UPDATE SET parent = excluded.parent, is_default = excluded.is_default`,
+		group, parent, isDefault)
+	return err
+}
+
+// GroupCommunity diz de que comunidade o grupo é (jid "" = de nenhuma).
+func (s *Store) GroupCommunity(group string) (jid, name string, isDefault bool) {
+	s.db.QueryRow(`SELECT g.parent, COALESCE(c.name, ''), g.is_default FROM community_groups g
+		LEFT JOIN communities c ON c.jid = g.parent WHERE g.grp = ?`, group).Scan(&jid, &name, &isDefault)
+	return
 }

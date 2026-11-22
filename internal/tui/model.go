@@ -607,6 +607,9 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case groupChangedMsg:
 		return m, m.onGroupChanged(msg)
+	case subGroupsMsg:
+		m.onSubGroups(msg)
+		return m, nil
 	case groupReqsMsg:
 		m.onGroupReqs(msg)
 		return m, nil
@@ -1222,6 +1225,9 @@ func (m *model) applyFilter() {
 			}
 		}
 	}
+	if m.tab == tabGroups && !m.archived && m.searchQuery() == "" {
+		list = groupCommunities(list)
+	}
 	m.list = list
 	if i := slices.IndexFunc(m.list, func(c ipc.Chat) bool { return c.JID == sel }); i >= 0 {
 		m.cursor = i
@@ -1515,4 +1521,42 @@ func (m *model) chatFor(jid, name string) ipc.Chat {
 		}
 	}
 	return ipc.Chat{JID: jid, Name: name, Kind: "dm", LastStatus: -1}
+}
+
+// groupCommunities junta os grupos da mesma comunidade onde aparece o
+// mais recente deles, com os Avisos primeiro. Os fixados ficam onde estão.
+func groupCommunities(list []ipc.Chat) []ipc.Chat {
+	byCom := map[string][]ipc.Chat{}
+	for _, c := range list {
+		if c.CommunityJID != "" && !c.Pinned {
+			byCom[c.CommunityJID] = append(byCom[c.CommunityJID], c)
+		}
+	}
+	if len(byCom) == 0 {
+		return list
+	}
+	out := make([]ipc.Chat, 0, len(list))
+	done := map[string]bool{}
+	for _, c := range list {
+		if c.CommunityJID == "" || c.Pinned {
+			out = append(out, c)
+			continue
+		}
+		if done[c.CommunityJID] {
+			continue
+		}
+		done[c.CommunityJID] = true
+		g := byCom[c.CommunityJID]
+		slices.SortStableFunc(g, func(a, b ipc.Chat) int {
+			switch {
+			case a.CommunityAnnounce && !b.CommunityAnnounce:
+				return -1
+			case b.CommunityAnnounce && !a.CommunityAnnounce:
+				return 1
+			}
+			return 0
+		})
+		out = append(out, g...)
+	}
+	return out
 }

@@ -197,6 +197,7 @@ func (d *Daemon) onEvent(evt any) {
 		d.setStatus("online")
 		go d.pushUnread(true) // o widget pode ter subido antes do daemon
 		d.refreshAppState()
+		d.syncCommunities()
 		// Reconectou: o servidor esqueceu a presença; manda de novo.
 		availMu.Lock()
 		availSent = nil
@@ -534,6 +535,7 @@ func (d *Daemon) senderLabel(ctx context.Context, sender string, cache map[strin
 func (d *Daemon) decorate(ctx context.Context, c *ipc.Chat) {
 	d.fillName(ctx, c)
 	c.Lists = d.st.ChatLabels(c.JID)
+	defer d.fillCommunity(c) // depois do Kind, que sai do JID logo abaixo
 	jid, err := types.ParseJID(c.JID)
 	if err != nil {
 		return
@@ -735,6 +737,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.groupSetting(ctx, req.Chat, req.Text, req.Options[0])
 	case ipc.OpGroupReqs:
 		return d.groupRequests(ctx, req.Chat)
+	case ipc.OpSubGroups:
+		return d.subGroups(ctx, req.Chat)
 	case ipc.OpLists:
 		return d.lists()
 	case ipc.OpMe:
