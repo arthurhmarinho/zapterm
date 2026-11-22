@@ -1462,3 +1462,61 @@ func TestResponderEvento(t *testing.T) {
 		t.Fatalf("pedido: %+v", got)
 	}
 }
+
+func TestStatus(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'r', Mod: tea.ModAlt}))
+	if m.stories == nil || len(m.stories.groups) != 2 || m.stories.groups[0].name != "Marina Alves" {
+		t.Fatalf("status: %+v", m.stories)
+	}
+	screen := ansi.Strip(m.View().Content)
+	for _, want := range []string{"Status", "Marina Alves", "2 novo(s)", "Vistos", "Diego Rocha"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("faltou %q", want)
+		}
+	}
+	// enter abre o primeiro não visto; → passa ao seguinte.
+	runCmd(m, m.keyStatus("enter"))
+	if !strings.Contains(ansi.Strip(m.View().Content), "Exposição nova no museu!") {
+		t.Error("não mostrou o status de texto")
+	}
+	runCmd(m, m.keyStatus("right"))
+	if m.stories.idx != 1 || m.stories.groups[0].unseen != 0 {
+		t.Fatalf("depois de ver os dois: idx %d, não vistos %d", m.stories.idx, m.stories.groups[0].unseen)
+	}
+	// r responde no privado, citando o status.
+	runCmd(m, m.keyStatus("r"))
+	if m.form == nil || m.form.title != "Responder a Marina" {
+		t.Fatalf("r: %+v", m.form)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "Responder a Marina") {
+		t.Error("o formulário não aparece sobre o status")
+	}
+	m.form.fields[0].in.SetValue("que lindo!")
+	runCmd(m, m.keyForm(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	if got := demo.LastSent(srv); got.Op != ipc.OpSend || got.Chat != "5511900000001@s.whatsapp.net" || got.ReplyTo != "status@broadcast|st3" {
+		t.Fatalf("resposta: %+v", got)
+	}
+	// esc volta à lista; n publica um status.
+	runCmd(m, m.keyStatus("esc"))
+	runCmd(m, m.keyStatus("n"))
+	m.form.fields[0].in.SetValue("no terminal")
+	runCmd(m, m.keyForm(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	if got := demo.LastSent(srv); got.Op != ipc.OpPostStatus || got.Text != "no terminal" {
+		t.Fatalf("publicar: %+v", got)
+	}
+}

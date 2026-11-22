@@ -164,7 +164,7 @@ filtro.
 - [x] **Criar grupo** (`cli.CreateGroup`) e **administrar**: permissões
   (`SetGroupAnnounce`, `SetGroupLocked`, `SetGroupMemberAddMode`), pedidos
   pendentes (`GetGroupRequestParticipants`), nome, descrição e foto. (M)
-- [ ] **Status**: ver e responder (hoje descartado em `daemon.go`),
+- [x] **Status**: ver e responder (hoje descartado em `daemon.go`),
   postar (`SendMessage` para `StatusBroadcastJID`). (M–G)
 - [x] **Comunidades**: agrupar grupos e Avisos na lista
   (`cli.GetSubGroups`). (M)
@@ -214,10 +214,10 @@ filtro.
 
 ## Atalhos livres (para não colidir)
 
-Ainda livres: `alt+r alt+j alt+k ctrl+l ctrl+y` (`alt+o alt+q alt+t` só
+Ainda livres: `alt+j alt+k ctrl+l ctrl+y` (`alt+o alt+q alt+t` só
 valem no painel de envio; `ctrl+g` só na galeria). Já tomados desta lista:
 `alt+. alt+s alt+v alt+n alt+z alt+↑ alt+↓ shift+↑ shift+↓ ctrl+↑ alt+x`,
-`alt+g` (central de mídia) e `alt+y` (Eu).
+`alt+g` (central de mídia), `alt+y` (Eu), `alt+r` (status) e `alt+6` (listas).
 
 Evitar: as teclas de edição da caixa de texto (`ctrl+a b d h k u w`,
 `alt+b u l`, `alt+←/→`), `ctrl+shift+*` e `ctrl+tab` (o kitty pega),

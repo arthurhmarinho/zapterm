@@ -57,6 +57,9 @@ const (
 	OpNewGroup    = "new_group"    // cria o grupo Text com os participantes Options (JIDs); devolve o JID
 	OpGroupSet    = "group_set"    // muda Text (name, topic, photo, announce, locked, approval, addmode, approve, reject) do grupo Chat para Options[0]
 	OpGroupReqs   = "group_reqs"   // pedidos para entrar no grupo Chat ([]ProfileMember)
+	OpStatuses    = "statuses"     // status das últimas 24 h ([]Message, do mais antigo ao mais novo)
+	OpViewStatus  = "view_status"  // marca como vistos os status Options de Chat (quem postou)
+	OpPostStatus  = "post_status"  // publica o status de texto Text
 	OpEventRSVP   = "event_rsvp"   // responde ao evento Msg do Chat: Text going, maybe ou not_going
 	OpSubGroups   = "sub_groups"   // grupos da comunidade do grupo Chat ([]SubGroup)
 	OpLists       = "lists"        // listas do celular ([]List)

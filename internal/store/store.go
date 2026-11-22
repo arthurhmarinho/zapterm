@@ -290,7 +290,8 @@ func (s *Store) Chat(jid string) (ipc.Chat, error) {
 // foram apagadas), sem timestamp; essas ficam de fora.
 func (s *Store) Chats() ([]ipc.Chat, error) {
 	// Trancadas no celular ficam escondidas aqui também.
-	rows, err := s.db.Query(`SELECT ` + chatCols + ` FROM chats WHERE last_ts > 0 AND locked = 0 ORDER BY last_ts DESC`)
+	rows, err := s.db.Query(`SELECT ` + chatCols + ` FROM chats WHERE last_ts > 0 AND locked = 0
+		AND jid != 'status@broadcast' ORDER BY last_ts DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -604,7 +605,7 @@ func (s *Store) NewerThan(chat string, ts int64) (ipc.Message, error) {
 // de todas as conversas menos as trancadas.
 func galleryChat(chat string) (string, []any) {
 	if chat == "" {
-		return `chat NOT IN (SELECT jid FROM chats WHERE locked = 1)`, nil
+		return `chat != 'status@broadcast' AND chat NOT IN (SELECT jid FROM chats WHERE locked = 1)`, nil
 	}
 	return `chat = ?`, []any{chat}
 }
@@ -757,6 +758,8 @@ func (s *Store) SearchMessages(f SearchFilter, match func(string) bool, limit in
 	}
 	if f.Chat != "" {
 		where, args = append(where, "chat = ?"), append(args, f.Chat)
+	} else {
+		where = append(where, "chat != 'status@broadcast'") // status têm tela própria
 	}
 	if f.From > 0 {
 		where, args = append(where, "ts >= ?"), append(args, f.From)

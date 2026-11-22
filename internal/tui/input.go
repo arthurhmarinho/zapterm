@@ -45,6 +45,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.menu != nil {
 		return m.keyChatMenu(s)
 	}
+	if m.stories != nil && !m.searching {
+		return m.keyStatus(s)
+	}
 	if m.galleryShown() && !m.searching {
 		return m.keyGallery(s)
 	}
@@ -240,6 +243,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return m.openMediaCenter()
 	case "alt+y":
 		return m.openMe()
+	case "alt+r":
+		return m.openStatus()
 	case "alt+s":
 		return m.toggleStar()
 	case "alt+p":

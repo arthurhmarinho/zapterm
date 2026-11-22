@@ -283,9 +283,7 @@ func (d *Daemon) onEvent(evt any) {
 }
 
 func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
-	if e.Info.Chat == types.StatusBroadcastJID {
-		return // status (stories) fica fora do zapterm
-	}
+	isStatus := e.Info.Chat == types.StatusBroadcastJID
 	if d.onEphemeralSetting(ctx, e) || d.onPollVote(ctx, e) || d.onEventResponse(ctx, e) || d.onPinMessage(ctx, e) || d.onKeepInChat(ctx, e) {
 		return
 	}
@@ -309,6 +307,9 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 		Text:       text,
 		Quote:      quoteOf(e.Message),
 		Expires:    expiresAt(e.Message, e.Info.Timestamp),
+	}
+	if isStatus {
+		m.Expires = e.Info.Timestamp.Add(statusTTL).UnixMilli() // status some em 24 h
 	}
 	if m.Expires > 0 && m.Expires <= time.Now().UnixMilli() {
 		return // temporária que já venceu (histórico antigo)
@@ -335,6 +336,9 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	}
 	if e.Info.ServerID != 0 {
 		_ = d.st.SetServerID(m.Chat, m.ID, int(e.Info.ServerID)) // canal: reagir e marcar visto
+	}
+	if isStatus {
+		return // status: sem notificação nem lista; a tela de status lê do banco
 	}
 	if !live || !isNew {
 		return
@@ -739,6 +743,12 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.groupSetting(ctx, req.Chat, req.Text, req.Options[0])
 	case ipc.OpGroupReqs:
 		return d.groupRequests(ctx, req.Chat)
+	case ipc.OpStatuses:
+		return d.statuses(ctx)
+	case ipc.OpViewStatus:
+		return nil, d.viewStatus(ctx, req.Chat, req.Options)
+	case ipc.OpPostStatus:
+		return nil, d.postStatus(ctx, req.Text)
 	case ipc.OpEventRSVP:
 		return nil, d.eventRSVP(ctx, req.Chat, req.Msg, req.Text)
 	case ipc.OpSubGroups:

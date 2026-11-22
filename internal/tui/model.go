@@ -129,6 +129,7 @@ type model struct {
 	recReview      *recReview      // gravação parada esperando você ouvir e decidir
 
 	editing       *ipc.Message  // mensagem sua sendo editada (alt+e)
+	stories       *stories      // tela de status (alt+r)
 	lists         []ipc.List    // listas do celular
 	listID        string        // lista do filtro tabLists
 	newGroup      *[]ipc.Chat   // novo grupo: a busca escolhe as pessoas
@@ -607,6 +608,18 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case groupChangedMsg:
 		return m, m.onGroupChanged(msg)
+	case statusesMsg:
+		m.onStatuses(msg)
+		return m, nil
+	case statusMediaMsg:
+		m.onStatusMedia(msg)
+		return m, nil
+	case statusPostedMsg:
+		m.setFlash("status publicado")
+		if m.stories != nil {
+			return m, m.loadStatuses()
+		}
+		return m, nil
 	case subGroupsMsg:
 		m.onSubGroups(msg)
 		return m, nil
@@ -843,6 +856,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 	if m.searching {
 		m.stopSearch(true)
 	}
+	m.stories = nil // abrir um chat fecha a tela de status
 	if c.JID == m.active {
 		if m.gallery != nil && m.gallery.all() {
 			m.gallery = nil // abrir o chat de novo fecha a central de mídia

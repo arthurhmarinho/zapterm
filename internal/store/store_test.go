@@ -478,3 +478,26 @@ func TestComunidades(t *testing.T) {
 		t.Fatalf("feira continuou: %q", j)
 	}
 }
+
+func TestStatusForaDaLista(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	now := time.Now().UnixMilli()
+	s.SaveMessage(ipc.Message{ID: "s1", Chat: "status@broadcast", Sender: "1@s.whatsapp.net", TS: now, Kind: "image",
+		Text: "[imagem] praia", Expires: now + 3600000}, nil, true, true)
+	if chats, _ := s.Chats(); len(chats) != 0 {
+		t.Fatalf("status apareceu na lista: %+v", chats)
+	}
+	if hits, _ := s.SearchMessages(SearchFilter{}, func(string) bool { return true }, 10); len(hits) != 0 {
+		t.Fatal("busca achou status")
+	}
+	if items, _, _ := s.Gallery("", "fotos", 0, 10); len(items) != 0 {
+		t.Fatal("central de mídia mostrou status")
+	}
+	if msgs, _ := s.Messages("status@broadcast", 10, 0); len(msgs) != 1 {
+		t.Fatal("status não ficou guardado")
+	}
+}

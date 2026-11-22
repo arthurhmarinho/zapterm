@@ -33,6 +33,7 @@ type server struct {
 	msgs     map[string][]ipc.Message
 	me       *ipc.Me            // tela "Eu"
 	group    *ipc.GroupSettings // permissões do grupo da trilha
+	seen     map[string]bool    // status vistos
 }
 
 // Serve abre o socket do modo demonstração e responde em segundo plano.
@@ -206,6 +207,33 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 			}
 		}
 		return hits, nil
+	case ipc.OpStatuses:
+		now := time.Now().UnixMilli()
+		out := []ipc.Message{
+			{ID: "st1", Chat: "status@broadcast", Sender: "5511900000002@s.whatsapp.net", SenderName: "Diego Rocha",
+				TS: now - 3600000, Kind: "text", Text: "Dia de praia ☀️", Status: 3},
+			{ID: "st2", Chat: "status@broadcast", Sender: "5511900000001@s.whatsapp.net", SenderName: "Marina Alves",
+				TS: now - 1800000, Kind: "text", Text: "Exposição nova no museu!"},
+			{ID: "st3", Chat: "status@broadcast", Sender: "5511900000001@s.whatsapp.net", SenderName: "Marina Alves",
+				TS: now - 600000, Kind: "image", Text: "[imagem] a entrada"},
+		}
+		for i := range out {
+			if d.seen[out[i].ID] {
+				out[i].Status = 3
+			}
+		}
+		return out, nil
+	case ipc.OpViewStatus:
+		if d.seen == nil {
+			d.seen = map[string]bool{}
+		}
+		for _, id := range req.Options {
+			d.seen[id] = true
+		}
+		return nil, nil
+	case ipc.OpPostStatus:
+		d.lastSent = req
+		return nil, nil
 	case ipc.OpSubGroups:
 		if req.Chat != "120000000000000003@g.us" {
 			return nil, errors.New("este grupo não é de uma comunidade")

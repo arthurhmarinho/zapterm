@@ -70,6 +70,10 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 - **Eu** (`alt+y` ou clique no seu nome no topo): novo grupo, trocar seu nome e
   recado e a privacidade da conta (visto por último, online, foto, status,
   confirmação de leitura, quem te põe em grupos, chamadas de desconhecidos).
+- **Status** (`alt+r`): quem postou nas últimas 24 h, os não vistos
+  primeiro; `enter` vê (←/→ andam), `r` responde no privado citando o
+  status, `n` publica um status de texto. O "visto" respeita
+  `read_receipts` do config.
 - **Central de mídia** (`alt+g`): as mesmas abas com tudo de todas as
   conversas, dizendo de onde é cada item; `ctrl+g` abre a conversa nele.
 
@@ -187,6 +191,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `alt+s` | favoritar / desfavoritar a mensagem (sincroniza com o celular); o filtro **★** (`alt+5`) lista as favoritas |
 | `alt+m` | menu do chat: fixar, arquivar, silenciar, marcar como (não) lida, mensagens temporárias, bloquear, sair do grupo, limpar (guarda as favoritas) e apagar conversa (ou botão direito) |
 | `alt+i` | perfil do contato ou grupo (ou clique no cabeçalho) |
+| `alt+r` | status: ver, responder (`r`) e publicar um de texto (`n`) |
 | `alt+y` | Eu: seu nome, recado e privacidade da conta (ou clique no seu nome no topo) |
 | `@` | marcar alguém num grupo |
 | `ctrl+v` | colar print para enviar |

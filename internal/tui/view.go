@@ -143,7 +143,9 @@ func (m *model) View() tea.View {
 	left := m.viewList(g)
 	divider := paint(strings.TrimSuffix(strings.Repeat(fg(cDivider).Render("│")+"\n", g.footerY), "\n"), cBgList, 1)
 	var right string
-	if m.galleryShown() {
+	if m.stories != nil {
+		right = m.viewStatus(g)
+	} else if m.galleryShown() {
 		right = m.viewGallery(g)
 	} else if m.active == "" {
 		right = m.viewEmpty(g)
@@ -180,7 +182,7 @@ func (m *model) View() tea.View {
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
 			lipgloss.NewLayer(pop).X(g.listW+6).Y(m.popupY(g, lipgloss.Height(pop))).Z(1)).Render()
 	}
-	if m.form != nil && m.active == "" {
+	if m.form != nil && (m.active == "" || m.stories != nil || m.galleryShown()) {
 		pop := m.viewMeForm(g.chatW - 4)
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
 			lipgloss.NewLayer(pop).X(g.listW+3).Y(max(1, g.footerY-lipgloss.Height(pop)-1)).Z(1)).Render()
@@ -734,6 +736,7 @@ func (m *model) viewHelp() string {
 			{"pgup pgdn", "rolar a conversa"}, {keyFor("search"), "pesquisar conversa"},
 			{"ctrl+f", "procurar nesta conversa (enter/↑ mais antigo, ↓ mais novo)"},
 			{"tipo: data:", "filtros da busca: tipo:pdf, tipo:foto, data:12/10, antes:/depois:, data:hoje"},
+			{keyFor("status"), "status: ver (←/→), responder (r) e publicar um de texto (n)"},
 			{"alt+g", "central de mídia: fotos, vídeos, docs, links e áudios de todas as conversas"},
 			{"alt+↑ alt+↓", "conversa de cima / de baixo"}, {"alt+n", "próxima conversa com não lidas"},
 			{"alt+1…6", "filtros (Tudo, Não lidas, Grupos, Canais, ★ favoritas, ☰ listas do celular)"}, {keyFor("archived"), "arquivadas"},
