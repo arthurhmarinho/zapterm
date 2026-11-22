@@ -16,7 +16,8 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 ## O que ele faz
 
 - **Conversas:** lista com fotos de perfil, fixados, não lidas, filtros
-  (Tudo · Não lidas · Grupos · Canais), arquivadas e busca, inclusive no
+  (Tudo · Não lidas · Grupos · Canais · ☰ as listas do celular, como
+  Favoritas), arquivadas e busca, inclusive no
   texto das mensagens (sem diferenciar acento e maiúscula), pulando para a
   mensagem achada. Filtros na busca: `tipo:pdf`, `tipo:foto`, `tipo:link`,
   `tipo:enquete`…, `data:12/10`, `data:ontem`, `antes:1/10`, `depois:1/9`
@@ -167,6 +168,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `alt+↑` / `alt+↓` | abre a conversa de cima / de baixo na lista |
 | `alt+n` | abre a próxima conversa com mensagens não lidas |
 | `alt+1`…`alt+5`, `alt+a` | filtros (Tudo, Não lidas, Grupos, Canais, ★ favoritas) e arquivadas |
+| `alt+6` | ☰ listas do celular (Favoritas e as suas): escolhe qual filtrar; o menu do chat põe e tira a conversa delas |
 | `ctrl+r` | responder a mensagem selecionada |
 | `ctrl+e` | reagir: 1–6 as rápidas, ou digite o nome de qualquer emoji (`fogo` → 🔥) |
 | `ctrl+↑` | editar a sua última mensagem |

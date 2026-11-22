@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -205,6 +206,16 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 			}
 		}
 		return hits, nil
+	case ipc.OpLists:
+		out := []ipc.List{{ID: "1", Name: "Favoritas", Type: 3}, {ID: "7", Name: "Trabalho", Type: 5}}
+		for i := range out {
+			for _, c := range d.chats {
+				if slices.Contains(c.Lists, out[i].ID) {
+					out[i].Count++
+				}
+			}
+		}
+		return out, nil
 	case ipc.OpMe:
 		if d.me == nil {
 			d.me = &ipc.Me{JID: "5511900000000@s.whatsapp.net", Phone: "+5511900000000", Name: "Você (demonstração)",
@@ -298,6 +309,13 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 			case "read":
 				c.Unread = 0
 			}
+			if rest, ok := strings.CutPrefix(req.Text, "list:"); ok {
+				id, on, _ := strings.Cut(rest, ":")
+				c.Lists = slices.DeleteFunc(c.Lists, func(x string) bool { return x == id })
+				if on == "1" {
+					c.Lists = append(c.Lists, id)
+				}
+			}
 			go d.srv.Broadcast(ipc.EvChat, *c)
 		}
 		return nil, nil
@@ -321,13 +339,13 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 func (d *server) seed(now time.Time) {
 	at := func(minAgo int) int64 { return now.Add(-time.Duration(minAgo) * time.Minute).UnixMilli() }
 	d.chats = []ipc.Chat{
-		{JID: "5511900000001@s.whatsapp.net", Name: "Marina Alves", Kind: "dm", Pinned: true, LastTS: at(3), LastText: "você: fechado, te vejo lá!", LastStatus: 3},
+		{JID: "5511900000001@s.whatsapp.net", Name: "Marina Alves", Kind: "dm", Pinned: true, LastTS: at(3), LastText: "você: fechado, te vejo lá!", LastStatus: 3, Lists: []string{"1"}},
 		{JID: "120000000000000001@g.us", Name: "Trilha de sábado 🥾", Kind: "group", IsGroup: true, LastTS: at(9), LastText: "Rafa: alguém leva protetor?", Unread: 4, LastStatus: -1},
 		{JID: "5511900000002@s.whatsapp.net", Name: "Diego Rocha", Kind: "dm", LastTS: at(42), LastText: "[áudio 0:18]", Unread: 1, LastStatus: -1},
 		{JID: "120000000000000002@g.us", Name: "Família", Kind: "group", IsGroup: true, Muted: true, LastTS: at(95), LastText: "Mãe: [imagem] olha o bolo", Unread: 12, LastStatus: -1},
 		{JID: "5511900000003@s.whatsapp.net", Name: "Bia Costa", Kind: "dm", LastTS: at(60 * 20), LastText: "você: valeu demais!", LastStatus: 2},
 		{JID: "120000000000000003@g.us", Name: "Clube do livro 📚", Kind: "group", IsGroup: true, LastTS: at(60 * 26), LastText: "Lu: próximo é Duna", LastStatus: -1},
-		{JID: "5511900000004@s.whatsapp.net", Name: "Oficina do Zé", Kind: "dm", LastTS: at(60 * 50), LastText: "[documento: orcamento.pdf]", LastStatus: -1},
+		{JID: "5511900000004@s.whatsapp.net", Name: "Oficina do Zé", Kind: "dm", LastTS: at(60 * 50), LastText: "[documento: orcamento.pdf]", LastStatus: -1, Lists: []string{"7"}},
 		{JID: "120000000000000004@newsletter", Name: "Notícias do Bairro", Kind: "channel", LastTS: at(60 * 3), LastText: "Feira de domingo confirmada", Unread: 2, LastStatus: -1},
 		{JID: "120000000000000005@g.us", Name: "Vendas e trocas", Kind: "group", IsGroup: true, Archived: true, Muted: true, LastTS: at(30), LastText: "[imagem] bicicleta aro 29", Unread: 31, LastStatus: -1},
 	}

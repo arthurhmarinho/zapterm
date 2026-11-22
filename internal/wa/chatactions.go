@@ -33,6 +33,11 @@ func (d *Daemon) chatAction(ctx context.Context, chat, action string) error {
 		}
 	}
 
+	if rest, ok := strings.CutPrefix(action, "list:"); ok {
+		// list:<id>:1 põe na lista, list:<id>:0 tira.
+		label, on, _ := strings.Cut(rest, ":")
+		return d.setChatList(ctx, chat, target, label, on == "1")
+	}
 	var patch appstate.PatchInfo
 	if secs, ok := strings.CutPrefix(action, "ephemeral:"); ok {
 		n, err := strconv.Atoi(secs)

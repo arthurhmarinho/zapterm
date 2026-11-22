@@ -308,14 +308,24 @@ func (m *model) viewList(g geometry) string {
 // chipLabels devolve os rótulos dos filtros e onde cada um começa. Usa
 // os nomes completos se couberem na largura da lista; senão, os curtos.
 func (m *model) chipLabels() ([]string, []int) {
-	short := [numTabs]string{"Tudo", "N.lidas", "Grupos", "Canais", "★"}
-	tiny := [numTabs]string{"Tudo", "NL", "Gr", "Can", "★"}
+	short := [numTabs]string{"Tudo", "N.lidas", "Grupos", "Canais", "★", "☰"}
+	tiny := [numTabs]string{"Tudo", "NL", "Gr", "Can", "★", "☰"}
+	full := tabNames
+	if l := m.listByID(m.listID); l != nil && m.tab == tabLists {
+		// Lista escolhida: o filtro mostra o nome dela.
+		full[tabLists] = "☰ " + ansi.Truncate(l.Name, 12, "…")
+		short[tabLists] = "☰ " + ansi.Truncate(l.Name, 8, "…")
+		tiny[tabLists] = "☰ " + ansi.Truncate(l.Name, 5, "…")
+	}
 	width := listWidth(m.w) - 2
-	for _, names := range [][numTabs]string{tabNames, short, tiny} {
+	for _, names := range [][numTabs]string{full, short, tiny} {
 		var labels []string
 		var starts []int
 		x := 2 // margem
 		for i, n := range names {
+			if i == tabLists && len(m.lists) == 0 {
+				break // sem listas no celular, o ☰ não ocupa espaço (é o último)
+			}
 			l := n
 			if i != tabAll && i != tabChannels && i != tabStarred {
 				if c := m.tabCount(i); c > 0 {
@@ -726,7 +736,7 @@ func (m *model) viewHelp() string {
 			{"tipo: data:", "filtros da busca: tipo:pdf, tipo:foto, data:12/10, antes:/depois:, data:hoje"},
 			{"alt+g", "central de mídia: fotos, vídeos, docs, links e áudios de todas as conversas"},
 			{"alt+↑ alt+↓", "conversa de cima / de baixo"}, {"alt+n", "próxima conversa com não lidas"},
-			{"alt+1…5", "filtros (Tudo, Não lidas, Grupos, Canais, ★ favoritas)"}, {keyFor("archived"), "arquivadas"},
+			{"alt+1…6", "filtros (Tudo, Não lidas, Grupos, Canais, ★ favoritas, ☰ listas do celular)"}, {keyFor("archived"), "arquivadas"},
 			{"esc", "cancela o que estiver aberto"}, {"ctrl+c", "limpa o campo; vazio, duas vezes, sai"},
 		}},
 		{"Escrever", [][2]string{

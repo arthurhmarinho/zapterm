@@ -248,6 +248,10 @@ func (d *Daemon) onEvent(evt any) {
 		d.onCallReject(e)
 	case *events.CallTerminate:
 		d.onCallTerminate(e)
+	case *events.LabelEdit:
+		d.onLabelEdit(e)
+	case *events.LabelAssociationChat:
+		d.onLabelChat(ctx, e)
 	case *events.Blocklist:
 		d.onBlocklist(ctx, e)
 	case *events.DeleteChat:
@@ -529,6 +533,7 @@ func (d *Daemon) senderLabel(ctx context.Context, sender string, cache map[strin
 // tipo e as configurações sincronizadas do celular (arquivado, mudo, fixado).
 func (d *Daemon) decorate(ctx context.Context, c *ipc.Chat) {
 	d.fillName(ctx, c)
+	c.Lists = d.st.ChatLabels(c.JID)
 	jid, err := types.ParseJID(c.JID)
 	if err != nil {
 		return
@@ -730,6 +735,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.groupSetting(ctx, req.Chat, req.Text, req.Options[0])
 	case ipc.OpGroupReqs:
 		return d.groupRequests(ctx, req.Chat)
+	case ipc.OpLists:
+		return d.lists()
 	case ipc.OpMe:
 		return d.meScreen(ctx)
 	case ipc.OpSetMe:

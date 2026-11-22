@@ -39,10 +39,11 @@ const (
 	tabGroups
 	tabChannels
 	tabStarred // mensagens favoritas (não é filtro de chat: lista mensagens)
+	tabLists   // uma das listas do celular (Favoritas, personalizadas), em listID
 	numTabs
 )
 
-var tabNames = [numTabs]string{"Tudo", "Não lidas", "Grupos", "Canais", "★"}
+var tabNames = [numTabs]string{"Tudo", "Não lidas", "Grupos", "Canais", "★", "☰"}
 
 const (
 	pageSize        = 100
@@ -128,6 +129,8 @@ type model struct {
 	recReview      *recReview      // gravação parada esperando você ouvir e decidir
 
 	editing       *ipc.Message  // mensagem sua sendo editada (alt+e)
+	lists         []ipc.List    // listas do celular
+	listID        string        // lista do filtro tabLists
 	newGroup      *[]ipc.Chat   // novo grupo: a busca escolhe as pessoas
 	groupPhotoFor string        // o seletor de arquivos escolhe a foto deste grupo
 	forwarding    []ipc.Message // a encaminhar (alt+w): a busca escolhe os destinos
@@ -183,8 +186,11 @@ type model struct {
 // ---------- mensagens internas ----------
 
 type (
-	chatsMsg []ipc.Chat
-	msgsMsg  struct {
+	chatsMsg struct {
+		chats []ipc.Chat
+		lists []ipc.List
+	}
+	msgsMsg struct {
 		chat  string
 		msgs  []ipc.Message
 		older bool
@@ -317,7 +323,12 @@ func (m *model) call(req ipc.Request, out any, wrap func() tea.Msg) tea.Cmd {
 
 func (m *model) loadChats() tea.Cmd {
 	var out []ipc.Chat
-	return m.call(ipc.Request{Op: ipc.OpChats}, &out, func() tea.Msg { return chatsMsg(out) })
+	cli := m.cli
+	return m.call(ipc.Request{Op: ipc.OpChats}, &out, func() tea.Msg {
+		var lists []ipc.List
+		_ = cli.Call(ipc.Request{Op: ipc.OpLists}, &lists) // sem listas, só não há o filtro
+		return chatsMsg{out, lists}
+	})
 }
 
 func (m *model) loadStatus() tea.Cmd {
@@ -473,7 +484,10 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.syncViewing()
 
 	case chatsMsg:
-		m.chats = msg
+		m.chats, m.lists = msg.chats, msg.lists
+		if m.tab == tabLists && m.listByID(m.listID) == nil {
+			m.tab, m.listID = tabAll, "" // a lista sumiu no celular
+		}
 		m.sortChats()
 		m.applyFilter()
 		if m.pendingOpen.JID != "" {
@@ -1131,8 +1145,8 @@ func inTab(c ipc.Chat, tab int) bool {
 		return false
 	}
 	switch tab {
-	case tabStarred:
-		return false
+	case tabStarred, tabLists:
+		return false // tabLists: ver applyFilter
 	case tabUnread:
 		return c.Unread > 0 && c.Kind != "channel"
 	case tabGroups:
@@ -1202,7 +1216,8 @@ func (m *model) applyFilter() {
 		list = m.hitEntries()
 	} else {
 		for _, c := range m.chats {
-			if (m.archived && c.Archived) || (!m.archived && inTab(c, m.tab)) {
+			if (m.archived && c.Archived) || (!m.archived && inTab(c, m.tab)) ||
+				(!m.archived && m.tab == tabLists && !c.Archived && slices.Contains(c.Lists, m.listID)) {
 				list = append(list, c)
 			}
 		}
@@ -1216,6 +1231,9 @@ func (m *model) applyFilter() {
 }
 
 func (m *model) setTab(t int) tea.Cmd {
+	if t == tabLists {
+		return m.openListPicker()
+	}
 	m.focus = paneList
 	m.archived = false
 	if t == m.tab {

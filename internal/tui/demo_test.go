@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1333,5 +1334,49 @@ func TestCriarEAdministrarGrupo(t *testing.T) {
 	runCmd(m, m.keyPopup("1"))
 	if got := demo.LastSent(srv); got.Text != "approve" || got.Options[0] != "100000000000009@lid" {
 		t.Fatalf("aprovar: %+v", got)
+	}
+}
+
+func TestListasDoCelular(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: '6', Mod: tea.ModAlt}))
+	if m.popup == nil || m.popup.title != "Listas" || m.popup.opts[0].label != "Favoritas (1)" {
+		t.Fatalf("alt+6: %+v", m.popup)
+	}
+	runCmd(m, m.keyPopup("2")) // Trabalho
+	if m.tab != tabLists || len(m.list) != 1 || m.list[0].Name != "Oficina do Zé" {
+		t.Fatalf("filtro Trabalho: %+v", m.list)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "☰ Trab") {
+		t.Error("o filtro não mostra o nome da lista")
+	}
+	// Menu do chat → Listas… → Trabalho põe a Marina na lista.
+	marina, _ := m.chatByJID("5511900000001@s.whatsapp.net")
+	m.openChatMenu(marina)
+	idx := slices.IndexFunc(m.menu.opts, func(o menuOpt) bool { return o.action == "lists" })
+	if idx < 0 {
+		t.Fatal("faltou Listas… no menu do chat")
+	}
+	runCmd(m, m.runMenu(idx))
+	if m.popup == nil || m.popup.opts[0].label != "Favoritas ✓" {
+		t.Fatalf("listas da Marina: %+v", m.popup)
+	}
+	runCmd(m, m.keyPopup("2"))
+	if got := demo.LastSent(srv); got.Op != ipc.OpChatAction || got.Text != "list:7:1" {
+		t.Fatalf("pedido: %+v", got)
 	}
 }

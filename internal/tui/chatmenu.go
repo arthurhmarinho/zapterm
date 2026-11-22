@@ -53,6 +53,9 @@ func (m *model) openChatMenu(c ipc.Chat) {
 	if c.Kind != "channel" {
 		opts = append(opts, menuOpt{"Mensagens temporárias…", "ephemeral", ""})
 	}
+	if len(m.lists) > 0 && c.Kind != "channel" {
+		opts = append(opts, menuOpt{"Listas…", "lists", ""})
+	}
 	switch {
 	case c.Kind == "dm" && c.Blocked:
 		opts = append(opts, menuOpt{"Desbloquear", "unblock", "desbloqueado"})
@@ -99,6 +102,8 @@ func (m *model) runMenu(i int) tea.Cmd {
 	o := mn.opts[i]
 	chat := mn.chat
 	switch o.action {
+	case "lists":
+		return m.openChatLists(chat.JID)
 	case "ephemeral":
 		opt := func(label, secs, done string) popOpt {
 			return popOpt{label, func() tea.Cmd { return m.chatAction(chat, menuOpt{label, "ephemeral:" + secs, done}) }}

@@ -431,3 +431,32 @@ func TestCentralDeMidia(t *testing.T) {
 		t.Fatalf("contagem do chat: %v", n)
 	}
 }
+
+func TestListas(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	s.PutLabel("1", "", 3, 0, false)          // Favoritas
+	s.PutLabel("7", "Trabalho", 5, 2, false)  // personalizada
+	s.PutLabel("2", "Não lidas", 1, 1, false) // predefinida, não vira filtro
+	s.SetChatLabel("1", "a@s.whatsapp.net", true)
+	s.SetChatLabel("7", "a@s.whatsapp.net", true)
+	s.SetChatLabel("7", "b@s.whatsapp.net", true)
+	ls, _ := s.Labels([]int{0, 3, 4, 5})
+	if len(ls) != 2 || ls[0].ID != "1" || ls[1].Name != "Trabalho" || ls[1].Count != 2 {
+		t.Fatalf("listas: %+v", ls)
+	}
+	if got := s.ChatLabels("a@s.whatsapp.net"); len(got) != 2 {
+		t.Fatalf("listas da conversa: %v", got)
+	}
+	s.SetChatLabel("7", "a@s.whatsapp.net", false)
+	s.PutLabel("1", "", 3, 0, true) // apagou Favoritas
+	if got := s.ChatLabels("a@s.whatsapp.net"); len(got) != 0 {
+		t.Fatalf("depois de tirar: %v", got)
+	}
+	if ls, _ := s.Labels(nil); len(ls) != 2 {
+		t.Fatalf("apagada continuou: %+v", ls)
+	}
+}

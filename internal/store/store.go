@@ -111,6 +111,12 @@ var migrations = []string{
 	// 15: central de mídia (galeria de todas as conversas) ordena por data
 	// dentro de cada tipo.
 	`CREATE INDEX messages_kind_ts ON messages (kind, ts);`,
+	// 16: listas do celular (Favoritas, personalizadas, etiquetas de
+	// empresa) e as conversas de cada uma.
+	`CREATE TABLE labels (
+		id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', type INTEGER NOT NULL DEFAULT 0,
+		ord INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0);
+	 CREATE TABLE label_chats (label TEXT NOT NULL, chat TEXT NOT NULL, PRIMARY KEY (label, chat));`,
 }
 
 func migrate(db *sql.DB) error {
@@ -1136,4 +1142,74 @@ func preview(m ipc.Message, isGroup bool) string {
 		prefix = m.SenderName + ": "
 	}
 	return prefix + m.Text
+}
+
+// ---------- listas (etiquetas) ----------
+
+// PutLabel grava (ou apaga, com deleted) uma lista do celular.
+func (s *Store) PutLabel(id, name string, typ, ord int, deleted bool) error {
+	if deleted {
+		if _, err := s.db.Exec(`DELETE FROM label_chats WHERE label = ?`, id); err != nil {
+			return err
+		}
+	}
+	_, err := s.db.Exec(`INSERT INTO labels (id, name, type, ord, deleted) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET name = excluded.name, type = excluded.type, ord = excluded.ord,
+		deleted = excluded.deleted`, id, name, typ, ord, deleted)
+	return err
+}
+
+// SetChatLabel põe ou tira a conversa da lista.
+func (s *Store) SetChatLabel(label, chat string, on bool) error {
+	q := `DELETE FROM label_chats WHERE label = ? AND chat = ?`
+	if on {
+		q = `INSERT OR IGNORE INTO label_chats (label, chat) VALUES (?, ?)`
+	}
+	_, err := s.db.Exec(q, label, chat)
+	return err
+}
+
+// Labels devolve as listas que existem, na ordem do celular, com quantas
+// conversas cada uma tem. types: só estes tipos (vazio = todos).
+func (s *Store) Labels(types []int) ([]ipc.List, error) {
+	filter := ""
+	args := []any{}
+	if len(types) > 0 {
+		filter = " AND l.type IN (?" + strings.Repeat(", ?", len(types)-1) + ")"
+		for _, t := range types {
+			args = append(args, t)
+		}
+	}
+	rows, err := s.db.Query(`SELECT l.id, l.name, l.type, (SELECT count(*) FROM label_chats c WHERE c.label = l.id)
+		FROM labels l WHERE l.deleted = 0`+filter+` ORDER BY l.ord, l.id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ipc.List{}
+	for rows.Next() {
+		var l ipc.List
+		if err := rows.Scan(&l.ID, &l.Name, &l.Type, &l.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// ChatLabels devolve as listas em que a conversa está.
+func (s *Store) ChatLabels(chat string) []string {
+	rows, err := s.db.Query(`SELECT label FROM label_chats WHERE chat = ? ORDER BY label`, chat)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			out = append(out, id)
+		}
+	}
+	return out
 }

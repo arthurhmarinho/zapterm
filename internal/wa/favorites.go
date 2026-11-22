@@ -46,6 +46,7 @@ func (d *Daemon) refreshAppState() {
 			}
 			favs, _ := d.st.Favorites()
 			d.log.Info("figurinhas favoritas sincronizadas", "total", len(favs))
+			d.srv.Broadcast(ipc.EvReload, nil) // listas do celular chegaram junto
 		}()
 	})
 }

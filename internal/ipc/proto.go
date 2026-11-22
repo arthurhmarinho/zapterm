@@ -57,6 +57,7 @@ const (
 	OpNewGroup    = "new_group"    // cria o grupo Text com os participantes Options (JIDs); devolve o JID
 	OpGroupSet    = "group_set"    // muda Text (name, topic, photo, announce, locked, approval, addmode, approve, reject) do grupo Chat para Options[0]
 	OpGroupReqs   = "group_reqs"   // pedidos para entrar no grupo Chat ([]ProfileMember)
+	OpLists       = "lists"        // listas do celular ([]List)
 	OpMe          = "me"           // seu nome, número, recado e privacidade (Me)
 	OpSetMe       = "set_me"       // Text "name", "about" ou "privacy:<tipo>"; Options[0] o valor novo
 )
@@ -165,6 +166,17 @@ type Chat struct {
 	LastStatus int `json:"last_status"`
 	// Ephemeral: prazo das mensagens temporárias, em segundos (0 = desligado).
 	Ephemeral int `json:"ephemeral,omitempty"`
+	// Lists: IDs das listas do celular em que a conversa está (List.ID).
+	Lists []string `json:"lists,omitempty"`
+}
+
+// List é uma lista do celular: Favoritas (Type 3), personalizada (5) ou
+// etiqueta de empresa (0 e 4).
+type List struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Type  int    `json:"type"`
+	Count int    `json:"count"`
 }
 
 // Message é uma mensagem já reduzida ao que a TUI mostra.

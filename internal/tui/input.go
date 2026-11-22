@@ -234,7 +234,7 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 			m.focus = paneList
 		}
 		return nil
-	case "alt+1", "alt+2", "alt+3", "alt+4", "alt+5":
+	case "alt+1", "alt+2", "alt+3", "alt+4", "alt+5", "alt+6":
 		return m.setTab(int(s[4] - '1'))
 	case "alt+g":
 		return m.openMediaCenter()
