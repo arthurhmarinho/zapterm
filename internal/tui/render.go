@@ -333,8 +333,12 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 	pic, thumb := "", false
 	if r.imgs != nil && m.Kind != "revoked" {
 		cols, rows := min(inner, 44), 22
-		if m.Kind == "sticker" {
+		switch {
+		case m.Kind == "sticker":
 			cols, rows = min(inner, 16), 8
+		case isVideoNote(m):
+			// Recado de vídeo: círculo menor, como no app (célula ~1:2).
+			cols, rows = min(inner, 24), 12
 		}
 		switch {
 		case m.Media != nil && m.Media.Preview != "":
@@ -600,8 +604,16 @@ func tagDuration(text string) string {
 }
 
 // videoLabel: "▶ Vídeo 0:32", sem a legenda (que vai na linha de baixo).
+// isVideoNote: recado de vídeo (o vídeo redondo).
+func isVideoNote(m ipc.Message) bool {
+	return m.Kind == "video" && strings.HasPrefix(m.Text, "[recado de vídeo")
+}
+
 func videoLabel(text string) string {
 	l := icons.play + " Vídeo"
+	if strings.HasPrefix(text, "[recado de vídeo") {
+		l = icons.play + " Recado de vídeo"
+	}
 	if d := tagDuration(text); d != "" {
 		l += " " + d
 	}

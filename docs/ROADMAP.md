@@ -33,7 +33,7 @@ Marque `[x]` conforme for entrando (`[~]` = feito em parte).
   `ContactsArrayMessage`. (P)
 - [x] **Localização**: endereço ou coordenadas, link OSC 8 para o
   OpenStreetMap. `LocationMessage`, `LiveLocationMessage`. (P)
-- [~] **Recado de vídeo** (feito: aparece e abre como vídeo; falta a miniatura redonda): miniatura redonda; `ctrl+o` abre no player.
+- [x] **Recado de vídeo**: miniatura redonda; `ctrl+o` abre no player.
   `PtvMessage`. (P)
 - [x] **GIF animado no balão**, como as figurinhas animadas.
   `VideoMessage.GetGifPlayback()`. (M)

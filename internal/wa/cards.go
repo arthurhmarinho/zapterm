@@ -107,7 +107,7 @@ func (d *Daemon) cardOf(m *ipc.Message, pm *waE2E.Message) *ipc.Card {
 		c.Lines = append(c.Lines, hostOf(u))
 		if jpg := e.GetJPEGThumbnail(); len(jpg) > 0 {
 			if base, err := mediaBase(m.ID); err == nil {
-				c.Thumb = pngThumb(base+".link.png", jpg)
+				c.Thumb = pngThumb(base+".link.png", jpg, false)
 			}
 		}
 		return c

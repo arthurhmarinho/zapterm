@@ -191,3 +191,13 @@ func TestPlayerMPV(t *testing.T) {
 		t.Fatalf("avançar 5 s: %.2f → %.2f", p2, p3)
 	}
 }
+
+func TestRecadoDeVideo(t *testing.T) {
+	m := ipc.Message{Kind: "video", Text: "[recado de vídeo 0:12]"}
+	if !isVideoNote(m) || isVideoNote(ipc.Message{Kind: "video", Text: "[vídeo 0:12]"}) {
+		t.Fatal("isVideoNote")
+	}
+	if got := videoLabel(m.Text); got != icons.play+" Recado de vídeo 0:12" {
+		t.Fatalf("rótulo: %q", got)
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io/fs"
+	"math"
 	"mime"
 	"os"
 	"os/exec"
@@ -670,18 +671,25 @@ func (d *Daemon) fillThumbs(msgs []ipc.Message) {
 		if m.Media != nil && m.Media.Preview != "" {
 			continue // já tem a prévia de verdade
 		}
-		m.Thumb = d.thumbFor(m.Chat, m.ID)
+		m.Thumb = d.thumbFor(m.Chat, m.ID, isVideoNote(m.Text))
 	}
 }
 
-func (d *Daemon) thumbFor(chat, id string) *ipc.Media {
+// isVideoNote: recado de vídeo (PtvMessage), o vídeo redondo do app.
+func isVideoNote(text string) bool { return strings.HasPrefix(text, "[recado de vídeo") }
+
+func (d *Daemon) thumbFor(chat, id string, round bool) *ipc.Media {
 	base, err := mediaBase(id)
 	if err != nil {
 		return nil
 	}
 	path := base + ".thumb.png"
+	if round {
+		// Nome próprio: as miniaturas quadradas antigas continuam no cache.
+		path = base + ".round.png"
+	}
 	if _, err := os.Stat(path); err == nil {
-		return pngThumb(path, nil)
+		return pngThumb(path, nil, round)
 	}
 	_, raw, err := d.st.Message(chat, id)
 	if err != nil || len(raw) == 0 {
@@ -697,12 +705,13 @@ func (d *Daemon) thumbFor(chat, id string) *ipc.Media {
 	} else if v := msg.GetPtvMessage(); v != nil {
 		jpg = v.GetJPEGThumbnail()
 	}
-	return pngThumb(path, jpg)
+	return pngThumb(path, jpg, round)
 }
 
 // pngThumb grava a miniatura JPEG embutida como PNG em path (se ainda não
 // existir) e devolve a mídia para a TUI. jpg nil: só lê o que já existe.
-func pngThumb(path string, jpg []byte) *ipc.Media {
+// round recorta em círculo (recado de vídeo).
+func pngThumb(path string, jpg []byte, round bool) *ipc.Media {
 	if _, err := os.Stat(path); err != nil {
 		if len(jpg) == 0 {
 			return nil
@@ -710,6 +719,9 @@ func pngThumb(path string, jpg []byte) *ipc.Media {
 		src, _, err := image.Decode(bytes.NewReader(jpg))
 		if err != nil {
 			return nil
+		}
+		if round {
+			src = roundCrop(src)
 		}
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 		if err != nil {
@@ -727,4 +739,28 @@ func pngThumb(path string, jpg []byte) *ipc.Media {
 		return nil
 	}
 	return &ipc.Media{Preview: path, Width: thumbDisplayW, Height: thumbDisplayW * h / w}
+}
+
+// roundCrop corta o quadrado do centro e deixa só o círculo dele, com a
+// borda suavizada e o resto transparente, como o recado de vídeo do app.
+func roundCrop(src image.Image) *image.NRGBA {
+	b := src.Bounds()
+	side := min(b.Dx(), b.Dy())
+	x0, y0 := b.Min.X+(b.Dx()-side)/2, b.Min.Y+(b.Dy()-side)/2
+	out := image.NewNRGBA(image.Rect(0, 0, side, side))
+	draw.Draw(out, out.Bounds(), src, image.Pt(x0, y0), draw.Src)
+	r := float64(side) / 2
+	for y := 0; y < side; y++ {
+		for x := 0; x < side; x++ {
+			dx, dy := float64(x)+0.5-r, float64(y)+0.5-r
+			// Cobertura do pixel: 1 dentro, 0 fora, rampa de 1 px na borda.
+			a := r - math.Sqrt(dx*dx+dy*dy) + 0.5
+			if a >= 1 {
+				continue
+			}
+			i := out.PixOffset(x, y) + 3
+			out.Pix[i] = uint8(float64(out.Pix[i]) * max(a, 0))
+		}
+	}
+	return out
 }
