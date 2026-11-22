@@ -175,7 +175,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | painel de envio | `alt+q` HD · `alt+t` como figurinha · `alt+o` visualização única; o seletor aceita vários arquivos, e arrastar arquivos para o kitty também anexa |
 | `/` no campo vazio | os mesmos como comandos: `/foto`, `/arquivo`, `/figurinha`, `/enquete`, `/evento`, `/contato` (`esc` manda o texto como está) |
 | `ctrl+s` | figurinhas (favoritas do celular; `tab` troca para as recentes) |
-| `ctrl+t` | gravar mensagem de voz (espaço para e deixa ouvir antes de enviar) |
+| `ctrl+t` | gravar mensagem de voz (`p` pausa e continua; espaço para e deixa ouvir antes de enviar) |
 | `ctrl+o` no áudio | toca / pausa (com mpv instalado; sem ele, toca do começo ao fim) |
 | `alt+v` | velocidade do áudio: 1×, 1,5×, 2× |
 | `←` / `→` | com áudio tocando e o campo vazio, volta / avança 5 s |

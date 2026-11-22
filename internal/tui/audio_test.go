@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -32,34 +33,69 @@ func TestAudioLine(t *testing.T) {
 	}
 }
 
-// Grava com uma fonte sintética (sem microfone), para pelo SIGINT como na
-// TUI e confere que o OGG/Opus saiu fechado e decodificável.
-func TestGravacaoFechaArquivo(t *testing.T) {
+// Grava com uma fonte sintética (sem microfone), pausa, retoma e para pelo
+// SIGINT como na TUI; confere que a pausa não entra na duração e que o
+// OGG/Opus emendado saiu fechado e decodificável.
+func TestGravacaoComPausa(t *testing.T) {
 	if _, err := exec.LookPath("gst-launch-1.0"); err != nil {
 		t.Skip("sem GStreamer")
 	}
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-	t.Setenv("ZAPTERM_REC_SRC", "audiotestsrc")
+	t.Setenv("ZAPTERM_REC_SRC", "audiotestsrc is-live=true")
 	m := &model{active: "x@s.whatsapp.net"}
 	if m.startRec() == nil || m.rec == nil {
 		t.Fatalf("não começou: %s", m.flash)
 	}
-	time.Sleep(1500 * time.Millisecond)
 	rec := m.rec
-	m.finishRec(true)
-	done, ok := rec.stop(true, int(time.Since(rec.started).Round(time.Second).Seconds()), false)().(recDoneMsg)
-	if !ok || done.err != nil || !done.send {
-		t.Fatalf("finishRec: %+v (%v)", done, done.err)
+	time.Sleep(1200 * time.Millisecond)
+	m.togglePauseRec()
+	if rec.cur != nil {
+		t.Fatal("não pausou")
 	}
-	if done.seconds < 1 {
-		t.Fatalf("duração %d", done.seconds)
+	time.Sleep(1500 * time.Millisecond) // pausada: não pode contar
+	m.togglePauseRec()
+	if rec.cur == nil {
+		t.Fatal("não retomou")
+	}
+	time.Sleep(1200 * time.Millisecond)
+	cmd := rec.finish(true, false)
+	m.rec = nil
+	done, ok := cmd().(recDoneMsg)
+	if !ok || done.err != nil || !done.send {
+		t.Fatalf("finish: %+v (%v)", done, done.err)
+	}
+	if done.seconds < 2 || done.seconds > 3 {
+		t.Fatalf("duração %d s, quer ~2 (sem a pausa)", done.seconds)
 	}
 	dec := exec.Command("gst-launch-1.0", "-q", "filesrc", "location="+done.path, "!", "oggdemux", "!",
 		"opusdec", "!", "fakesink")
 	if out, err := dec.CombinedOutput(); err != nil {
 		t.Fatalf("arquivo não decodifica: %v %s", err, out)
 	}
+	if left, _ := filepath.Glob(rec.base + "-*.pcm"); len(left) != 0 {
+		t.Fatalf("trechos ficaram no disco: %v", left)
+	}
 	os.Remove(done.path)
+}
+
+// Descartar com a gravação pausada não deixa nada no disco.
+func TestGravacaoDescartada(t *testing.T) {
+	if _, err := exec.LookPath("gst-launch-1.0"); err != nil {
+		t.Skip("sem GStreamer")
+	}
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	t.Setenv("ZAPTERM_REC_SRC", "audiotestsrc is-live=true")
+	m := &model{active: "x@s.whatsapp.net"}
+	m.startRec()
+	rec := m.rec
+	time.Sleep(500 * time.Millisecond)
+	m.togglePauseRec()
+	if done := rec.finish(false, false)().(recDoneMsg); done.path != "" || done.err != nil {
+		t.Fatalf("descartar: %+v", done)
+	}
+	if left, _ := filepath.Glob(rec.base + "*"); len(left) != 0 {
+		t.Fatalf("sobrou: %v", left)
+	}
 }
 
 func TestMediaLabelComDuracao(t *testing.T) {

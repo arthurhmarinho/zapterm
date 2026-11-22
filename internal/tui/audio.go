@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -42,12 +44,30 @@ type recReview struct {
 	seconds int
 }
 
+// recording: a gravação é feita em trechos de PCM cru (um gst-launch por
+// trecho), para dar para pausar: pausar fecha o trecho, retomar abre outro.
+// No fim os trechos são emendados e codificados em OGG/Opus de uma vez. O
+// PCM cru continua válido mesmo se o gravador morrer no meio.
 type recording struct {
+	base    string        // caminho sem extensão; o OGG final é base+".ogg"
+	segs    []string      // trechos terminados (ou terminando)
+	cur     *recSeg       // trecho gravando agora; nil = pausada
+	elapsed time.Duration // dos trechos terminados
+	closing sync.WaitGroup
+}
+
+type recSeg struct {
 	cmd     *exec.Cmd
 	path    string
 	started time.Time
 	done    chan error // processo terminou (por conta própria ou por nós)
 }
+
+// PCM das gravações: 48 kHz, mono, 16 bits.
+const (
+	recRate        = 48000
+	recBytesPerSec = recRate * 2
+)
 
 type (
 	playTickMsg struct{}
@@ -255,32 +275,113 @@ func (m *model) startRec() tea.Cmd {
 		m.setFlash(err.Error())
 		return nil
 	}
-	path := filepath.Join(dir, time.Now().Format("20060102-150405")+".ogg")
-	// -e: no SIGINT o GStreamer fecha o arquivo direito (manda EOS).
-	// ZAPTERM_REC_SRC troca o microfone por outra fonte (os testes usam
-	// audiotestsrc para não gravar ninguém).
-	src := "pulsesrc"
-	if v := os.Getenv("ZAPTERM_REC_SRC"); v != "" {
-		src = v
-	}
-	cmd := exec.Command("gst-launch-1.0", "-q", "-e",
-		src, "!", "audioconvert", "!", "audioresample", "!",
-		"audio/x-raw,rate=48000,channels=1", "!", "opusenc", "bitrate=32000", "!",
-		"oggmux", "!", "filesink", "location="+path)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
+	r := &recording{base: filepath.Join(dir, time.Now().Format("20060102-150405"))}
+	if err := r.resume(); err != nil {
 		m.setFlash("não deu para gravar: " + err.Error())
 		return nil
 	}
 	m.stopPlay()
-	r := &recording{cmd: cmd, path: path, started: time.Now(), done: make(chan error, 1)}
-	go func() { r.done <- cmd.Wait() }()
 	m.rec = r
 	m.picking, m.attach = false, nil
 	m.layout()
-	// Do outro lado aparece "gravando áudio…", como no app.
+	return tea.Batch(recTick(), m.sendRecording())
+}
+
+// sendRecording: do outro lado aparece "gravando áudio…", como no app.
+func (m *model) sendRecording() tea.Cmd {
 	m.typingChat, m.typingSentAt = m.active, time.Now()
-	return tea.Batch(recTick(), m.call(ipc.Request{Op: ipc.OpTyping, Chat: m.active, Text: "recording"}, nil, nil))
+	return m.call(ipc.Request{Op: ipc.OpTyping, Chat: m.active, Text: "recording"}, nil, nil)
+}
+
+// resume abre um trecho novo.
+func (r *recording) resume() error {
+	path := fmt.Sprintf("%s-%d.pcm", r.base, len(r.segs)+1)
+	// -e: no SIGINT o GStreamer termina direito (manda EOS).
+	// ZAPTERM_REC_SRC troca o microfone por outra fonte (os testes usam
+	// audiotestsrc para não gravar ninguém).
+	src := []string{"pulsesrc"}
+	if v := strings.Fields(os.Getenv("ZAPTERM_REC_SRC")); len(v) > 0 {
+		src = v
+	}
+	args := append([]string{"-q", "-e"}, src...)
+	args = append(args, "!", "audioconvert", "!", "audioresample", "!",
+		fmt.Sprintf("audio/x-raw,format=S16LE,rate=%d,channels=1", recRate), "!",
+		"filesink", "location="+path)
+	cmd := exec.Command("gst-launch-1.0", args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	seg := &recSeg{cmd: cmd, path: path, started: time.Now(), done: make(chan error, 1)}
+	go func() { seg.done <- cmd.Wait() }()
+	r.cur = seg
+	return nil
+}
+
+// pause fecha o trecho atual (em segundo plano: o fim da gravação espera).
+func (r *recording) pause() {
+	seg := r.cur
+	if seg == nil {
+		return
+	}
+	r.cur = nil
+	r.elapsed += time.Since(seg.started)
+	r.segs = append(r.segs, seg.path)
+	r.closing.Add(1)
+	go func() {
+		defer r.closing.Done()
+		seg.stop()
+	}()
+}
+
+// seconds é o tempo gravado até agora (sem as pausas), para o painel.
+func (r *recording) seconds() int {
+	d := r.elapsed
+	if r.cur != nil {
+		d += time.Since(r.cur.started)
+	}
+	return int(d.Seconds())
+}
+
+// stop para o gravador do trecho.
+func (seg *recSeg) stop() error {
+	// O gst-launch só trata o SIGINT depois que o pipeline está rodando;
+	// antes disso o sinal mata o processo. Espera o arquivo começar a
+	// crescer (sinal de que está rodando), por até 3s, e só então para.
+	for wait := 0; wait < 60; wait++ {
+		if st, err := os.Stat(seg.path); err == nil && st.Size() > 0 {
+			break
+		}
+		select {
+		case err := <-seg.done:
+			seg.done <- err
+			return fmt.Errorf("o gravador parou sozinho (microfone?)")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	syscall.Kill(-seg.cmd.Process.Pid, syscall.SIGINT)
+	select {
+	case <-seg.done:
+		return nil
+	case <-time.After(3 * time.Second):
+		syscall.Kill(-seg.cmd.Process.Pid, syscall.SIGKILL)
+		<-seg.done
+		return fmt.Errorf("o gravador não fechou o arquivo")
+	}
+}
+
+// togglePauseRec pausa ou retoma a gravação.
+func (m *model) togglePauseRec() tea.Cmd {
+	r := m.rec
+	if r.cur != nil {
+		r.pause()
+		return m.stopTyping()
+	}
+	if err := r.resume(); err != nil {
+		m.setFlash("não deu para retomar: " + err.Error())
+		return nil
+	}
+	return m.sendRecording()
 }
 
 // finishRec para a gravação; send decide se ela vai ou é descartada.
@@ -298,8 +399,7 @@ func (m *model) endRec(send, review bool) tea.Cmd {
 	}
 	m.rec = nil
 	m.layout()
-	secs := int(time.Since(r.started).Round(time.Second).Seconds())
-	return tea.Batch(m.stopTyping(), r.stop(send || review, secs, review))
+	return tea.Batch(m.stopTyping(), r.finish(send || review, review))
 }
 
 // keyReview: a gravação parada, esperando decisão.
@@ -327,39 +427,50 @@ func (m *model) keyReview(s string) tea.Cmd {
 	return nil
 }
 
-// stop para o gravador fora do loop de UI e diz o que fazer com o arquivo.
-func (r *recording) stop(send bool, secs int, review bool) tea.Cmd {
+// finish para o gravador fora do loop de UI, emenda os trechos num OGG/Opus
+// e diz o que fazer com ele.
+func (r *recording) finish(keep, review bool) tea.Cmd {
+	r.pause()
 	return func() tea.Msg {
-		// O gst-launch só trata o SIGINT (fechando o arquivo) depois que o
-		// pipeline está rodando; antes disso o sinal mata o processo e a
-		// gravação some. Espera o cabeçalho do OGG aparecer no disco (sinal
-		// de que está rodando), por até 3s, e só então para.
-		for wait := 0; wait < 60; wait++ {
-			if st, err := os.Stat(r.path); err == nil && st.Size() > 0 {
-				break
-			}
-			select {
-			case <-r.done:
-				return recDoneMsg{err: fmt.Errorf("o gravador parou sozinho (microfone?)")}
-			case <-time.After(50 * time.Millisecond):
-			}
-		}
-		syscall.Kill(-r.cmd.Process.Pid, syscall.SIGINT)
-		var err error
-		select {
-		case err = <-r.done:
-		case <-time.After(3 * time.Second):
-			syscall.Kill(-r.cmd.Process.Pid, syscall.SIGKILL)
-			err = fmt.Errorf("o gravador não fechou o arquivo")
-		}
-		if !send {
-			os.Remove(r.path)
+		r.closing.Wait()
+		defer r.removeSegs()
+		if !keep {
 			return recDoneMsg{}
 		}
-		if st, serr := os.Stat(r.path); serr != nil || st.Size() < 200 {
-			return recDoneMsg{err: fmt.Errorf("gravação vazia (microfone?): %v", err)}
+		var total int64
+		var files []io.Reader
+		for _, p := range r.segs {
+			f, err := os.Open(p)
+			if err != nil {
+				continue
+			}
+			defer f.Close()
+			if st, err := f.Stat(); err == nil {
+				total += st.Size() &^ 1 // amostras inteiras
+				files = append(files, io.LimitReader(f, st.Size()&^1))
+			}
 		}
-		return recDoneMsg{path: r.path, seconds: secs, send: !review, review: review}
+		if total < recBytesPerSec/10 {
+			return recDoneMsg{err: fmt.Errorf("gravação vazia (microfone?)")}
+		}
+		path := r.base + ".ogg"
+		enc := exec.Command("gst-launch-1.0", "-q", "fdsrc", "fd=0", "!",
+			"rawaudioparse", "use-sink-caps=false", "format=pcm", "pcm-format=s16le",
+			fmt.Sprintf("sample-rate=%d", recRate), "num-channels=1", "!",
+			"audioconvert", "!", "opusenc", "bitrate=32000", "!", "oggmux", "!", "filesink", "location="+path)
+		enc.Stdin = io.MultiReader(files...)
+		if out, err := enc.CombinedOutput(); err != nil {
+			os.Remove(path)
+			return recDoneMsg{err: fmt.Errorf("codificando o áudio: %v %s", err, strings.TrimSpace(string(out)))}
+		}
+		secs := int((total + recBytesPerSec/2) / recBytesPerSec)
+		return recDoneMsg{path: path, seconds: max(secs, 1), send: !review, review: review}
+	}
+}
+
+func (r *recording) removeSegs() {
+	for _, p := range r.segs {
+		os.Remove(p)
 	}
 }
 
@@ -412,14 +523,19 @@ func (m *model) onAudioMsg(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		// O gravador morreu sozinho (sem microfone, por exemplo)?
-		select {
-		case err := <-m.rec.done:
-			os.Remove(m.rec.path)
-			m.rec = nil
-			m.layout()
-			m.setFlash(fmt.Sprintf("a gravação parou: %v", err))
-			return nil, true
-		default:
+		if seg := m.rec.cur; seg != nil {
+			select {
+			case err := <-seg.done:
+				r := m.rec
+				r.segs = append(r.segs, seg.path)
+				r.cur = nil
+				go func() { r.closing.Wait(); r.removeSegs() }()
+				m.rec = nil
+				m.layout()
+				m.setFlash(fmt.Sprintf("a gravação parou: %v", err))
+				return nil, true
+			default:
+			}
 		}
 		return recTick(), true
 	case recDoneMsg:
@@ -454,8 +570,12 @@ func (m *model) cleanupAudio() {
 	if m.recReview != nil {
 		os.Remove(m.recReview.path)
 	}
-	if m.rec != nil {
-		syscall.Kill(-m.rec.cmd.Process.Pid, syscall.SIGKILL)
-		os.Remove(m.rec.path)
+	if r := m.rec; r != nil {
+		if r.cur != nil {
+			syscall.Kill(-r.cur.cmd.Process.Pid, syscall.SIGKILL)
+			r.segs = append(r.segs, r.cur.path)
+		}
+		r.closing.Wait()
+		r.removeSegs()
 	}
 }

@@ -439,9 +439,12 @@ func (m *model) viewExtra(g geometry) string {
 		return fitHeight("\n"+line, cDefault, w, g.extraH)
 	}
 	if r := m.rec; r != nil {
-		secs := int(time.Since(r.started).Seconds())
-		line := "  " + fg(cDanger).Render(icons.rec+" gravando") + " " + sText.Render(fmtDur(secs)) + "   " +
-			sText2.Render("enter envia · espaço para e ouve · esc descarta")
+		state, hint := fg(cDanger).Render(icons.rec+" gravando"), "p pausa"
+		if r.cur == nil {
+			state, hint = sText2.Render(icons.pause+" pausada"), "p continua"
+		}
+		line := "  " + state + " " + sText.Render(fmtDur(r.seconds())) + "   " +
+			sText2.Render(hint+" · enter envia · espaço para e ouve · esc descarta")
 		return fitHeight("\n"+line, cDefault, w, g.extraH)
 	}
 	if rv := m.recReview; rv != nil {
@@ -560,7 +563,7 @@ func (m *model) viewFooter() string {
 	case m.picking:
 		help = "setas escolhem · enter ou clique envia · esc fecha"
 	case m.rec != nil:
-		help = "gravando pelo microfone · enter envia · espaço para e ouve · esc descarta"
+		help = "gravando pelo microfone · p pausa/continua · enter envia · espaço para e ouve · esc descarta"
 	case m.recReview != nil:
 		help = "espaço ouve/pausa · enter envia · esc descarta"
 	case m.play != nil && m.play.id != "rec-review":

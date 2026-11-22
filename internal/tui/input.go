@@ -109,6 +109,8 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return m.finishRec(false)
 		case "space":
 			return m.reviewRec()
+		case "p":
+			return m.togglePauseRec()
 		}
 		return nil // gravando: o resto das teclas fica de fora
 	}

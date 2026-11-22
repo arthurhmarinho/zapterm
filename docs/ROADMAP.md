@@ -78,7 +78,7 @@ filtro.
 - [x] **Velocidade** 1× → 1,5× → 2× em `alt+v`, lembrada para os
   próximos. `mpv --speed` ou gstreamer `scaletempo`. (P–M)
 - [x] **Pausar** e **avançar/voltar** (±5 s, clique na barra). (M)
-- [~] **Ouvir antes de enviar** e **pausar a gravação** (feito: ouvir antes; falta pausar e retomar a gravação) (`p`, `o` no
+- [x] **Ouvir antes de enviar** e **pausar a gravação** (`p` pausa e continua, espaço para e ouve) (`p`, `o` no
   painel de gravação). (P / M)
 - [x] **Tocar o próximo áudio sozinho** e mini player no rodapé ao
   trocar de conversa. (M)
