@@ -37,7 +37,7 @@ Marque `[x]` conforme for entrando (`[~]` = feito em parte).
   `PtvMessage`. (P)
 - [x] **GIF animado no balão**, como as figurinhas animadas.
   `VideoMessage.GetGifPlayback()`. (M)
-- [~] **Chamada perdida / recebida** (feito: linha "chamada recebida · atenda no celular" e notificação; falta o botão "recusar" e saber se foi perdida): linha de sistema "📞 chamada perdida
+- [x] **Chamada perdida / recebida** (tocando → atendida no celular com a duração, recusada ou perdida; "Recusar" na notificação e `ctrl+o` na linha): linha de sistema "📞 chamada perdida
   de Fulano" e notificação com "recusar". `events.CallOffer`,
   `CallTerminate`, `cli.RejectCall`, `CallLogMessage`. (P)
 - [x] **Prévia de link recebida**: cartão com título, domínio e

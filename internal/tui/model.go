@@ -865,6 +865,11 @@ func (m *model) openMedia(i int) tea.Cmd {
 		// Contato com WhatsApp: abre a conversa com ele.
 		return m.open(m.chatFor(c.Chat, c.Title))
 	}
+	if isRingingCall(msg) {
+		chat, id := msg.Chat, msg.ID
+		return m.call(ipc.Request{Op: ipc.OpRejectCall, Chat: chat, Msg: id}, nil,
+			func() tea.Msg { return flashMsg("chamada recusada") })
+	}
 	if msg.Kind == "text" || msg.Kind == "other" {
 		// Mensagem com link: ctrl+o abre o primeiro no navegador.
 		u := firstURL(msg.Text)

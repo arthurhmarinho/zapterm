@@ -58,9 +58,11 @@ func (n *notifier) isViewing(chat string) bool {
 	return false
 }
 
-func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
+// notify devolve o id da notificação mostrada (0 = nenhuma). extra são
+// ações a mais (pares chave, rótulo).
+func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string, extra ...string) uint32 {
 	if chat.Server == types.NewsletterServer {
-		return
+		return 0
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
@@ -68,18 +70,18 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
 	// silenciado, como no app com "manter conversas arquivadas".
 	// Silenciado não notifica, a não ser que te marquem (como no app).
 	if !d.cfg.Privacy.Notifications || d.st.IsLocked(m.Chat) {
-		return // trancada no celular: nem o nome aparece
+		return 0 // trancada no celular: nem o nome aparece
 	}
 	mentionOK := m.MentionsMe && d.cfg.Privacy.NotifyMentions
 	if s := d.chatSettings(ctx, chat); s.Archived || (s.MutedUntil.After(time.Now()) && !mentionOK) {
-		return
+		return 0
 	}
 
 	n := d.notif
 	n.mu.Lock()
 	if n.isViewing(m.Chat) {
 		n.mu.Unlock()
-		return
+		return 0
 	}
 	n.pending[m.Chat]++
 	if snd := d.cfg.Interface.NotifySound; snd != "" {
@@ -112,16 +114,17 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
 	}
 	if d.desk == nil {
 		d.log.Warn("sem servidor de notificações no D-Bus")
-		return
+		return 0
 	}
-	id, err := d.desk.show(m.Chat, title, body, icon, prevID)
+	id, err := d.desk.show(m.Chat, title, body, icon, prevID, extra...)
 	if err != nil {
 		d.log.Warn("notificação", "err", err)
-		return
+		return 0
 	}
 	n.mu.Lock()
 	n.ids[m.Chat] = id
 	n.mu.Unlock()
+	return id
 }
 
 // openFromNotification: clicou na notificação. Com uma TUI aberta, ela

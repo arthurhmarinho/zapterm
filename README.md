@@ -211,7 +211,9 @@ de novo).
 
 ## Limitações
 
-- Chamadas de voz e vídeo não são suportadas.
+- Chamadas de voz e vídeo não são atendidas pelo zapterm (atenda no
+  celular); dá para recusar (`ctrl+o` na linha ou "Recusar" na
+  notificação) e a conversa mostra se foi atendida, recusada ou perdida.
 - Status (stories) ficam de fora.
 - Mídia, citações e reações das mensagens que vieram no pareamento (o
   histórico inicial) não estão disponíveis; só as que chegam depois.

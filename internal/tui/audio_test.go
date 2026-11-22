@@ -201,3 +201,22 @@ func TestRecadoDeVideo(t *testing.T) {
 		t.Fatalf("rótulo: %q", got)
 	}
 }
+
+func TestChamadaTocando(t *testing.T) {
+	m := ipc.Message{ID: "call-X", Kind: "other", Text: "📞 Chamada de voz recebida · atenda no celular", TS: time.Now().UnixMilli()}
+	if !isRingingCall(m) {
+		t.Fatal("chamada recente devia estar tocando")
+	}
+	old := m
+	old.TS = time.Now().Add(-5 * time.Minute).UnixMilli()
+	missed := m
+	missed.Text = "📞 Chamada de voz perdida"
+	if isRingingCall(old) || isRingingCall(missed) {
+		t.Fatal("antiga ou perdida não toca")
+	}
+	r := msgRenderer{w: 80, sel: -2}
+	out, _ := r.render([]ipc.Message{m})
+	if plain := ansi.Strip(out); !strings.Contains(plain, "ctrl+o") || !strings.Contains(plain, "recusa") {
+		t.Fatalf("sem a dica de recusar:\n%s", ansi.Strip(out))
+	}
+}

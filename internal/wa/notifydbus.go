@@ -23,6 +23,8 @@ type desktop struct {
 	chatOf  map[uint32]string // id da notificação → chat
 	onOpen  func(chat string)
 	onReply func(chat, text string)
+	// onAction recebe as outras ações (ex.: "reject" da chamada tocando).
+	onAction func(chat, key string)
 }
 
 const notifIface = "org.freedesktop.Notifications"
@@ -69,8 +71,11 @@ func (d *desktop) listen(signals chan *dbus.Signal) {
 		}
 		switch sig.Name {
 		case notifIface + ".ActionInvoked":
-			if key, _ := sig.Body[1].(string); key == "default" {
+			switch key, _ := sig.Body[1].(string); {
+			case key == "default":
 				go d.onOpen(chat)
+			case key != "" && d.onAction != nil:
+				go d.onAction(chat, key)
 			}
 		case notifIface + ".NotificationReplied":
 			if text, _ := sig.Body[1].(string); text != "" {
@@ -85,10 +90,11 @@ func (d *desktop) listen(signals chan *dbus.Signal) {
 }
 
 // show mostra (ou substitui, se replaces != 0) a notificação de um chat e
-// devolve o id dela.
-func (d *desktop) show(chat, title, body, icon string, replaces uint32) (uint32, error) {
-	actions := []string{"default", "Abrir"}
-	if d.reply {
+// devolve o id dela. extra são pares chave, rótulo de ações a mais; com
+// elas não há resposta embutida (a chamada tocando tem "Recusar").
+func (d *desktop) show(chat, title, body, icon string, replaces uint32, extra ...string) (uint32, error) {
+	actions := append([]string{"default", "Abrir"}, extra...)
+	if d.reply && len(extra) == 0 {
 		actions = append(actions, "inline-reply", "Responder")
 	}
 	hints := map[string]dbus.Variant{
@@ -107,4 +113,12 @@ func (d *desktop) show(chat, title, body, icon string, replaces uint32) (uint32,
 	d.chatOf[id] = chat
 	d.mu.Unlock()
 	return id, nil
+}
+
+// close fecha a notificação (a chamada foi atendida ou recusada).
+func (d *desktop) close(id uint32) {
+	if id == 0 {
+		return
+	}
+	_ = d.obj.Call(notifIface+".CloseNotification", 0, id).Err
 }

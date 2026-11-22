@@ -53,6 +53,7 @@ const (
 	OpRefetch     = "refetch"      // pede ao celular o histórico anterior a Before (recupera mídia antiga)
 	OpUnread      = "unread"       // resumo de não lidas (para a barra)
 	OpShowUI      = "show_ui"      // traz a TUI para frente, ou abre uma
+	OpRejectCall  = "reject_call"  // recusa a chamada tocando da linha Msg no Chat
 )
 
 // Eventos empurrados pelo daemon sem pedido.

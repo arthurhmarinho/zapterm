@@ -102,6 +102,7 @@ func Run(ctx context.Context, opt Options) error {
 	if desk, err := newDesktop(d.openFromNotification, d.replyFromNotification); err != nil {
 		log.Warn("notificações desligadas: sem D-Bus da sessão", "err", err)
 	} else {
+		desk.onAction = d.actionFromNotification
 		d.desk = desk
 	}
 	d.srv.OnClose = func(conn uint64) {
@@ -241,6 +242,12 @@ func (d *Daemon) onEvent(evt any) {
 		}
 	case *events.CallOffer:
 		d.onCallOffer(e)
+	case *events.CallAccept:
+		d.onCallAccept(e)
+	case *events.CallReject:
+		d.onCallReject(e)
+	case *events.CallTerminate:
+		d.onCallTerminate(e)
 	case *events.Blocklist:
 		d.onBlocklist(ctx, e)
 	case *events.DeleteChat:
@@ -692,6 +699,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return d.groupByLink(ctx, req.Text)
 	case ipc.OpJoinLink:
 		return d.joinLink(ctx, req.Text)
+	case ipc.OpRejectCall:
+		return nil, d.rejectCall(ctx, req.Chat, req.Msg)
 	case ipc.OpGroupMember:
 		return nil, d.groupMember(ctx, req.Chat, req.Msg, req.Text)
 	case ipc.OpInviteLink:

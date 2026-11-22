@@ -385,6 +385,8 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 		text = sText2.Render(mediaLabel(text) + hint)
 	case m.Card != nil && m.Kind == "other":
 		text = "" // o cartão diz tudo
+	case m.Kind == "other" && isRingingCall(m):
+		text = sText2.Render(otherLabel(text) + " · ctrl+o recusa")
 	case m.Kind == "other":
 		text = sText2.Render(otherLabel(text))
 	}
@@ -502,6 +504,13 @@ func (r msgRenderer) card(c *ipc.Card, inner int) string {
 
 // otherLabel: marcadores de mensagens sem cartão (visualização única,
 // chamada) com o ícone certo.
+// isRingingCall: linha de chamada que ainda está tocando (recente: depois
+// de 2 minutos ela já acabou, mesmo que o fim não tenha chegado).
+func isRingingCall(m ipc.Message) bool {
+	return strings.HasPrefix(m.ID, "call-") && strings.HasSuffix(m.Text, "· atenda no celular") &&
+		time.Since(time.UnixMilli(m.TS)) < 2*time.Minute
+}
+
 func otherLabel(s string) string {
 	inner := strings.TrimSuffix(strings.TrimPrefix(s, "["), "]")
 	switch {
