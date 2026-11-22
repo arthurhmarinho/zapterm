@@ -45,6 +45,17 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.menu != nil {
 		return m.keyChatMenu(s)
 	}
+	// Formulário e menu flutuante primeiro: podem ter sido abertos de cima
+	// do perfil, da galeria, do status ou do explorar canais.
+	if m.form != nil {
+		return m.keyForm(k)
+	}
+	if m.popup != nil {
+		return m.keyPopup(s)
+	}
+	if m.chans != nil && !m.searching {
+		return m.keyChannelDir(k)
+	}
 	if m.stories != nil && !m.searching {
 		return m.keyStatus(s)
 	}
@@ -67,12 +78,6 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.msgInfo != nil || m.qrView != "" {
 		m.msgInfo, m.qrView = nil, "" // qualquer tecla fecha
 		return nil
-	}
-	if m.form != nil {
-		return m.keyForm(k)
-	}
-	if m.popup != nil {
-		return m.keyPopup(s)
 	}
 	if m.voting != nil {
 		return m.keyPoll(s)

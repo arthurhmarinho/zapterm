@@ -70,6 +70,10 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 - **Eu** (`alt+y` ou clique no seu nome no topo): novo grupo, trocar seu nome e
   recado e a privacidade da conta (visto por último, online, foto, status,
   confirmação de leitura, quem te põe em grupos, chamadas de desconhecidos).
+- **Canais:** `alt+y` → Explorar canais mostra os recomendados (filtra
+  enquanto digita; colar um link `whatsapp.com/channel/…` + `enter` acha
+  aquele canal) e segue; `alt+y` → Novo canal cria um seu. O diretório
+  usa uma API interna do WhatsApp e pode parar de funcionar.
 - **Status** (`alt+r`): quem postou nas últimas 24 h, os não vistos
   primeiro; `enter` vê (←/→ andam), `r` responde no privado citando o
   status, `n` publica um status de texto. O "visto" respeita

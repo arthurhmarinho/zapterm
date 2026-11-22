@@ -168,7 +168,7 @@ filtro.
   postar (`SendMessage` para `StatusBroadcastJID`). (M–G)
 - [x] **Comunidades**: agrupar grupos e Avisos na lista
   (`cli.GetSubGroups`). (M)
-- [ ] **Canais**: diretório e busca (só por API interna, frágil), criar
+- [x] **Canais**: diretório e busca (só por API interna, frágil), criar
   canal (`cli.CreateNewsletter`). (G)
 - [x] **Busca por data e por tipo** (`data:12/10`, `tipo:pdf`) e **central
   de mídia** de todas as conversas. (P–M)

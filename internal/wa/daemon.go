@@ -743,6 +743,16 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.groupSetting(ctx, req.Chat, req.Text, req.Options[0])
 	case ipc.OpGroupReqs:
 		return d.groupRequests(ctx, req.Chat)
+	case ipc.OpChannelDir:
+		return d.channelDirectory(ctx, req.Text)
+	case ipc.OpFollow:
+		return nil, d.followChannel(ctx, req.Chat, req.Text)
+	case ipc.OpNewChannel:
+		desc := ""
+		if len(req.Options) > 0 {
+			desc = req.Options[0]
+		}
+		return d.createChannel(ctx, req.Text, desc)
 	case ipc.OpStatuses:
 		return d.statuses(ctx)
 	case ipc.OpViewStatus:

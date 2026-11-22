@@ -57,6 +57,9 @@ const (
 	OpNewGroup    = "new_group"    // cria o grupo Text com os participantes Options (JIDs); devolve o JID
 	OpGroupSet    = "group_set"    // muda Text (name, topic, photo, announce, locked, approval, addmode, approve, reject) do grupo Chat para Options[0]
 	OpGroupReqs   = "group_reqs"   // pedidos para entrar no grupo Chat ([]ProfileMember)
+	OpChannelDir  = "channel_dir"  // canais recomendados, filtrados por Text (ou o canal do link em Text) ([]Channel)
+	OpFollow      = "follow"       // segue o canal Chat (Text = nome, para a lista)
+	OpNewChannel  = "new_channel"  // cria o canal Text com a descrição Options[0]; devolve o JID
 	OpStatuses    = "statuses"     // status das últimas 24 h ([]Message, do mais antigo ao mais novo)
 	OpViewStatus  = "view_status"  // marca como vistos os status Options de Chat (quem postou)
 	OpPostStatus  = "post_status"  // publica o status de texto Text
@@ -178,6 +181,16 @@ type Chat struct {
 	Community         string `json:"community,omitempty"`
 	CommunityJID      string `json:"community_jid,omitempty"`
 	CommunityAnnounce bool   `json:"community_announce,omitempty"`
+}
+
+// Channel é um canal do diretório.
+type Channel struct {
+	JID         string `json:"jid"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Subscribers int    `json:"subscribers,omitempty"`
+	Verified    bool   `json:"verified,omitempty"`
+	Following   bool   `json:"following,omitempty"`
 }
 
 // SubGroup é um grupo de uma comunidade; Joined: você participa.

@@ -143,7 +143,9 @@ func (m *model) View() tea.View {
 	left := m.viewList(g)
 	divider := paint(strings.TrimSuffix(strings.Repeat(fg(cDivider).Render("│")+"\n", g.footerY), "\n"), cBgList, 1)
 	var right string
-	if m.stories != nil {
+	if m.chans != nil {
+		right = m.viewChannelDir(g)
+	} else if m.stories != nil {
 		right = m.viewStatus(g)
 	} else if m.galleryShown() {
 		right = m.viewGallery(g)
@@ -182,7 +184,7 @@ func (m *model) View() tea.View {
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
 			lipgloss.NewLayer(pop).X(g.listW+6).Y(m.popupY(g, lipgloss.Height(pop))).Z(1)).Render()
 	}
-	if m.form != nil && (m.active == "" || m.stories != nil || m.galleryShown()) {
+	if m.form != nil && (m.active == "" || m.stories != nil || m.chans != nil || m.galleryShown()) {
 		pop := m.viewMeForm(g.chatW - 4)
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
 			lipgloss.NewLayer(pop).X(g.listW+3).Y(max(1, g.footerY-lipgloss.Height(pop)-1)).Z(1)).Render()

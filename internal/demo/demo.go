@@ -207,6 +207,17 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 			}
 		}
 		return hits, nil
+	case ipc.OpChannelDir:
+		return []ipc.Channel{
+			{JID: "1@newsletter", Name: "Notícias do Bairro", Subscribers: 1200, Verified: true},
+			{JID: "2@newsletter", Name: "Receitas da Vó", Description: "bolos e pães", Subscribers: 85000},
+		}, nil
+	case ipc.OpFollow, ipc.OpNewChannel:
+		d.lastSent = req
+		if req.Op == ipc.OpNewChannel {
+			return "9@newsletter", nil
+		}
+		return nil, nil
 	case ipc.OpStatuses:
 		now := time.Now().UnixMilli()
 		out := []ipc.Message{

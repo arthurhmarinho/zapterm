@@ -65,6 +65,8 @@ func (m *model) onMe(me *ipc.Me) {
 	}
 	opts := []popOpt{
 		{"Novo grupo…", m.startNewGroup},
+		{"Novo canal…", m.newChannelForm},
+		{"Explorar canais…", m.openChannelDir},
 		{"Nome: " + me.Name, func() bt.Cmd { return m.openMeField("name", "Seu nome", me.Name) }},
 		{"Recado: " + oneLine(about), func() bt.Cmd { return m.openMeField("about", "Recado", me.About) }},
 	}

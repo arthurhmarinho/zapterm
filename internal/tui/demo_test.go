@@ -1229,8 +1229,15 @@ func TestTelaEu(t *testing.T) {
 			t.Errorf("faltou %q", want)
 		}
 	}
+	pick := func(prefix string) {
+		i := slices.IndexFunc(m.popup.opts, func(o popOpt) bool { return strings.HasPrefix(o.label, prefix) })
+		if i < 0 {
+			t.Fatalf("faltou %q no menu", prefix)
+		}
+		runCmd(m, m.keyPopup(fmt.Sprint(i+1)))
+	}
 	// Visto por último → Ninguém.
-	runCmd(m, m.keyPopup("4"))
+	pick("Visto por último")
 	if m.popup == nil || m.popup.title != "Visto por último" {
 		t.Fatalf("submenu: %+v", m.popup)
 	}
@@ -1240,7 +1247,7 @@ func TestTelaEu(t *testing.T) {
 	if !strings.Contains(ansi.Strip(m.View().Content), "Visto por último: Ninguém") {
 		t.Error("a privacidade não mudou")
 	}
-	runCmd(m, m.keyPopup("2"))
+	pick("Nome:")
 	if m.form == nil || m.form.fields[0].in.Value() != "Você (demonstração)" {
 		t.Fatal("o formulário do nome não abriu com o nome atual")
 	}
@@ -1506,8 +1513,10 @@ func TestStatus(t *testing.T) {
 	if !strings.Contains(ansi.Strip(m.View().Content), "Responder a Marina") {
 		t.Error("o formulário não aparece sobre o status")
 	}
-	m.form.fields[0].in.SetValue("que lindo!")
-	runCmd(m, m.keyForm(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	for _, r := range "que lindo!" { // pelo caminho real das teclas
+		runCmd(m, m.onKey(tea.KeyPressMsg{Code: r, Text: string(r)}))
+	}
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: tea.KeyEnter}))
 	if got := demo.LastSent(srv); got.Op != ipc.OpSend || got.Chat != "5511900000001@s.whatsapp.net" || got.ReplyTo != "status@broadcast|st3" {
 		t.Fatalf("resposta: %+v", got)
 	}
@@ -1518,5 +1527,48 @@ func TestStatus(t *testing.T) {
 	runCmd(m, m.keyForm(tea.KeyPressMsg{Code: tea.KeyEnter}))
 	if got := demo.LastSent(srv); got.Op != ipc.OpPostStatus || got.Text != "no terminal" {
 		t.Fatalf("publicar: %+v", got)
+	}
+}
+
+func TestExplorarCanais(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+	key := func(k tea.KeyPressMsg) { runCmd(m, m.onKey(k)) }
+	key(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt})
+	idx := slices.IndexFunc(m.popup.opts, func(o popOpt) bool { return o.label == "Explorar canais…" })
+	key(tea.KeyPressMsg{Code: rune('1' + idx), Text: string(rune('1' + idx))})
+	if m.chans == nil || len(m.chans.shown) != 2 {
+		t.Fatalf("diretório: %+v", m.chans)
+	}
+	for _, r := range "receita" {
+		key(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+	screen := ansi.Strip(m.View().Content)
+	if len(m.chans.shown) != 1 || !strings.Contains(screen, "Receitas da Vó") || !strings.Contains(screen, "85,0 mil seguidores") {
+		t.Fatalf("filtro: %+v", m.chans.shown)
+	}
+	key(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.popup == nil || m.popup.title != "Receitas da Vó" {
+		t.Fatalf("enter: %+v", m.popup)
+	}
+	key(tea.KeyPressMsg{Code: '1', Text: "1"}) // Seguir
+	if got := demo.LastSent(srv); got.Op != ipc.OpFollow || got.Chat != "2@newsletter" {
+		t.Fatalf("seguir: %+v", got)
+	}
+	if m.chans != nil || m.active != "2@newsletter" {
+		t.Fatalf("depois de seguir: canais %v, ativo %q", m.chans != nil, m.active)
 	}
 }
