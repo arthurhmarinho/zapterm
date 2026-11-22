@@ -721,6 +721,15 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.refetch(ctx, req.Chat, req.Before)
 	case ipc.OpGallery:
 		return d.gallery(context.Background(), req)
+	case ipc.OpNewGroup:
+		return d.createGroup(ctx, req.Text, req.Options)
+	case ipc.OpGroupSet:
+		if len(req.Options) != 1 {
+			return nil, errors.New("falta o valor")
+		}
+		return nil, d.groupSetting(ctx, req.Chat, req.Text, req.Options[0])
+	case ipc.OpGroupReqs:
+		return d.groupRequests(ctx, req.Chat)
 	case ipc.OpMe:
 		return d.meScreen(ctx)
 	case ipc.OpSetMe:

@@ -561,6 +561,8 @@ func (m *model) viewFooter() string {
 		help = "mandar contato: digite para filtrar · enter manda · esc cancela"
 	case m.searching && m.forwarding != nil:
 		help = m.forwardHelp()
+	case m.searching && m.newGroup != nil:
+		help = m.newGroupHelp()
 	case m.selAnchor >= 0:
 		help = fmt.Sprintf("%d selecionadas · shift+↑/↓ ajusta · alt+c copia · alt+w encaminha · alt+d apaga para mim · seta desfaz", len(m.selectedMsgs()))
 	case m.searching:
@@ -736,7 +738,8 @@ func (m *model) viewHelp() string {
 		}},
 		{"Chat", [][2]string{
 			{keyFor("profile"), "perfil do contato ou grupo: foto, recado, participantes, mídia (ou clique no cabeçalho)"},
-			{keyFor("me"), "Eu: seu nome, recado e privacidade (ou clique no seu nome no topo)"},
+			{keyFor("me"), "Eu: novo grupo, seu nome, recado e privacidade (ou clique no seu nome no topo)"},
+			{"alt+e no perfil", "administrar o grupo: nome, descrição, foto, adicionar, permissões, pedidos"},
 			{keyFor("chat_menu"), "menu do chat: fixar, arquivar, silenciar, marcar como lida (ou botão direito na lista)"},
 		}},
 		{"Mensagem selecionada", [][2]string{

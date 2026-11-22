@@ -64,6 +64,7 @@ func (m *model) onMe(me *ipc.Me) {
 		about = "(vazio)"
 	}
 	opts := []popOpt{
+		{"Novo grupo…", m.startNewGroup},
 		{"Nome: " + me.Name, func() bt.Cmd { return m.openMeField("name", "Seu nome", me.Name) }},
 		{"Recado: " + oneLine(about), func() bt.Cmd { return m.openMeField("about", "Recado", me.About) }},
 	}

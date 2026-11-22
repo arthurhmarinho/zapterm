@@ -72,6 +72,8 @@ func (m *model) keyProfile(s string) tea.Cmd {
 		if m.profile != nil && m.profile.Kind == "group" {
 			return m.openInviteMenu()
 		}
+	case "alt+e":
+		return m.openGroupAdmin()
 	}
 	return nil
 }
@@ -251,7 +253,7 @@ func (m *model) viewProfile(g geometry) string {
 		if p.IAmAdmin {
 			hint += ", admin, remover"
 		}
-		hint += " · alt+c link de convite"
+		hint += " · alt+c link de convite · alt+e administrar"
 		lines = append(lines, "", "  "+sGreen.Bold(true).Render(fmt.Sprintf("Participantes (%d)", p.MemberCount))+"   "+sText2.Render(hint))
 		used := strings.Count(strings.Join(lines, "\n"), "\n") + 1
 		room := max(1, h-used-1)

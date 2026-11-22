@@ -30,7 +30,8 @@ type server struct {
 	mu       sync.Mutex
 	chats    []ipc.Chat
 	msgs     map[string][]ipc.Message
-	me       *ipc.Me // tela "Eu"
+	me       *ipc.Me            // tela "Eu"
+	group    *ipc.GroupSettings // permissões do grupo da trilha
 }
 
 // Serve abre o socket do modo demonstração e responde em segundo plano.
@@ -129,6 +130,29 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpGroupMember:
 		d.lastSent = req
 		return nil, nil
+	case ipc.OpNewGroup:
+		d.lastSent = req
+		jid := "120000000000000077@g.us"
+		d.chats = append([]ipc.Chat{{JID: jid, Name: req.Text, Kind: "group", IsGroup: true, LastStatus: -1}}, d.chats...)
+		return jid, nil
+	case ipc.OpGroupSet:
+		d.lastSent = req
+		if d.group != nil && len(req.Options) == 1 {
+			on := req.Options[0] == "1"
+			switch req.Text {
+			case "announce":
+				d.group.Announce = on
+			case "locked":
+				d.group.Locked = on
+			case "approval":
+				d.group.Approval = on
+			case "addmode":
+				d.group.AdminAdd = req.Options[0] == "admin"
+			}
+		}
+		return nil, nil
+	case ipc.OpGroupReqs:
+		return []ipc.ProfileMember{{Name: "Caio", JID: "5511900000009@s.whatsapp.net", Raw: "100000000000009@lid"}}, nil
 	case ipc.OpInviteLink:
 		return "https://chat.whatsapp.com/DEMONSTRACAO", nil
 	case ipc.OpForward:
@@ -242,6 +266,11 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 					{Name: "Lu", JID: "5511900000006@s.whatsapp.net", Raw: "100000000000006@lid"},
 					{Name: "Marina Alves", JID: "5511900000001@s.whatsapp.net", Raw: "100000000000001@lid"}}
 				p.IAmAdmin = true
+				if d.group == nil {
+					d.group = &ipc.GroupSettings{}
+				}
+				g := *d.group
+				p.Group = &g
 			} else {
 				p.Phone, p.About = "+"+strings.Split(c.JID, "@")[0], "Disponível"
 			}

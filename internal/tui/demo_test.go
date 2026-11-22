@@ -1229,7 +1229,7 @@ func TestTelaEu(t *testing.T) {
 		}
 	}
 	// Visto por último → Ninguém.
-	runCmd(m, m.keyPopup("3"))
+	runCmd(m, m.keyPopup("4"))
 	if m.popup == nil || m.popup.title != "Visto por último" {
 		t.Fatalf("submenu: %+v", m.popup)
 	}
@@ -1239,7 +1239,7 @@ func TestTelaEu(t *testing.T) {
 	if !strings.Contains(ansi.Strip(m.View().Content), "Visto por último: Ninguém") {
 		t.Error("a privacidade não mudou")
 	}
-	runCmd(m, m.keyPopup("1"))
+	runCmd(m, m.keyPopup("2"))
 	if m.form == nil || m.form.fields[0].in.Value() != "Você (demonstração)" {
 		t.Fatal("o formulário do nome não abriu com o nome atual")
 	}
@@ -1251,5 +1251,87 @@ func TestTelaEu(t *testing.T) {
 	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}))
 	if !strings.Contains(ansi.Strip(m.View().Content), "Nome: Arthur") {
 		t.Error("o nome não mudou")
+	}
+}
+
+func TestCriarEAdministrarGrupo(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(m.loadChats()())
+
+	// Eu → Novo grupo: marca Marina e Diego, alt+enter, nome, enter.
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}))
+	runCmd(m, m.keyPopup("1"))
+	if m.newGroup == nil || !m.searching {
+		t.Fatal("Novo grupo não abriu a escolha das pessoas")
+	}
+	for _, who := range []string{"Marina", "Diego"} {
+		m.search.SetValue(who)
+		m.applyFilter()
+		runCmd(m, m.keySearch(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	}
+	if s := ansi.Strip(m.View().Content); len(*m.newGroup) != 2 || !strings.Contains(s, "com: Marina, Diego (2)") {
+		t.Fatalf("marcados: %+v", *m.newGroup)
+	}
+	runCmd(m, m.keySearch(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt}))
+	if m.form == nil || m.form.title != "Novo grupo" {
+		t.Fatal("alt+enter não pediu o nome")
+	}
+	m.form.fields[0].in.SetValue("Churrasco")
+	runCmd(m, m.keyForm(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	if got := demo.LastSent(srv); got.Op != ipc.OpNewGroup || got.Text != "Churrasco" || len(got.Options) != 2 {
+		t.Fatalf("pedido: %+v", got)
+	}
+	if m.active != "120000000000000077@g.us" {
+		t.Fatalf("o grupo novo não abriu: %q", m.active)
+	}
+
+	// Perfil da trilha → alt+e → "Só admins mandam mensagens".
+	runCmd(m, m.open(m.chatFor("120000000000000001@g.us", "Trilha")))
+	runCmd(m, m.openProfile())
+	runCmd(m, m.keyProfile("alt+e"))
+	if m.popup == nil || !strings.HasPrefix(m.popup.title, "Administrar") {
+		t.Fatal("alt+e não abriu a administração")
+	}
+	idx := -1
+	for i, o := range m.popup.opts {
+		if o.label == "Só admins mandam mensagens: não" {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("faltou a opção: %+v", m.popup.opts)
+	}
+	runCmd(m, m.keyPopup(fmt.Sprint(idx+1)))
+	if got := demo.LastSent(srv); got.Op != ipc.OpGroupSet || got.Text != "announce" || got.Options[0] != "1" {
+		t.Fatalf("pedido: %+v", got)
+	}
+	runCmd(m, m.keyProfile("alt+e"))
+	if m.popup.opts[idx].label != "Só admins mandam mensagens: sim" {
+		t.Errorf("o perfil não recarregou: %q", m.popup.opts[idx].label)
+	}
+	// Pedidos para entrar → Caio → Aprovar.
+	m.popup = nil
+	runCmd(m, m.keyProfile("alt+e"))
+	runCmd(m, m.keyPopup(fmt.Sprint(len(m.popup.opts))))
+	runCmd(m, m.keyPopup("1"))
+	if m.popup == nil || m.popup.title != "Caio quer entrar" {
+		t.Fatalf("pedido: %+v", m.popup)
+	}
+	runCmd(m, m.keyPopup("1"))
+	if got := demo.LastSent(srv); got.Text != "approve" || got.Options[0] != "100000000000009@lid" {
+		t.Fatalf("aprovar: %+v", got)
 	}
 }

@@ -127,11 +127,13 @@ type model struct {
 	pendingDel     *pendingDelete  // apagar para mim esperando os 5 s de desfazer
 	recReview      *recReview      // gravação parada esperando você ouvir e decidir
 
-	editing    *ipc.Message  // mensagem sua sendo editada (alt+e)
-	forwarding []ipc.Message // a encaminhar (alt+w): a busca escolhe os destinos
-	fwdTargets []ipc.Chat    // destinos marcados (até 5)
-	selAnchor  int           // começo da seleção de várias (shift+↑/↓); -1 = sem
-	help       bool          // tela de ajuda (F1)
+	editing       *ipc.Message  // mensagem sua sendo editada (alt+e)
+	newGroup      *[]ipc.Chat   // novo grupo: a busca escolhe as pessoas
+	groupPhotoFor string        // o seletor de arquivos escolhe a foto deste grupo
+	forwarding    []ipc.Message // a encaminhar (alt+w): a busca escolhe os destinos
+	fwdTargets    []ipc.Chat    // destinos marcados (até 5)
+	selAnchor     int           // começo da seleção de várias (shift+↑/↓); -1 = sem
+	help          bool          // tela de ajuda (F1)
 
 	menu          *chatMenu         // menu do chat (alt+m)
 	keyRemap      map[string]string // teclas do config → teclas padrão
@@ -582,7 +584,17 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case chosenMsg:
+		if chat := m.groupPhotoFor; chat != "" {
+			m.groupPhotoFor = ""
+			return m, m.call(ipc.Request{Op: ipc.OpGroupSet, Chat: chat, Text: "photo", Options: []string{msg[0]}}, nil,
+				func() tea.Msg { return groupChangedMsg{chat: chat, done: "foto do grupo trocada"} })
+		}
 		m.setAttachments(msg)
+		return m, nil
+	case groupChangedMsg:
+		return m, m.onGroupChanged(msg)
+	case groupReqsMsg:
+		m.onGroupReqs(msg)
 		return m, nil
 
 	case msgsMsg:

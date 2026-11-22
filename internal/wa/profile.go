@@ -72,6 +72,8 @@ func (d *Daemon) profile(ctx context.Context, chat string) (*ipc.Profile, error)
 			p.About = info.Topic
 			p.Created = info.GroupCreated.UnixMilli()
 			p.MemberCount = len(info.Participants)
+			p.Group = &ipc.GroupSettings{Announce: info.IsAnnounce, Locked: info.IsLocked,
+				Approval: info.IsJoinApprovalRequired, AdminAdd: info.MemberAddMode == types.GroupMemberAddModeAdmin}
 			names := map[string]string{}
 			if list, err := d.groupMembers(ctx, chat); err == nil {
 				for _, mb := range list {
@@ -207,11 +209,19 @@ func (d *Daemon) groupMember(ctx context.Context, chat, member, action string) e
 	if err != nil {
 		return err
 	}
-	who, err := types.ParseJID(member)
-	if err != nil {
+	var who types.JID
+	if action == "add" && !strings.Contains(member, "@") {
+		c, err := d.checkNumber(ctx, member) // telefone digitado
+		if err != nil {
+			return err
+		}
+		member = c.JID
+	}
+	if who, err = types.ParseJID(member); err != nil {
 		return err
 	}
 	change := map[string]whatsmeow.ParticipantChange{
+		"add":     whatsmeow.ParticipantChangeAdd,
 		"promote": whatsmeow.ParticipantChangePromote,
 		"demote":  whatsmeow.ParticipantChangeDemote,
 		"remove":  whatsmeow.ParticipantChangeRemove,
@@ -219,8 +229,18 @@ func (d *Daemon) groupMember(ctx context.Context, chat, member, action string) e
 	if change == "" {
 		return fmt.Errorf("ação desconhecida: %q", action)
 	}
-	if _, err := d.cli.UpdateGroupParticipants(ctx, jid, []types.JID{who}, change); err != nil {
+	res, err := d.cli.UpdateGroupParticipants(ctx, jid, []types.JID{who}, change)
+	if err != nil {
 		return err
+	}
+	if len(res) == 1 && res[0].Error != 0 {
+		switch res[0].Error {
+		case 403:
+			return errors.New("a privacidade da pessoa não deixa adicionar: mande o link de convite")
+		case 409:
+			return errors.New("a pessoa já está no grupo")
+		}
+		return fmt.Errorf("o WhatsApp recusou (código %d)", res[0].Error)
 	}
 	membersMu.Lock()
 	delete(members, chat) // a lista de participantes mudou

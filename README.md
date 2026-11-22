@@ -52,13 +52,18 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 - **Participantes** (perfil do grupo): `↓` escolhe, `enter` abre conversar
   e, se você é admin, tornar/tirar admin e remover; `alt+c` abre o link de
   convite: copiar, mostrar o QR, redefinir (admin).
+- **Criar grupo** (`alt+y` → Novo grupo): `enter` marca as pessoas na
+  busca, `alt+enter` pede o nome. **Administrar** (`alt+e` no perfil do
+  grupo): nome, descrição, foto, adicionar pelo telefone, só admins mandam
+  mensagens / mudam os dados / adicionam, aprovar quem entra pelo link e
+  os pedidos pendentes.
 - **Link `chat.whatsapp.com`** recebido: `ctrl+o` mostra o grupo (nome,
   participantes) e oferece entrar.
 - **Admin** apaga para todos a mensagem de um membro (`alt+d`).
 - **Mídia, links e docs** (`enter` no perfil): abas Fotos, Vídeos, Docs,
   Links e Áudios, separadas por mês; `ctrl+g` mostra o item na conversa.
   Mídia antiga sem prévia é pedida de novo ao seu celular.
-- **Eu** (`alt+y` ou clique no seu nome no topo): trocar seu nome e
+- **Eu** (`alt+y` ou clique no seu nome no topo): novo grupo, trocar seu nome e
   recado e a privacidade da conta (visto por último, online, foto, status,
   confirmação de leitura, quem te põe em grupos, chamadas de desconhecidos).
 - **Central de mídia** (`alt+g`): as mesmas abas com tudo de todas as

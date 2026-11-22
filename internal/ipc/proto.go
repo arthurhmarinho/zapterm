@@ -54,6 +54,9 @@ const (
 	OpUnread      = "unread"       // resumo de não lidas (para a barra)
 	OpShowUI      = "show_ui"      // traz a TUI para frente, ou abre uma
 	OpRejectCall  = "reject_call"  // recusa a chamada tocando da linha Msg no Chat
+	OpNewGroup    = "new_group"    // cria o grupo Text com os participantes Options (JIDs); devolve o JID
+	OpGroupSet    = "group_set"    // muda Text (name, topic, photo, announce, locked, approval, addmode, approve, reject) do grupo Chat para Options[0]
+	OpGroupReqs   = "group_reqs"   // pedidos para entrar no grupo Chat ([]ProfileMember)
 	OpMe          = "me"           // seu nome, número, recado e privacidade (Me)
 	OpSetMe       = "set_me"       // Text "name", "about" ou "privacy:<tipo>"; Options[0] o valor novo
 )
@@ -278,6 +281,15 @@ type Profile struct {
 	Counts      map[string]int  `json:"counts,omitempty"` // itens em cada aba da galeria
 	Note        string          `json:"note,omitempty"`   // aviso (ex.: saiu do grupo)
 	IAmAdmin    bool            `json:"i_am_admin,omitempty"`
+	Group       *GroupSettings  `json:"group,omitempty"`
+}
+
+// GroupSettings: as permissões do grupo, para o menu de admin.
+type GroupSettings struct {
+	Announce bool `json:"announce,omitempty"`  // só admins mandam mensagem
+	Locked   bool `json:"locked,omitempty"`    // só admins mudam nome, descrição e foto
+	Approval bool `json:"approval,omitempty"`  // admin aprova quem entra pelo link
+	AdminAdd bool `json:"admin_add,omitempty"` // só admins adicionam participantes
 }
 
 // Abas da galeria (Request.Text em OpGallery).

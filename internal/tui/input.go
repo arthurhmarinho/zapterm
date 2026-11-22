@@ -390,12 +390,17 @@ func (m *model) keySearch(k tea.KeyPressMsg) tea.Cmd {
 			m.forwarding, m.fwdTargets = nil, nil
 			m.setFlash("encaminhamento cancelado")
 		}
+		m.newGroup = nil
 		m.pickingContact = false
 		m.stopSearch(true)
 		return nil
 	case "alt+w":
 		if m.forwarding != nil {
 			return m.sendForward()
+		}
+	case "alt+enter":
+		if m.newGroup != nil {
+			return m.askGroupName()
 		}
 	case "enter":
 		c, ok := m.selected()
@@ -405,6 +410,14 @@ func (m *model) keySearch(k tea.KeyPressMsg) tea.Cmd {
 		if m.forwarding != nil {
 			if !strings.HasPrefix(c.JID, hitMarker) && !strings.HasPrefix(c.JID, newChatMarker) {
 				m.toggleTarget(c)
+			}
+			return nil
+		}
+		if m.newGroup != nil {
+			if c.Kind == "dm" && !strings.HasPrefix(c.JID, hitMarker) && !strings.HasPrefix(c.JID, newChatMarker) {
+				m.toggleGroupMember(c)
+			} else {
+				m.setFlash("escolha pessoas (não grupo nem canal)")
 			}
 			return nil
 		}

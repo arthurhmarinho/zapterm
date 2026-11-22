@@ -161,7 +161,7 @@ filtro.
   `cli.BuildPollCreation`, `EventMessage` à mão, `ContactMessage`. (M)
 - [ ] **Responder evento** (Vou/Talvez/Não vou). Só pela API interna
   (`DangerousInternals().EncryptMsgSecret`). (M–G)
-- [ ] **Criar grupo** (`cli.CreateGroup`) e **administrar**: permissões
+- [x] **Criar grupo** (`cli.CreateGroup`) e **administrar**: permissões
   (`SetGroupAnnounce`, `SetGroupLocked`, `SetGroupMemberAddMode`), pedidos
   pendentes (`GetGroupRequestParticipants`), nome, descrição e foto. (M)
 - [ ] **Status**: ver e responder (hoje descartado em `daemon.go`),
