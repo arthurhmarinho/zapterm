@@ -59,6 +59,11 @@ type Interface struct {
 	Images    bool `toml:"images"`
 	NerdFont  bool `toml:"nerd_font"`
 	ListWidth int  `toml:"list_width"` // 0 = automático
+	// EnterSends: enter envia (padrão). false: enter quebra a linha e
+	// alt+enter envia.
+	EnterSends bool `toml:"enter_sends"`
+	// NotifySound: arquivo de som tocado a cada notificação ("" = sem som).
+	NotifySound string `toml:"notify_sound"`
 }
 
 // Actions são os atalhos que dá para trocar em [keys], com o padrão.
@@ -81,6 +86,9 @@ var Actions = map[string]string{
 	"archived":  "alt+a",
 }
 
+// Defaults são os valores sem arquivo de config.
+func Defaults() Config { return defaults() }
+
 func defaults() Config {
 	return Config{
 		Keys: map[string]string{},
@@ -88,7 +96,7 @@ func defaults() Config {
 			ReadReceipts: true, ShowOnline: true, NotifyPreview: true,
 			Notifications: true, NotifyMentions: true, LinkPreviews: true,
 		},
-		Interface: Interface{Images: true, NerdFont: true},
+		Interface: Interface{Images: true, NerdFont: true, EnterSends: true},
 	}
 }
 

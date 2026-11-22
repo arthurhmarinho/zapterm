@@ -330,7 +330,7 @@ func TestAtalhoTrocadoPeloConfig(t *testing.T) {
 	if err := applyConfig(); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { cfg = config.Config{Interface: config.Interface{Images: true, NerdFont: true}} })
+	t.Cleanup(func() { cfg = config.Defaults() })
 
 	sock := filepath.Join(t.TempDir(), "demo.sock")
 	srv, err := demo.Serve(sock)
@@ -1110,5 +1110,38 @@ func TestMencionarTodos(t *testing.T) {
 	sent := demo.LastSent(srv)
 	if sent.Text != "bora @todos" || len(sent.Mentions) != len(m.members[m.active]) || len(sent.Mentions) < 2 {
 		t.Fatalf("enviado: %+v (membros %d)", sent, len(m.members[m.active]))
+	}
+}
+
+func TestEnterQuebraLinha(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	cfg.Interface.EnterSends = false
+	t.Cleanup(func() { cfg = config.Defaults() })
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	m.Update(m.loadChats()())
+	runCmd(m, m.open(m.chatFor("5511900000001@s.whatsapp.net", "Marina")))
+	for _, r := range "oi" {
+		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	if m.input.Value() != "oi\n" {
+		t.Fatalf("enter: %q", m.input.Value())
+	}
+	m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt}))
+	if got := demo.LastSent(srv); got.Text != "oi\nx" {
+		t.Fatalf("alt+enter enviou %q", got.Text)
 	}
 }

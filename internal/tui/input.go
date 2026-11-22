@@ -271,7 +271,16 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	case "enter":
+		if !cfg.Interface.EnterSends && m.focus == paneChat {
+			m.input.InsertString("\n") // [interface] enter_sends = false
+			m.layout()
+			return nil
+		}
 		return m.onEnter()
+	case "alt+enter":
+		if !cfg.Interface.EnterSends && m.focus == paneChat {
+			return m.onEnter()
+		}
 	case "pgup":
 		return m.scrollChat(-m.vp.Height() / 2)
 	case "pgdown":

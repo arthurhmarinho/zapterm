@@ -82,6 +82,9 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string) {
 		return
 	}
 	n.pending[m.Chat]++
+	if snd := d.cfg.Interface.NotifySound; snd != "" {
+		go playSound(snd)
+	}
 	count := n.pending[m.Chat]
 	prevID := n.ids[m.Chat]
 	n.mu.Unlock()
@@ -154,4 +157,14 @@ func (d *Daemon) replyFromNotification(chat, text string) {
 	delete(d.notif.pending, chat)
 	d.notif.mu.Unlock()
 	_ = d.markRead(ctx, chat)
+}
+
+// playSound toca o som da notificação ([interface] notify_sound).
+func playSound(path string) {
+	for _, player := range []string{"pw-play", "paplay"} {
+		if _, err := exec.LookPath(player); err == nil {
+			_ = exec.Command(player, path).Run()
+			return
+		}
+	}
 }

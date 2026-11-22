@@ -31,6 +31,9 @@ type Options struct {
 	// QROut recebe o QR code quando não há sessão. nil = sem sessão é erro
 	// (o daemon em segundo plano não tem onde mostrar o QR).
 	QROut io.Writer
+	// Phone: parear pelo código de 8 letras (WhatsApp → Aparelhos
+	// conectados → Conectar com número de telefone) em vez do QR.
+	Phone string
 }
 
 type Daemon struct {
@@ -118,7 +121,7 @@ func Run(ctx context.Context, opt Options) error {
 	}
 
 	if device.ID == nil {
-		if err := d.pair(ctx, opt.QROut); err != nil {
+		if err := d.pair(ctx, opt.QROut, opt.Phone); err != nil {
 			return err
 		}
 	} else if err := d.cli.Connect(); err != nil {
@@ -131,7 +134,7 @@ func Run(ctx context.Context, opt Options) error {
 	return nil
 }
 
-func (d *Daemon) pair(ctx context.Context, out io.Writer) error {
+func (d *Daemon) pair(ctx context.Context, out io.Writer, phone string) error {
 	qrs, err := d.cli.GetQRChannel(ctx)
 	if err != nil {
 		return err
@@ -139,9 +142,25 @@ func (d *Daemon) pair(ctx context.Context, out io.Writer) error {
 	if err := d.cli.Connect(); err != nil {
 		return fmt.Errorf("conectando: %w", err)
 	}
+	asked := false
 	for item := range qrs {
 		switch item.Event {
 		case whatsmeow.QRChannelEventCode:
+			if phone != "" {
+				// O código só pode ser pedido depois do primeiro QR.
+				if asked {
+					continue
+				}
+				asked = true
+				code, err := d.cli.PairPhone(ctx, phone, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
+				if err != nil {
+					return fmt.Errorf("pedindo o código: %w", err)
+				}
+				fmt.Fprintln(out, "\nNo celular: WhatsApp → Aparelhos conectados → Conectar um aparelho →")
+				fmt.Fprintln(out, "\"Conectar com número de telefone\" e digite o código:")
+				fmt.Fprintf(out, "\n    %s\n\n", code)
+				continue
+			}
 			fmt.Fprintln(out, "\nNo celular: WhatsApp → Aparelhos conectados → Conectar um aparelho")
 			qrterminal.GenerateHalfBlock(item.Code, qrterminal.L, out)
 		case whatsmeow.QRChannelSuccess.Event:

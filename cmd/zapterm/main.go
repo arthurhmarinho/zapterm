@@ -2,6 +2,7 @@
 //
 //	zapterm                  abre a TUI (sobe o daemon se preciso)
 //	zapterm login            pareia por QR code e fica rodando como daemon
+//	zapterm login --telefone 5584999999999   pareia pelo código de 8 letras
 //	zapterm daemon           daemon em segundo plano (exige sessão)
 //	zapterm chats            lista os chats (depuração do IPC)
 //	zapterm msgs <jid> [n]   últimas n mensagens de um chat
@@ -50,9 +51,20 @@ func run(args []string) error {
 	}
 	switch cmd {
 	case "login":
-		return daemon(true)
+		phone := ""
+		for i, a := range args {
+			if (a == "--telefone" || a == "--phone") && i+1 < len(args) {
+				phone = strings.Map(func(r rune) rune {
+					if r >= '0' && r <= '9' {
+						return r
+					}
+					return -1
+				}, args[i+1])
+			}
+		}
+		return daemon(true, phone)
 	case "daemon":
-		return daemon(false)
+		return daemon(false, "")
 	case "chats":
 		return chats()
 	case "msgs":
@@ -80,7 +92,7 @@ func run(args []string) error {
 	return fmt.Errorf("comando desconhecido: %s", cmd)
 }
 
-func daemon(interactive bool) error {
+func daemon(interactive bool, phone string) error {
 	logPath, err := paths.Log()
 	if err != nil {
 		return err
@@ -102,7 +114,7 @@ func daemon(interactive bool) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return wa.Run(ctx, wa.Options{Log: log, QROut: qr})
+	return wa.Run(ctx, wa.Options{Log: log, QROut: qr, Phone: phone})
 }
 
 func dial() (*ipc.Client, error) {

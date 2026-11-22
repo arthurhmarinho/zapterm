@@ -10,7 +10,7 @@ import (
 )
 
 // cfg é a configuração lida ao abrir a TUI (~/.config/zapterm/config.toml).
-var cfg = config.Config{Interface: config.Interface{Images: true, NerdFont: true}}
+var cfg = config.Defaults()
 
 // Cores que não estão na paleta base e passaram a ser configuráveis.
 var (

@@ -31,6 +31,10 @@
 # nerd_font = true
 # Largura da lista de chats em colunas; 0 = automático.
 # list_width = 0
+# false: enter quebra a linha e alt+enter envia.
+# enter_sends = true
+# Som a cada notificação (arquivo .oga/.wav/.ogg, tocado pelo pw-play).
+# notify_sound = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"
 
 [colors]
 # Número ANSI ("0"–"15", segue o tema do terminal) ou hex ("#ff79c6").

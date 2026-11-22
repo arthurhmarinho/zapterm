@@ -115,7 +115,9 @@ zapterm login
 ```
 
 Escaneie o QR code no celular: **WhatsApp → Aparelhos conectados →
-Conectar um aparelho**. Deixe o comando rodando até o log parar de mostrar
+Conectar um aparelho**. Sem câmera à mão, `zapterm login --telefone
+5584999999999` mostra um código de 8 letras para digitar em **Conectar com
+número de telefone**. Deixe o comando rodando até o log parar de mostrar
 `history sync` (alguns minutos): é quando o histórico chega. Depois:
 
 ```sh

@@ -174,7 +174,7 @@ filtro.
   de mídia** de todas as conversas. (P–M)
 - [ ] **Tela "Eu"**: privacidade da conta (`cli.SetPrivacySetting`), nome
   (`appstate.BuildSettingPushName`), recado (`cli.SetStatusMessage`). (M)
-- [ ] **Login por código do celular** em vez do QR. `cli.PairPhone`. (P)
+- [x] **Login por código do celular** em vez do QR. `cli.PairPhone`. (P)
 - [ ] **Pedir de novo mídia antiga** ao celular (tira o "não pode ser
   baixada"). `cli.SendMediaRetryReceipt`. (M)
 - [ ] **Filtro "Favoritas" e listas personalizadas** do celular.
@@ -182,7 +182,7 @@ filtro.
 - [ ] **Aviso de "conversa restrita"** (o dono bloqueou aparelhos
   conectados). `Conversation.GetLimitSharing()`. (P)
 - [ ] **Transcrição de áudio local** (whisper.cpp, opcional). (G)
-- [ ] **Tecla Enter configurável** e **sons de notificação** no TOML. (P)
+- [x] **Tecla Enter configurável** e **sons de notificação** no TOML. (P)
 
 ## Fora do escopo
 
