@@ -176,7 +176,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `ctrl+e` | reagir: 1–6 as rápidas, ou digite o nome de qualquer emoji (`fogo` → 🔥) |
 | `ctrl+↑` | editar a sua última mensagem |
 | `:nome` | emoji pelo nome no campo: `:kkk` → 😂, `:cora` → ❤️ (português ou inglês) |
-| `ctrl+o` | abrir foto, vídeo, documento, link, ou tocar áudio |
+| `ctrl+o` | abrir foto, vídeo, documento, link, ou tocar áudio; na enquete vota, no evento responde Vou / Talvez / Não vou |
 | `alt+c` `alt+e` | copiar / editar (sua, até 15 min) |
 | `@` em grupo | marca alguém (autocompleta); `@todos` marca todo mundo (em grupo com mais de 32, só admin) |
 | `alt+.` | menu da mensagem: responder, responder em privado, reagir, abrir, copiar, editar, encaminhar, apagar (ou botão direito) |

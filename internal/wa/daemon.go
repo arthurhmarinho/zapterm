@@ -286,7 +286,7 @@ func (d *Daemon) onMessage(ctx context.Context, e *events.Message, live bool) {
 	if e.Info.Chat == types.StatusBroadcastJID {
 		return // status (stories) fica fora do zapterm
 	}
-	if d.onEphemeralSetting(ctx, e) || d.onPollVote(ctx, e) || d.onPinMessage(ctx, e) || d.onKeepInChat(ctx, e) {
+	if d.onEphemeralSetting(ctx, e) || d.onPollVote(ctx, e) || d.onEventResponse(ctx, e) || d.onPinMessage(ctx, e) || d.onKeepInChat(ctx, e) {
 		return
 	}
 	if d.onChange(ctx, e, live) {
@@ -380,6 +380,7 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 				if evt, err := d.cli.ParseWebMessage(jid, hm.GetMessage()); err == nil {
 					d.onMessage(ctx, evt, false)
 					d.historyPolls(ctx, jid, hm.GetMessage())
+					d.historyRSVPs(ctx, jid, hm.GetMessage())
 					n++
 				}
 			}
@@ -407,6 +408,7 @@ func (d *Daemon) onHistory(ctx context.Context, e *events.HistorySync) {
 			d.onMessage(ctx, evt, false)
 			d.historyReactions(ctx, jid, hm.GetMessage())
 			d.historyPolls(ctx, jid, hm.GetMessage())
+			d.historyRSVPs(ctx, jid, hm.GetMessage())
 			if hm.GetMessage().GetStarred() {
 				_, _ = d.st.SetStarred(jid.String(), evt.Info.ID, true)
 			}
@@ -737,6 +739,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return nil, d.groupSetting(ctx, req.Chat, req.Text, req.Options[0])
 	case ipc.OpGroupReqs:
 		return d.groupRequests(ctx, req.Chat)
+	case ipc.OpEventRSVP:
+		return nil, d.eventRSVP(ctx, req.Chat, req.Msg, req.Text)
 	case ipc.OpSubGroups:
 		return d.subGroups(ctx, req.Chat)
 	case ipc.OpLists:

@@ -159,7 +159,7 @@ filtro.
 - [x] **Criar enquete, evento, mandar contato** com comandos `/enquete`,
   `/evento`, `/contato` — depende da decisão 4.
   `cli.BuildPollCreation`, `EventMessage` à mão, `ContactMessage`. (M)
-- [ ] **Responder evento** (Vou/Talvez/Não vou). Só pela API interna
+- [x] **Responder evento** (Vou/Talvez/Não vou). Só pela API interna
   (`DangerousInternals().EncryptMsgSecret`). (M–G)
 - [x] **Criar grupo** (`cli.CreateGroup`) e **administrar**: permissões
   (`SetGroupAnnounce`, `SetGroupLocked`, `SetGroupMemberAddMode`), pedidos

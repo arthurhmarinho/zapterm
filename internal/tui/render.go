@@ -469,7 +469,7 @@ func (r msgRenderer) card(c *ipc.Card, inner int) string {
 	case "location":
 		icon, hint = icons.location, "ctrl+o abre o mapa"
 	case "event":
-		icon = icons.event
+		icon, hint = icons.event, "ctrl+o responde"
 	case "poll":
 		icon = icons.poll
 	}
@@ -509,6 +509,9 @@ func (r msgRenderer) card(c *ipc.Card, inner int) string {
 		for _, wl := range strings.Split(ansi.Wrap(l, w, " "), "\n") {
 			out = append(out, bar+st.Render(wl))
 		}
+	}
+	if c.Type == "event" && len(c.Options) > 0 {
+		out = append(out, bar+rsvpLine(c))
 	}
 	if hint != "" {
 		out = append(out, bar+sText2.Italic(true).Render(hint))
@@ -641,4 +644,29 @@ func videoLabel(text string) string {
 		l += " " + d
 	}
 	return l
+}
+
+// rsvpLine: "3 vão · 1 talvez · 2 não vão", com a sua resposta em verde.
+func rsvpLine(c *ipc.Card) string {
+	words := []string{"vão", "talvez", "não vão"}
+	var parts []string
+	for i, o := range c.Options {
+		if i >= len(words) || o.Votes == 0 && !o.Mine {
+			continue
+		}
+		w := words[i]
+		if o.Votes == 1 && i != 1 {
+			w = strings.Replace(w, "vão", "vai", 1)
+		}
+		p := fmt.Sprintf("%d %s", o.Votes, w)
+		if o.Mine {
+			parts = append(parts, sGreen.Render(p+" (você)"))
+		} else {
+			parts = append(parts, sText2.Render(p))
+		}
+	}
+	if len(parts) == 0 {
+		return sText2.Render("ninguém respondeu ainda")
+	}
+	return strings.Join(parts, sText2.Render(" · "))
 }

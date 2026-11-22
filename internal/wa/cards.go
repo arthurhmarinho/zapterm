@@ -88,7 +88,9 @@ func (d *Daemon) cardOf(m *ipc.Message, pm *waE2E.Message) *ipc.Card {
 		}
 		return c
 	case pm.GetEventMessage() != nil:
-		return eventCard(pm.GetEventMessage())
+		c := eventCard(pm.GetEventMessage())
+		d.fillRSVPs(c, m)
+		return c
 	case pollOf(pm) != nil:
 		return d.pollCard(m, pollOf(pm))
 	case pm.GetExtendedTextMessage().GetTitle() != "" || len(pm.GetExtendedTextMessage().GetJPEGThumbnail()) > 0:

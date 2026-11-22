@@ -1428,3 +1428,37 @@ func TestJuntarComunidades(t *testing.T) {
 		t.Errorf("ordem: %v", got)
 	}
 }
+
+func TestResponderEvento(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 70})
+	m.Update(m.loadChats()())
+	runCmd(m, m.open(m.chatFor("120000000000000001@g.us", "Trilha")))
+	idx := slices.IndexFunc(m.msgs, func(x ipc.Message) bool { return x.ID == "t5" })
+	if idx < 0 {
+		t.Fatal("evento não carregou")
+	}
+	if s := ansi.Strip(m.View().Content); !strings.Contains(s, "2 vão · 1 talvez") || !strings.Contains(s, "ctrl+o responde") {
+		t.Error("o cartão não mostra as respostas")
+	}
+	runCmd(m, m.openMedia(idx))
+	if m.popup == nil || m.popup.opts[0].label != "Vou (2)" {
+		t.Fatalf("ctrl+o: %+v", m.popup)
+	}
+	runCmd(m, m.keyPopup("2"))
+	if got := demo.LastSent(srv); got.Op != ipc.OpEventRSVP || got.Msg != "t5" || got.Text != "maybe" {
+		t.Fatalf("pedido: %+v", got)
+	}
+}

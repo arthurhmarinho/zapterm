@@ -896,6 +896,9 @@ func (m *model) openMedia(i int) tea.Cmd {
 	if c := msg.Card; c != nil && c.Type == "poll" {
 		return m.openPoll(msg)
 	}
+	if c := msg.Card; c != nil && c.Type == "event" && len(c.Options) == 3 {
+		return m.openRSVP(msg)
+	}
 	if c := msg.Card; c != nil && c.Chat != "" {
 		// Contato com WhatsApp: abre a conversa com ele.
 		return m.open(m.chatFor(c.Chat, c.Title))

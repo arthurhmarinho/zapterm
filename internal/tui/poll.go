@@ -143,3 +143,39 @@ func pollLines(c *ipc.Card, w int) []string {
 	out = append(out, sText2.Italic(true).Render(n+" · "+how+" · ctrl+o vota"))
 	return out
 }
+
+// openRSVP: responder ao evento (Vou / Talvez / Não vou) e, se tiver,
+// entrar na chamada.
+func (m *model) openRSVP(msg ipc.Message) tea.Cmd {
+	c := msg.Card
+	if len(c.Lines) > 0 && c.Lines[0] == "cancelado" {
+		m.setFlash("o evento foi cancelado")
+		return nil
+	}
+	answer := func(key, done string) func() tea.Cmd {
+		return func() tea.Cmd {
+			return m.call(ipc.Request{Op: ipc.OpEventRSVP, Chat: msg.Chat, Msg: msg.ID, Text: key}, nil,
+				func() tea.Msg { return flashMsg(done) })
+		}
+	}
+	keys := [][3]string{{"going", "Vou", "você vai"}, {"maybe", "Talvez", "você talvez vá"}, {"not_going", "Não vou", "você não vai"}}
+	var opts []popOpt
+	for i, k := range keys {
+		label := fmt.Sprintf("%s (%d)", k[1], c.Options[i].Votes)
+		if c.Options[i].Mine {
+			label += " ✓"
+		}
+		opts = append(opts, popOpt{label, answer(k[0], k[2])})
+	}
+	if c.URL != "" {
+		u := c.URL
+		opts = append(opts, popOpt{"Entrar na chamada", func() tea.Cmd {
+			if err := openURL(u); err != nil {
+				m.setFlash("xdg-open: " + err.Error())
+			}
+			return nil
+		}})
+	}
+	m.popup = &popMenu{title: c.Title, opts: opts}
+	return nil
+}

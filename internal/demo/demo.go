@@ -109,7 +109,7 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		}
 		go d.srv.Broadcast(ipc.EvMessage, m)
 		return m, nil
-	case ipc.OpPollVote:
+	case ipc.OpPollVote, ipc.OpEventRSVP:
 		d.lastSent = req
 		return nil, nil
 	case ipc.OpSendFile:
@@ -379,7 +379,8 @@ func (d *server) seed(now time.Time) {
 			{ID: "t3", Chat: trilha, Sender: me, SenderName: "você", FromMe: true, TS: at(40), Kind: "text", Text: "Tô dentro, saio às 6h", Status: 2},
 			{ID: "t4", Chat: trilha, Sender: rafa, SenderName: "Rafa", TS: at(12), Kind: "audio", Text: "[áudio 0:24]", HasRaw: true},
 			{ID: "t5", Chat: trilha, Sender: rafa, SenderName: "Rafa", TS: at(11), Kind: "other", Text: "[evento: Trilha do Pico]",
-				Card: &ipc.Card{Type: "event", Title: "Trilha do Pico", Lines: []string{"🕒 sáb, 22/11 às 06:00", "📍 Portaria do parque", "Levem água e lanche"}}},
+				Card: &ipc.Card{Type: "event", Title: "Trilha do Pico", Lines: []string{"🕒 sáb, 22/11 às 06:00", "📍 Portaria do parque", "Levem água e lanche"},
+					Voters: 3, Options: []ipc.CardOption{{Name: "Vou", Votes: 2}, {Name: "Talvez", Votes: 1}, {Name: "Não vou"}}}},
 			{ID: "t6", Chat: trilha, Sender: lu, SenderName: "Lu", TS: at(10), Kind: "other", Text: "[enquete: Carona?]",
 				Card: &ipc.Card{Type: "poll", Title: "Quem precisa de carona?", Voters: 3, Options: []ipc.CardOption{
 					{Name: "Eu", Votes: 1}, {Name: "Vou de ônibus", Votes: 0}, {Name: "Tenho carro", Votes: 2}}}},
