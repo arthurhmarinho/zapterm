@@ -181,7 +181,7 @@ filtro.
   `events.LabelEdit`, `events.LabelAssociationChat`. (M)
 - [x] **Aviso de "conversa restrita"** (o dono bloqueou aparelhos
   conectados). `Conversation.GetLimitSharing()`. (P)
-- [ ] **Transcrição de áudio local** (whisper.cpp, opcional). (G)
+- [x] **Transcrição de áudio local** (whisper.cpp, opcional). (G)
 - [x] **Tecla Enter configurável** e **sons de notificação** no TOML. (P)
 
 ## Fora do escopo

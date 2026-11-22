@@ -81,8 +81,8 @@ func (cl *Client) Call(req Request, out any) error {
 
 func callTimeout(op string) time.Duration {
 	switch op {
-	case OpSendFile:
-		return 11 * time.Minute // arquivo grande demora no upload
+	case OpSendFile, OpTranscribe:
+		return 11 * time.Minute // upload grande; transcrição de áudio longo na CPU
 	case OpMedia, OpSendImage, OpStickers, OpSendSticker, OpSendAudio:
 		return 4 * time.Minute
 	case OpAvatar:

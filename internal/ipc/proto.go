@@ -57,6 +57,7 @@ const (
 	OpNewGroup    = "new_group"    // cria o grupo Text com os participantes Options (JIDs); devolve o JID
 	OpGroupSet    = "group_set"    // muda Text (name, topic, photo, announce, locked, approval, addmode, approve, reject) do grupo Chat para Options[0]
 	OpGroupReqs   = "group_reqs"   // pedidos para entrar no grupo Chat ([]ProfileMember)
+	OpTranscribe  = "transcribe"   // transcreve o áudio Msg do Chat com o whisper.cpp; devolve o texto
 	OpChannelDir  = "channel_dir"  // canais recomendados, filtrados por Text (ou o canal do link em Text) ([]Channel)
 	OpFollow      = "follow"       // segue o canal Chat (Text = nome, para a lista)
 	OpNewChannel  = "new_channel"  // cria o canal Text com a descrição Options[0]; devolve o JID
@@ -245,6 +246,8 @@ type Message struct {
 	Starred bool `json:"starred,omitempty"`
 	// Forwarded: a mensagem foi encaminhada (selo "Encaminhada").
 	Forwarded bool `json:"forwarded,omitempty"`
+	// Transcript: transcrição local do áudio (whisper.cpp), se já feita.
+	Transcript string `json:"transcript,omitempty"`
 	// Card: contato, localização, evento, enquete ou prévia de link,
 	// montado a partir do protobuf original.
 	Card *Card `json:"card,omitempty"`

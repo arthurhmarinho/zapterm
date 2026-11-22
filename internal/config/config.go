@@ -27,6 +27,14 @@ type Config struct {
 	Apps      Apps              `toml:"apps"`
 	Privacy   Privacy           `toml:"privacy"`
 	Interface Interface         `toml:"interface"`
+	// Transcription: transcrição local de áudio (whisper.cpp, opcional).
+	Transcription Transcription `toml:"transcription"`
+}
+
+type Transcription struct {
+	Command  string `toml:"command"`  // "" = whisper-cli (ou whisper-cpp) do PATH
+	Model    string `toml:"model"`    // arquivo ggml-*.bin; "" = procura em ~/.local/share/zapterm/whisper
+	Language string `toml:"language"` // "pt"; "auto" detecta
 }
 
 type Colors struct {

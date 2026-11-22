@@ -75,3 +75,13 @@
 # archived = "alt+a"    # arquivadas
 # status = "alt+r"      # status: ver, responder e publicar
 # me = "alt+y"          # Eu: nome, recado e privacidade da conta
+
+[transcription]
+# Transcrição de áudio no próprio computador, com o whisper.cpp (opcional):
+# instale o whisper-cli e baixe um modelo, por exemplo
+#   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+# para ~/.local/share/zapterm/whisper/. Aí o menu da mensagem de áudio
+# ganha "Transcrever". Nada sai da sua máquina.
+# command = "whisper-cli"
+# model = "~/.local/share/zapterm/whisper/ggml-base.bin"
+# language = "pt"

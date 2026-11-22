@@ -372,6 +372,9 @@ func (r msgRenderer) bubble(m ipc.Message, maxW int, showName, selected bool) st
 		text = sText2.Italic(true).Render("🚫 " + t)
 	case m.Kind == "audio" && (m.HasRaw || m.Media != nil):
 		text = r.audioLine(m, inner)
+		if m.Transcript != "" {
+			text += "\n" + sText2.Italic(true).Render(ansi.Wrap("“"+m.Transcript+"”", inner, " "))
+		}
 	case pic != "" && thumb:
 		label := ""
 		switch {

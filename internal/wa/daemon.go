@@ -790,6 +790,7 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		d.fillThumbs(msgs)
 		d.fillCards(msgs)
 		d.fillReactions(msgs)
+		d.fillTranscripts(msgs)
 		return msgs, nil
 	case ipc.OpSend:
 		return d.send(ctx, req.Chat, req.Text, req.ReplyTo, req.Mentions)
@@ -847,6 +848,10 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		ictx, icancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer icancel()
 		return d.sendImage(ictx, req.Chat, req.Path, req.Text, req.ReplyTo, parseSendOpts(req.Options))
+	case ipc.OpTranscribe:
+		tctx, tcancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer tcancel()
+		return d.transcribe(tctx, req.Chat, req.Msg)
 	case ipc.OpMedia:
 		// Vídeo grande demora; o prazo de 25s dos outros pedidos é curto.
 		mctx, mcancel := context.WithTimeout(context.Background(), 3*time.Minute)

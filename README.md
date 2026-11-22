@@ -70,6 +70,11 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 - **Eu** (`alt+y` ou clique no seu nome no topo): novo grupo, trocar seu nome e
   recado e a privacidade da conta (visto por último, online, foto, status,
   confirmação de leitura, quem te põe em grupos, chamadas de desconhecidos).
+- **Transcrição de áudio** (opcional, no seu computador): com o
+  [whisper.cpp](https://github.com/ggerganov/whisper.cpp) instalado e um
+  modelo `ggml-*.bin` em `~/.local/share/zapterm/whisper/`, o menu da
+  mensagem de áudio ganha "Transcrever" e o texto fica embaixo do áudio.
+  Nada sai da sua máquina (`[transcription]` no config).
 - **Canais:** `alt+y` → Explorar canais mostra os recomendados (filtra
   enquanto digita; colar um link `whatsapp.com/channel/…` + `enter` acha
   aquele canal) e segue; `alt+y` → Novo canal cria um seu. O diretório
@@ -113,6 +118,7 @@ Feito e testado no Linux (Wayland, Sway), no terminal **kitty**.
 | Colar print | `wl-paste` (wl-clipboard) |
 | Anexar arquivo | `xdg-desktop-portal` com um backend (gtk, gnome, kde…) |
 | Notificações | `notify-send` e um servidor de notificação |
+| Transcrever áudio (opcional) | `whisper-cli` do whisper.cpp e um modelo ggml |
 | Vídeo e PDF | mpv/vlc/celluloid e zathura/sioyek/evince (usa o primeiro instalado) |
 
 ## Instalação

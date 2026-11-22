@@ -1572,3 +1572,34 @@ func TestExplorarCanais(t *testing.T) {
 		t.Fatalf("depois de seguir: canais %v, ativo %q", m.chans != nil, m.active)
 	}
 }
+
+func TestTranscrever(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.Serve(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 70})
+	m.Update(m.loadChats()())
+	const trilha = "120000000000000001@g.us"
+	runCmd(m, m.open(m.chatFor(trilha, "Trilha")))
+	m.msgSel = slices.IndexFunc(m.msgs, func(x ipc.Message) bool { return x.ID == "t4" })
+	runCmd(m, m.openMsgMenu())
+	i := slices.IndexFunc(m.popup.opts, func(o popOpt) bool { return o.label == "Transcrever" })
+	if i < 0 {
+		t.Fatal("faltou Transcrever no menu do áudio")
+	}
+	runCmd(m, m.keyPopup(fmt.Sprint(i+1)))
+	m.Update(m.loadMessages(trilha, 0)())
+	if !strings.Contains(ansi.Strip(m.View().Content), "levem lanterna") {
+		t.Error("a transcrição não aparece embaixo do áudio")
+	}
+}

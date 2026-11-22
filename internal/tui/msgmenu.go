@@ -48,6 +48,14 @@ func (m *model) openMsgMenu() tea.Cmd {
 	if msg.FromMe && msg.Kind == "text" && time.Since(time.UnixMilli(msg.TS)) < 15*time.Minute {
 		add("Editar", m.startEdit)
 	}
+	if msg.Kind == "audio" && msg.Transcript == "" && (msg.HasRaw || msg.Media != nil) {
+		add("Transcrever", func() tea.Cmd {
+			m.setFlash("transcrevendo no seu computador… (áudio longo demora)")
+			var text string
+			return m.call(ipc.Request{Op: ipc.OpTranscribe, Chat: msg.Chat, Msg: msg.ID}, &text,
+				func() tea.Msg { return flashMsg("transcrito") })
+		})
+	}
 	add("Encaminhar", m.startForward)
 	if msg.Expires > 0 {
 		label, on, done := "Salvar na conversa", "1", "mensagem salva: não vai sumir"

@@ -207,6 +207,14 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 			}
 		}
 		return hits, nil
+	case ipc.OpTranscribe:
+		for i, x := range d.msgs[req.Chat] {
+			if x.ID == req.Msg && x.Kind == "audio" {
+				d.msgs[req.Chat][i].Transcript = "Pessoal, saio às seis da portaria, levem lanterna."
+				return d.msgs[req.Chat][i].Transcript, nil
+			}
+		}
+		return nil, errors.New("só dá para transcrever áudio")
 	case ipc.OpChannelDir:
 		return []ipc.Channel{
 			{JID: "1@newsletter", Name: "Notícias do Bairro", Subscribers: 1200, Verified: true},

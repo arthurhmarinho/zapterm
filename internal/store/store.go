@@ -121,6 +121,8 @@ var migrations = []string{
 	// avisos da comunidade).
 	`CREATE TABLE communities (jid TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '');
 	 CREATE TABLE community_groups (grp TEXT PRIMARY KEY, parent TEXT NOT NULL, is_default INTEGER NOT NULL DEFAULT 0);`,
+	// 18: transcrição local dos áudios (whisper.cpp).
+	`CREATE TABLE transcripts (chat TEXT NOT NULL, id TEXT NOT NULL, text TEXT NOT NULL, PRIMARY KEY (chat, id));`,
 }
 
 func migrate(db *sql.DB) error {
@@ -1247,4 +1249,37 @@ func (s *Store) GroupCommunity(group string) (jid, name string, isDefault bool) 
 	s.db.QueryRow(`SELECT g.parent, COALESCE(c.name, ''), g.is_default FROM community_groups g
 		LEFT JOIN communities c ON c.jid = g.parent WHERE g.grp = ?`, group).Scan(&jid, &name, &isDefault)
 	return
+}
+
+// ---------- transcrições ----------
+
+func (s *Store) SetTranscript(chat, id, text string) error {
+	_, err := s.db.Exec(`INSERT INTO transcripts (chat, id, text) VALUES (?, ?, ?)
+		ON CONFLICT (chat, id) DO UPDATE SET text = excluded.text`, chat, id, text)
+	return err
+}
+
+// Transcripts devolve as transcrições das mensagens ids do chat.
+func (s *Store) Transcripts(chat string, ids []string) map[string]string {
+	out := map[string]string{}
+	if len(ids) == 0 {
+		return out
+	}
+	args := []any{chat}
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	rows, err := s.db.Query(`SELECT id, text FROM transcripts WHERE chat = ? AND id IN (?`+
+		strings.Repeat(", ?", len(ids)-1)+`)`, args...)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, text string
+		if rows.Scan(&id, &text) == nil {
+			out[id] = text
+		}
+	}
+	return out
 }
