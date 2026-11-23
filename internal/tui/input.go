@@ -56,6 +56,13 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.status == "pairing" {
 		return m.keyLogin(s) // sem sessão: só a tela de login
 	}
+	if m.meOpen && !m.searching {
+		if s == "tab" || s == "shift+tab" || s == "ctrl+p" {
+			m.closeMe() // sair para a lista ou a busca fecha a tela
+		} else {
+			return m.keyMe(s)
+		}
+	}
 	if m.chans != nil && !m.searching {
 		return m.keyChannelDir(k)
 	}
@@ -558,6 +565,9 @@ func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
 	}
 	if m.searching {
 		m.stopSearch(false)
+	}
+	if m.meOpen {
+		return m.clickMe(y)
 	}
 	if m.galleryShown() && m.gallery.all() {
 		if y <= 1 {

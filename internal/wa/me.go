@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/types"
 
@@ -43,14 +45,39 @@ func (d *Daemon) meScreen(ctx context.Context) (*ipc.Me, error) {
 	}
 	own := id.ToNonAD()
 	me := &ipc.Me{JID: own.String(), Phone: "+" + own.User, Name: d.cli.Store.PushName}
-	if info, err := d.cli.GetUserInfo(ctx, []types.JID{own}); err == nil {
-		me.About = info[own].Status
+	// Recado, foto e privacidade são três pedidos independentes ao servidor.
+	var wg sync.WaitGroup
+	var privErr error
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		if info, err := d.cli.GetUserInfo(ctx, []types.JID{own}); err == nil {
+			me.About = info[own].Status
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		photo, err := d.fullPhoto(ctx, own)
+		switch {
+		case err == nil:
+			me.Photo = photo
+		case errors.Is(err, whatsmeow.ErrProfilePictureNotSet), errors.Is(err, whatsmeow.ErrProfilePictureUnauthorized):
+			// sem foto: a tela desenha as iniciais
+		default:
+			d.log.Warn("sua foto de perfil", "err", err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		var p *types.PrivacySettings
+		if p, privErr = d.cli.TryFetchPrivacySettings(ctx, true); privErr == nil {
+			me.Privacy = privacyMap(*p)
+		}
+	}()
+	wg.Wait()
+	if privErr != nil {
+		return nil, fmt.Errorf("privacidade: %w", privErr)
 	}
-	p, err := d.cli.TryFetchPrivacySettings(ctx, true)
-	if err != nil {
-		return nil, fmt.Errorf("privacidade: %w", err)
-	}
-	me.Privacy = privacyMap(*p)
 	return me, nil
 }
 

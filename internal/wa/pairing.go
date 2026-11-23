@@ -16,8 +16,12 @@ import (
 // no estado "pairing": o socket funciona (as TUIs leem o banco), o QR atual
 // e o código de 8 letras vão em Status.Pair e a TUI desenha a tela de login.
 
-// pairRetry: espera entre uma rodada de QRs e a seguinte.
-const pairRetry = 2 * time.Second
+// pairRetry: espera entre uma rodada de QRs e a seguinte; pairPoll: de quanto
+// em quanto tempo olha se há alguma TUI para mostrar o QR.
+const (
+	pairRetry = 2 * time.Second
+	pairPoll  = 500 * time.Millisecond
+)
 
 // paired diz se há sessão (o aparelho tem JID). Sem ela os repositórios do
 // whatsmeow (contatos, LIDs, configurações de chat) nem existem: nada que
@@ -63,6 +67,16 @@ func (d *Daemon) pairInfo() ipc.PairInfo {
 // para no sucesso ou quando ctx acaba.
 func (d *Daemon) pairLoop(ctx context.Context) {
 	for ctx.Err() == nil {
+		// Sem TUI aberta ninguém vê o QR: não fica conectando à toa (o daemon
+		// do Sway sobe sem sessão e pode ficar horas assim).
+		if d.srv.Clients() == 0 {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(pairPoll):
+			}
+			continue
+		}
 		ok, err := d.pairRound(ctx)
 		if ok {
 			return

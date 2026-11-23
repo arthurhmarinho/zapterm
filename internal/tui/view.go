@@ -147,7 +147,9 @@ func (m *model) View() tea.View {
 	left := m.viewList(g)
 	divider := paint(strings.TrimSuffix(strings.Repeat(fg(cDivider).Render("│")+"\n", g.footerY), "\n"), cBgList, 1)
 	var right string
-	if m.chans != nil {
+	if m.meOpen {
+		right = m.viewMe(g)
+	} else if m.chans != nil {
 		right = m.viewChannelDir(g)
 	} else if m.stories != nil {
 		right = m.viewStatus(g)
@@ -188,7 +190,7 @@ func (m *model) View() tea.View {
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
 			lipgloss.NewLayer(pop).X(g.listW+6).Y(m.popupY(g, lipgloss.Height(pop))).Z(1)).Render()
 	}
-	if m.form != nil && (m.active == "" || m.stories != nil || m.chans != nil || m.galleryShown()) {
+	if m.form != nil && (m.active == "" || m.meOpen || m.stories != nil || m.chans != nil || m.galleryShown()) {
 		pop := m.viewMeForm(g.chatW - 4)
 		screen = lipgloss.NewCompositor(lipgloss.NewLayer(screen),
 			lipgloss.NewLayer(pop).X(g.listW+3).Y(max(1, g.footerY-lipgloss.Height(pop)-1)).Z(1)).Render()
@@ -208,6 +210,8 @@ func (m *model) View() tea.View {
 			c.Position.Y += g.searchY + 1
 			v.Cursor = c
 		}
+	case m.meOpen && m.form == nil:
+		// tela Eu: sem cursor
 	case m.active != "":
 		if c := m.input.Cursor(); c != nil {
 			c.Position.X += g.chatX + 4 // borda, espaço e prompt
@@ -757,7 +761,7 @@ func (m *model) viewHelp() string {
 		}},
 		{"Chat", [][2]string{
 			{keyFor("profile"), "perfil do contato ou grupo: foto, recado, participantes, mídia (ou clique no cabeçalho)"},
-			{keyFor("me"), "Eu: novo grupo, seu nome, recado e privacidade (ou clique no seu nome no topo)"},
+			{keyFor("me"), "Eu: sua foto, nome, recado, privacidade, novo grupo/canal e desconectar (ou clique na sua foto no topo)"},
 			{"alt+e no perfil", "administrar o grupo: nome, descrição, foto, adicionar, permissões, pedidos"},
 			{keyFor("chat_menu"), "menu do chat: fixar, arquivar, silenciar, marcar como lida (ou botão direito na lista)"},
 		}},

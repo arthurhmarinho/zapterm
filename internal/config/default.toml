@@ -74,7 +74,7 @@
 # help = "f1"           # ajuda
 # archived = "alt+a"    # arquivadas
 # status = "alt+r"      # status: ver, responder e publicar
-# me = "alt+y"          # Eu: nome, recado e privacidade da conta
+# me = "alt+y"          # Eu: foto, nome, recado, privacidade, novo grupo/canal e desconectar
 
 [transcription]
 # Transcrição de áudio no próprio computador, com o whisper.cpp (opcional):

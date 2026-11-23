@@ -143,6 +143,11 @@ type model struct {
 	menu          *chatMenu         // menu do chat (alt+m)
 	keyRemap      map[string]string // teclas do config → teclas padrão
 	profileOpen   bool
+	meOpen        bool     // tela "Eu" no painel da direita
+	meData        *ipc.Me  // o que ela mostra
+	meSel         int      // item escolhido; -1 = a foto
+	meItemsY      int      // linha do primeiro item (clique)
+	mePhotoY      [2]int   // linhas da foto (clique)
 	gallery       *gallery // "Mídia, links e docs" aberta sobre o perfil
 	profileMediaY int      // linha da seção de mídia no perfil (clique abre a galeria)
 	memberSel     int      // participante escolhido no perfil do grupo (-1 = nenhum)
@@ -389,9 +394,11 @@ func reconnect() tea.Cmd {
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.update(msg)
 	m.prepareAvatars()
-	if (m.profileOpen || m.galleryShown()) && m.w > 0 {
+	if (m.profileOpen || m.galleryShown() || m.meOpen) && m.w > 0 {
 		// Dispara as transmissões das fotos neste Update.
-		if m.gallery != nil {
+		if m.meOpen {
+			m.viewMe(m.geom())
+		} else if m.gallery != nil {
 			m.viewGallery(m.geom())
 		} else {
 			m.viewProfile(m.geom())
@@ -588,7 +595,14 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.open(c)
 
 	case meMsg:
-		m.onMe(msg.me)
+		m.onMe(msg)
+		return m, nil
+	case meDoneMsg:
+		m.setFlash(string(msg))
+		return m, m.refreshMe()
+	case loggedOutMsg:
+		m.closeMe()
+		m.setFlash("desconectado; o login já abre")
 		return m, nil
 	case flashMsg:
 		m.setFlash(string(msg))
@@ -869,6 +883,7 @@ func (m *model) open(c ipc.Chat) tea.Cmd {
 		m.stopSearch(true)
 	}
 	m.stories, m.chans = nil, nil // abrir um chat fecha status e canais
+	m.closeMe()
 	if c.JID == m.active {
 		if m.gallery != nil && m.gallery.all() {
 			m.gallery = nil // abrir o chat de novo fecha a central de mídia

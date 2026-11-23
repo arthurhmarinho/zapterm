@@ -69,12 +69,18 @@ func (d *Daemon) scheduleUnreadPush() {
 }
 
 func (d *Daemon) pushUnread(force bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	d.pushUnreadValue(d.unreadSummary(ctx), force)
+}
+
+func (d *Daemon) pushUnreadValue(u ipc.Unread, force bool) {
 	if _, err := exec.LookPath("noctalia"); err != nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	b, _ := json.Marshal(d.unreadSummary(ctx))
+	b, _ := json.Marshal(u)
 	unreadMu.Lock()
 	same := string(b) == unreadLast
 	unreadLast = string(b)

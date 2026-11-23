@@ -69,6 +69,7 @@ const (
 	OpLists       = "lists"        // listas do celular ([]List)
 	OpMe          = "me"           // seu nome, número, recado e privacidade (Me)
 	OpSetMe       = "set_me"       // Text "name", "about" ou "privacy:<tipo>"; Options[0] o valor novo
+	OpLogout      = "logout"       // desconecta este computador do WhatsApp (some de Aparelhos conectados) e encerra o daemon; as mensagens ficam
 	OpPairPhone   = "pair_phone"   // sem sessão: pede o código de 8 letras para o número Text (só dígitos); devolve o código
 )
 
@@ -409,6 +410,7 @@ type Me struct {
 	Phone   string            `json:"phone"`
 	Name    string            `json:"name"`
 	About   string            `json:"about"`
+	Photo   *Media            `json:"photo,omitempty"` // sua foto de perfil; nil = sem foto
 	Privacy map[string]string `json:"privacy"`
 }
 

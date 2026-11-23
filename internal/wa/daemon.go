@@ -45,7 +45,8 @@ type Daemon struct {
 
 	mu       sync.Mutex
 	status   ipc.Status
-	pairNote string // aviso fixo da tela de login (ex.: desconectado pelo celular)
+	pairNote string             // aviso fixo da tela de login (ex.: desconectado pelo celular)
+	stop     context.CancelFunc // encerra o Run (desconectar)
 
 	groupNameFetch sync.Map // jid -> struct{}: evita buscar o mesmo grupo duas vezes
 	notif          *notifier
@@ -57,6 +58,8 @@ type Daemon struct {
 // Run sobe o daemon e só volta quando ctx for cancelado ou algo fatal ocorrer.
 func Run(ctx context.Context, opt Options) error {
 	log := opt.Log
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
 
 	sessPath, err := paths.SessionDB()
 	if err != nil {
@@ -74,6 +77,9 @@ func Run(ctx context.Context, opt Options) error {
 	// Sem sessão e sem terminal para o QR: sobe assim mesmo, em modo de
 	// pareamento. As TUIs leem o banco e fazem o login pela própria tela.
 	pairingMode := device.ID == nil && opt.QROut == nil
+	// O aviso de "desconectado pelo celular" vale só para a próxima tela de
+	// login: lido (e apagado) aqui, vai para ela ou se perde.
+	staleNote := takeLoggedOutNote()
 
 	msgPath, err := paths.MessagesDB()
 	if err != nil {
@@ -95,6 +101,7 @@ func Run(ctx context.Context, opt Options) error {
 		log.Warn("config", "err", cfgErr) // vale o que deu para ler; o resto, padrão
 	}
 	d.cfg = cfg
+	d.stop = stop
 	d.cli = whatsmeow.NewClient(device, waLogger{log.With("mod", "whatsmeow")})
 	d.cli.AddEventHandler(d.onEvent)
 	if device.ID != nil {
@@ -132,7 +139,9 @@ func Run(ctx context.Context, opt Options) error {
 
 	switch {
 	case pairingMode:
+		d.pairNote = staleNote
 		d.setPair("", "", d.pairNote)
+		go d.clearUnreadWidget() // a barra não mostra não lidas de uma sessão que saiu
 		go d.pairLoop(ctx)
 	case device.ID == nil:
 		if err := d.pair(ctx, opt.QROut, opt.Phone); err != nil {
@@ -232,8 +241,7 @@ func (d *Daemon) onEvent(evt any) {
 		d.setStatus("offline")
 		d.log.Warn("outra instância conectou com a mesma sessão")
 	case *events.LoggedOut:
-		d.setStatus("logged_out")
-		d.log.Error("sessão encerrada pelo celular; rode `zapterm login` de novo", "reason", e.Reason)
+		go d.onLoggedOut(e) // espera o whatsmeow apagar a sessão e encerra o daemon
 	case *events.Message:
 		d.onMessage(ctx, e, true)
 	case *events.HistorySync:
@@ -682,9 +690,16 @@ func (d *Daemon) ensureName(jid types.JID) {
 
 // ---------- pedidos da TUI ----------
 
-func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
+func (d *Daemon) handle(conn uint64, req ipc.Request) (res any, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
+	defer func() {
+		// Um pedido não derruba o daemon (ex.: a sessão saiu no meio dele).
+		if r := recover(); r != nil {
+			d.log.Error("pedido falhou", "op", req.Op, "panic", r)
+			res, err = nil, fmt.Errorf("erro interno em %s", req.Op)
+		}
+	}()
 	if !d.paired() {
 		data, _, err := d.handleUnpaired(ctx, req)
 		return data, err
@@ -793,6 +808,8 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 		return d.subGroups(ctx, req.Chat)
 	case ipc.OpLists:
 		return d.lists()
+	case ipc.OpLogout:
+		return nil, d.logout(ctx)
 	case ipc.OpMe:
 		return d.meScreen(ctx)
 	case ipc.OpSetMe:

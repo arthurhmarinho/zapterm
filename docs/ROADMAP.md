@@ -187,6 +187,10 @@ filtro.
   pareamento (QR e código pelo número, `OpPairPhone`) e a TUI desenha a
   tela de login, sem precisar do `zapterm login`. Parear outro número
   guarda o banco antigo à parte (`zapterm-<número>.db`). (M)
+- [x] **Tela "Eu" com a sua foto e "Desconectar"** (`cli.Logout`): a tela
+  ocupa o painel da direita; desconectar pede confirmação, deixa as
+  mensagens no disco e leva ao login. Desconectado pelo celular
+  (`events.LoggedOut`) também cai no login, com aviso. (M)
 
 ## Fora do escopo
 
@@ -196,8 +200,8 @@ filtro.
   conectado.
 - **Denunciar**: não existe no whatsmeow.
 - **Nome de usuário (@username)**: sem API ainda.
-- **Remover aparelhos conectados, configurações estritas da conta**: só
-  no celular.
+- **Remover os outros aparelhos conectados, configurações estritas da
+  conta**: só no celular (este computador sai pela tela Eu).
 - **Câmera, editor de foto/vídeo, painel de emoji em grade, menu de
   formatação**: pedem interface gráfica (o `:emoji` e a sintaxe `*…*`
   cobrem).

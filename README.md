@@ -67,9 +67,14 @@ teclado, com o visual do WhatsApp Web e as cores do seu tema.
 - **Mídia, links e docs** (`enter` no perfil): abas Fotos, Vídeos, Docs,
   Links e Áudios, separadas por mês; `ctrl+g` mostra o item na conversa.
   Mídia antiga sem prévia é pedida de novo ao seu celular.
-- **Eu** (`alt+y` ou clique no seu nome no topo): novo grupo, trocar seu nome e
-  recado e a privacidade da conta (visto por último, online, foto, status,
-  confirmação de leitura, quem te põe em grupos, chamadas de desconhecidos).
+- **Eu** (`alt+y` ou clique na sua foto no topo): uma tela com a sua foto,
+  nome, número e recado e as opções: trocar nome e recado, privacidade da
+  conta (visto por último, online, foto, status, confirmação de leitura, quem
+  te põe em grupos, chamadas de desconhecidos), novo grupo, novo canal,
+  explorar canais e **Desconectar**. Desconectar tira este computador de
+  *Aparelhos conectados* no celular e volta para a tela de login; as
+  mensagens e mídias guardadas aqui ficam. Se for o celular que desconecta o
+  zapterm, a tela de login avisa.
 - **Transcrição de áudio** (opcional, no seu computador): com o
   [whisper.cpp](https://github.com/ggerganov/whisper.cpp) instalado e um
   modelo `ggml-*.bin` em `~/.local/share/zapterm/whisper/`, o menu da
@@ -211,7 +216,7 @@ O mouse também funciona (clique, botão direito para o menu da mensagem ou do c
 | `alt+m` | menu do chat: fixar, arquivar, silenciar, marcar como (não) lida, mensagens temporárias, bloquear, sair do grupo, limpar (guarda as favoritas) e apagar conversa (ou botão direito) |
 | `alt+i` | perfil do contato ou grupo (ou clique no cabeçalho) |
 | `alt+r` | status: ver, responder (`r`) e publicar um de texto (`n`) |
-| `alt+y` | Eu: seu nome, recado e privacidade da conta (ou clique no seu nome no topo) |
+| `alt+y` | Eu: sua foto, nome, recado, privacidade, novo grupo/canal e desconectar (ou clique na sua foto no topo) |
 | `@` | marcar alguém num grupo |
 | `ctrl+v` | colar print para enviar |
 | `alt+f` ou o clipe | menu de anexar: foto ou vídeo, arquivo, figurinha, enquete, evento, contato |

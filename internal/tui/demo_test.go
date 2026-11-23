@@ -1202,63 +1202,223 @@ func TestCentralDeMidia(t *testing.T) {
 	}
 }
 
-func TestTelaEu(t *testing.T) {
+// abreEu monta a TUI contra o demo e abre a tela Eu com alt+y.
+func abreEu(t *testing.T) (*model, *ipc.Server) {
+	t.Helper()
 	sock := filepath.Join(t.TempDir(), "demo.sock")
 	srv, err := demo.Serve(sock)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer srv.Close()
+	t.Cleanup(func() { srv.Close() })
 	cli, err := ipc.Dial(sock)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli.Close()
+	t.Cleanup(func() { cli.Close() })
 	m := newModel(cli)
 	m.imgs.enabled = false
 	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
 	m.Update(m.loadChats()())
+	m.Update(m.loadStatus()())
 	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}))
-	if m.popup == nil || !strings.HasPrefix(m.popup.title, "Eu") {
-		t.Fatal("alt+y não abriu a tela Eu")
+	return m, srv
+}
+
+func eu(m *model) string { return ansi.Strip(m.View().Content) }
+
+func TestTelaEu(t *testing.T) {
+	m, _ := abreEu(t)
+	if !m.meOpen || m.popup != nil {
+		t.Fatal("alt+y não abriu a tela Eu no painel")
 	}
-	screen := ansi.Strip(m.View().Content)
-	for _, want := range []string{"Nome: Você (demonstração)", "Recado: no terminal", "Visto por último: Meus contatos",
-		"Chamadas de desconhecidos: Tocam"} {
+	screen := eu(m)
+	if os.Getenv("ZAPTERM_SHOW") != "" {
+		t.Log("\n" + screen)
+	}
+	for _, want := range []string{"Eu   esc fecha", "Você (demonstração)", "+5511900000000", "no terminal",
+		"Nome", "Recado", "Privacidade", "Novo grupo", "Novo canal", "Explorar canais", "Desconectar"} {
 		if !strings.Contains(screen, want) {
-			t.Errorf("faltou %q", want)
+			t.Errorf("faltou %q na tela Eu", want)
 		}
 	}
-	pick := func(prefix string) {
-		i := slices.IndexFunc(m.popup.opts, func(o popOpt) bool { return strings.HasPrefix(o.label, prefix) })
-		if i < 0 {
-			t.Fatalf("faltou %q no menu", prefix)
-		}
-		runCmd(m, m.keyPopup(fmt.Sprint(i+1)))
+	if m.meData == nil || m.meData.Photo == nil {
+		t.Fatal("o demo devia mandar a foto")
 	}
-	// Visto por último → Ninguém.
-	pick("Visto por último")
+	if i := strings.Index(screen, "Desconectar"); i < strings.Index(screen, "Explorar canais") {
+		t.Error("Desconectar devia ser o último item")
+	}
+
+	// ↑/↓ andam; o primeiro item é o Nome e acima dele fica a foto.
+	key := func(c rune) { runCmd(m, m.onKey(tea.KeyPressMsg{Code: c})) }
+	if m.meSel != 0 {
+		t.Fatalf("começa em %d", m.meSel)
+	}
+	key(tea.KeyUp)
+	if m.meSel != -1 || !strings.Contains(eu(m), "enter abre a foto") {
+		t.Fatalf("↑ não foi para a foto: %d", m.meSel)
+	}
+	key(tea.KeyEnter)
+	if m.viewing == nil || m.viewing.media.Path == "" {
+		t.Fatal("enter na foto não abriu em tamanho cheio")
+	}
+	key(tea.KeyEscape)
+	if m.viewing != nil || !m.meOpen {
+		t.Fatal("esc devia fechar só a foto")
+	}
+	key(tea.KeyUp)
+	if m.meSel != -1 {
+		t.Fatal("↑ passou da foto")
+	}
+	for i := 0; i < 10; i++ {
+		key(tea.KeyDown)
+	}
+	if m.meSel != 6 {
+		t.Fatalf("↓ parou em %d, esperava o último (6)", m.meSel)
+	}
+
+	// Privacidade abre o menu com as 7 configurações; Visto por último → Ninguém.
+	m.meSel = 2
+	key(tea.KeyEnter)
+	if m.popup == nil || len(m.popup.opts) != len(privacyItems) || len(m.popup.opts) != 7 {
+		t.Fatalf("menu de privacidade: %+v", m.popup)
+	}
+	if !strings.Contains(eu(m), "Visto por último: Meus contatos") || !strings.Contains(eu(m), "Chamadas de desconhecidos: Tocam") {
+		t.Error("o menu não mostra os valores atuais")
+	}
+	runCmd(m, m.keyPopup("1"))
 	if m.popup == nil || m.popup.title != "Visto por último" {
 		t.Fatalf("submenu: %+v", m.popup)
 	}
 	runCmd(m, m.keyPopup("3"))
-	// Nome: abre o formulário (sem chat aberto, flutuando) e salva.
-	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}))
-	if !strings.Contains(ansi.Strip(m.View().Content), "Visto por último: Ninguém") {
+	m.meSel = 2
+	key(tea.KeyEnter)
+	if !strings.Contains(eu(m), "Visto por último: Ninguém") {
 		t.Error("a privacidade não mudou")
 	}
-	pick("Nome:")
+	key(tea.KeyEscape)
+
+	// Nome: formulário flutuante sobre a tela.
+	m.meSel = 0
+	key(tea.KeyEnter)
 	if m.form == nil || m.form.fields[0].in.Value() != "Você (demonstração)" {
 		t.Fatal("o formulário do nome não abriu com o nome atual")
 	}
-	if !strings.Contains(ansi.Strip(m.View().Content), "Seu nome") {
-		t.Error("o formulário não aparece sem chat aberto")
+	if !strings.Contains(eu(m), "Seu nome") {
+		t.Error("o formulário não aparece sobre a tela Eu")
 	}
 	m.form.fields[0].in.SetValue("Arthur")
 	runCmd(m, m.keyForm(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	if !m.meOpen || !strings.Contains(eu(m), "Arthur") || strings.Contains(eu(m), "Você (demonstração)\n") {
+		t.Errorf("o nome não mudou na tela:\n%s", eu(m))
+	}
+	if !strings.Contains(eu(m), fmt.Sprintf("%-17s%s", "Nome", "Arthur")) {
+		t.Error("a linha do Nome não mudou")
+	}
+
+	// Recado também.
+	m.meSel = 1
+	key(tea.KeyEnter)
+	if m.form == nil || m.form.fields[0].in.Value() != "no terminal" {
+		t.Fatal("o formulário do recado não abriu com o recado atual")
+	}
+	key(tea.KeyEscape)
+
+	// esc fecha a tela.
+	key(tea.KeyEscape)
+	if m.meOpen {
+		t.Fatal("esc não fechou a tela Eu")
+	}
+}
+
+func TestTelaEuPeloCliqueNoTopo(t *testing.T) {
+	m, _ := abreEu(t)
+	m.closeMe()
+	g := m.geom()
+	runCmd(m, m.onClick(tea.MouseClickMsg{X: 5, Y: g.titleY, Button: tea.MouseLeft}))
+	if !m.meOpen {
+		t.Fatal("clique no topo da lista não abriu a tela Eu")
+	}
+	_ = eu(m) // desenha uma vez para saber onde estão os itens
+	// Clique em "Novo canal" abre o formulário.
+	runCmd(m, m.onClick(tea.MouseClickMsg{X: g.chatX + 8, Y: m.meItemsY + 4, Button: tea.MouseLeft}))
+	if m.form == nil || m.form.title != "Novo canal" {
+		t.Fatalf("clique em Novo canal: meSel %d form %v", m.meSel, m.form)
+	}
+	runCmd(m, m.keyForm(tea.KeyPressMsg{Code: tea.KeyEscape}))
+	// Clique na seta de voltar fecha.
+	runCmd(m, m.onClick(tea.MouseClickMsg{X: g.chatX + 3, Y: 0, Button: tea.MouseLeft}))
+	if m.meOpen {
+		t.Fatal("a seta de voltar não fechou")
+	}
+}
+
+func TestEuAbreExplorarCanaisENovoGrupo(t *testing.T) {
+	m, _ := abreEu(t)
+	m.meSel = 5 // Explorar canais
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	if m.meOpen || m.chans == nil {
+		t.Fatalf("Explorar canais: meOpen %v chans %v", m.meOpen, m.chans)
+	}
+	m.chans = nil
 	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}))
-	if !strings.Contains(ansi.Strip(m.View().Content), "Nome: Arthur") {
-		t.Error("o nome não mudou")
+	m.meSel = 3 // Novo grupo
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	if m.meOpen || m.newGroup == nil || !m.searching {
+		t.Fatal("Novo grupo não abriu a escolha das pessoas")
+	}
+}
+
+func TestDesconectarPelaTelaEu(t *testing.T) {
+	m, srv := abreEu(t)
+	key := func(c rune) { runCmd(m, m.onKey(tea.KeyPressMsg{Code: c})) }
+	m.meSel = 6
+	key(tea.KeyEnter)
+	if m.popup == nil || !strings.Contains(m.popup.title, "Desconectar este computador?") ||
+		!strings.Contains(m.popup.title, "As mensagens ficam guardadas aqui.") {
+		t.Fatalf("sem confirmação: %+v", m.popup)
+	}
+	if got := demo.LastSent(srv); got.Op == ipc.OpLogout {
+		t.Fatal("desconectou antes de confirmar")
+	}
+	if !strings.Contains(eu(m), "Aparelhos conectados no celular") {
+		t.Error("a pergunta não aparece")
+	}
+	// Enter no padrão (Cancelar) não desconecta.
+	key(tea.KeyEnter)
+	if got := demo.LastSent(srv); got.Op == ipc.OpLogout || !m.meOpen {
+		t.Fatalf("o padrão devia ser Cancelar: %+v", got)
+	}
+	// Confirmando, o daemon recebe OpLogout.
+	m.meSel = 6
+	key(tea.KeyEnter)
+	runCmd(m, m.keyPopup("1"))
+	if got := demo.LastSent(srv); got.Op != ipc.OpLogout {
+		t.Fatalf("o daemon não recebeu o logout: %+v", got)
+	}
+	if m.meOpen {
+		t.Error("a tela Eu continua aberta depois de desconectar")
+	}
+	// O daemon avisa; sem sessão a TUI cai na tela de login.
+	m.Update(evMsg{cli: m.cli, f: ipc.Frame{Event: ipc.EvStatus, Data: []byte(`{"state":"logged_out"}`)}})
+	m.Update(evMsg{cli: m.cli, f: ipc.Frame{Event: ipc.EvStatus, Data: []byte(`{"state":"pairing","pair":{"qr":"2@x"}}`)}})
+	if s := eu(m); !strings.Contains(s, "entrar no WhatsApp") {
+		t.Errorf("a tela de login não apareceu:\n%s", s)
+	}
+}
+
+func TestEuSemFoto(t *testing.T) {
+	m, _ := abreEu(t)
+	me := *m.meData
+	me.Photo = nil
+	m.onMe(meMsg{&me, false})
+	m.meSel = -1
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: tea.KeyUp}))
+	if m.meSel != 0 {
+		t.Fatalf("sem foto o ↑ não devia ir para a foto: %d", m.meSel)
+	}
+	if s := eu(m); !strings.Contains(s, "Você (demonstração)") || strings.Contains(s, "enter abre a foto") {
+		t.Errorf("tela sem foto:\n%s", s)
 	}
 }
 
@@ -1281,7 +1441,8 @@ func TestCriarEAdministrarGrupo(t *testing.T) {
 
 	// Eu → Novo grupo: marca Marina e Diego, alt+enter, nome, enter.
 	runCmd(m, m.onKey(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}))
-	runCmd(m, m.keyPopup("1"))
+	m.meSel = 3
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: tea.KeyEnter}))
 	if m.newGroup == nil || !m.searching {
 		t.Fatal("Novo grupo não abriu a escolha das pessoas")
 	}
@@ -1547,9 +1708,10 @@ func TestExplorarCanais(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
 	m.Update(m.loadChats()())
 	key := func(k tea.KeyPressMsg) { runCmd(m, m.onKey(k)) }
-	key(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt})
-	idx := slices.IndexFunc(m.popup.opts, func(o popOpt) bool { return o.label == "Explorar canais…" })
-	key(tea.KeyPressMsg{Code: rune('1' + idx), Text: string(rune('1' + idx))})
+	key(tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}) // Eu → Explorar canais
+	idx := slices.IndexFunc(m.meItems(), func(it meItem) bool { return it.label == "Explorar canais" })
+	m.meSel = idx
+	key(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.chans == nil || len(m.chans.shown) != 2 {
 		t.Fatalf("diretório: %+v", m.chans)
 	}

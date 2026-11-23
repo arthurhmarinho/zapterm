@@ -4,9 +4,15 @@
 package demo
 
 import (
+	"bytes"
 	"errors"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -308,10 +314,22 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	case ipc.OpMe:
 		if d.me == nil {
 			d.me = &ipc.Me{JID: "5511900000000@s.whatsapp.net", Phone: "+5511900000000", Name: "Você (demonstração)",
-				About: "no terminal", Privacy: map[string]string{"last": "contacts", "online": "all", "profile": "all",
+				About: "no terminal", Photo: demoPhoto(), Privacy: map[string]string{"last": "contacts", "online": "all", "profile": "all",
 					"status": "contacts", "readreceipts": "all", "groupadd": "contacts", "calladd": "all"}}
 		}
 		return d.me, nil
+	case ipc.OpLogout:
+		// Só simula: anota o pedido e mostra o que o daemon de verdade
+		// faria (sai, e o próximo sobe sem sessão, na tela de login).
+		d.lastSent = req
+		d.pairing, d.pair = true, ipc.PairInfo{QR: fakeQR}
+		go func() {
+			d.srv.Broadcast(ipc.EvStatus, ipc.Status{State: "logged_out", Me: me, Name: "Você (demonstração)"})
+			time.Sleep(700 * time.Millisecond)
+			p := ipc.PairInfo{QR: fakeQR}
+			d.srv.Broadcast(ipc.EvStatus, ipc.Status{State: "pairing", Pair: &p})
+		}()
+		return nil, nil
 	case ipc.OpSetMe:
 		if d.me != nil && len(req.Options) == 1 {
 			switch k := req.Text; {
@@ -423,6 +441,30 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 		return ipc.StickerPage{Stickers: []ipc.Sticker{}, Next: -1}, nil
 	}
 	return nil, errors.New("indisponível no modo demonstração")
+}
+
+// demoPhoto desenha uma foto de perfil de mentira (um degradê com um círculo)
+// num arquivo temporário; nenhuma foto de verdade é usada.
+func demoPhoto() *ipc.Media {
+	path := filepath.Join(os.TempDir(), "zapterm-demo-photo.png")
+	const n = 256
+	if _, err := os.Stat(path); err != nil {
+		img := image.NewRGBA(image.Rect(0, 0, n, n))
+		for y := 0; y < n; y++ {
+			for x := 0; x < n; x++ {
+				c := color.RGBA{uint8(40 + y/2), uint8(120 + x/3), uint8(200 - y/3), 255}
+				if dx, dy := x-n/2, y-n/2; dx*dx+dy*dy < 70*70 {
+					c = color.RGBA{250, 250, 245, 255}
+				}
+				img.Set(x, y, c)
+			}
+		}
+		var buf bytes.Buffer
+		if png.Encode(&buf, img) != nil || os.WriteFile(path, buf.Bytes(), 0o600) != nil {
+			return nil
+		}
+	}
+	return &ipc.Media{Path: path, Preview: path, Width: n, Height: n, Mime: "image/png"}
 }
 
 func (d *server) seed(now time.Time) {

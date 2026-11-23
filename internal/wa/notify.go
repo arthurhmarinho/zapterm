@@ -29,6 +29,13 @@ func newNotifier() *notifier {
 	return &notifier{ids: map[string]uint32{}, pending: map[string]int{}, viewing: map[uint64]string{}}
 }
 
+// reset esquece o que esperava para notificar (depois de desconectar).
+func (n *notifier) reset() {
+	n.mu.Lock()
+	n.pending = map[string]int{}
+	n.mu.Unlock()
+}
+
 // setViewing registra o chat que uma TUI está mostrando com o terminal em
 // foco ("" = nenhum). Olhar o chat zera a contagem dele.
 func (n *notifier) setViewing(conn uint64, chat string) {

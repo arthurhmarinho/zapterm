@@ -26,10 +26,15 @@ func (m *model) onStatus(st ipc.Status) tea.Cmd {
 	} else if st.State == "pairing" {
 		m.me, m.myName = "", ""
 	}
+	if st.State == "logged_out" {
+		m.closeMe()
+	}
 	switch {
 	case st.State == "pairing" && was != "pairing":
 		// Entrou na tela de login: nada aberto por cima dela.
 		m.popup, m.menu, m.form, m.viewing, m.help = nil, nil, nil, nil, false
+		m.stories, m.chans = nil, nil
+		m.closeMe()
 		m.loginQR = false
 		m.input.Blur()
 	case was == "pairing" && st.State != "pairing":
