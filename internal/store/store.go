@@ -8,8 +8,11 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -150,7 +153,10 @@ func migrate(db *sql.DB) error {
 	return nil
 }
 
-type Store struct{ db *sql.DB }
+type Store struct {
+	db   *sql.DB
+	path string
+}
 
 func Open(path string) (*Store, error) {
 	// WAL deixa a TUI futura ler enquanto o daemon escreve; busy_timeout evita
@@ -167,10 +173,70 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
-	return &Store{db: db}, nil
+	return &Store{db: db, path: path}, nil
 }
 
 func (s *Store) Close() error { return s.db.Close() }
+
+// Owner é o número (só a parte do usuário do JID) da conta dona das
+// conversas deste banco; "" se ainda não foi registrado.
+func (s *Store) Owner() string {
+	var v string
+	_ = s.db.QueryRow(`SELECT value FROM meta WHERE key = 'owner'`).Scan(&v)
+	return v
+}
+
+func (s *Store) setOwner(user string) error {
+	_, err := s.db.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('owner', ?)`, user)
+	return err
+}
+
+// SwitchOwner registra user como dono do banco. Se já havia outro dono, as
+// conversas dele são guardadas à parte (zapterm-<número antigo>.db, ao lado)
+// e o banco recomeça vazio: duas contas nunca se misturam. Devolve o caminho
+// do arquivo guardado, ou "" se nada mudou.
+//
+// Só vale chamar enquanto ninguém mais usa o Store (o daemon chama ao
+// parear, quando as TUIs só leem a lista).
+func (s *Store) SwitchOwner(user string) (string, error) {
+	old := s.Owner()
+	if old == user {
+		return "", nil
+	}
+	if old == "" {
+		return "", s.setOwner(user)
+	}
+	if err := s.db.Close(); err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(s.path)
+	moved := filepath.Join(dir, "zapterm-"+old+".db")
+	if _, err := os.Stat(moved); err == nil {
+		moved = filepath.Join(dir, fmt.Sprintf("zapterm-%s-%d.db", old, time.Now().Unix()))
+	}
+	reopen := func(cause error) (string, error) {
+		// Não deu para mover: volta a abrir o banco antigo, sem perder nada.
+		if ns, err := Open(s.path); err == nil {
+			s.db = ns.db
+		}
+		return "", cause
+	}
+	if err := os.Rename(s.path, moved); err != nil {
+		return reopen(fmt.Errorf("guardando o banco da conta anterior: %w", err))
+	}
+	for _, ext := range []string{"-wal", "-shm"} {
+		if err := os.Rename(s.path+ext, moved+ext); err != nil && !os.IsNotExist(err) {
+			_ = os.Rename(moved, s.path)
+			return reopen(fmt.Errorf("guardando o banco da conta anterior: %w", err))
+		}
+	}
+	ns, err := Open(s.path)
+	if err != nil {
+		return "", fmt.Errorf("reabrindo o banco: %w", err)
+	}
+	s.db = ns.db
+	return moved, s.setOwner(user)
+}
 
 // SaveMessage grava a mensagem (ignora duplicata) e atualiza o chat.
 // incUnread conta como não lida; só vale para mensagem ao vivo de terceiros.

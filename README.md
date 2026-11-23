@@ -141,18 +141,26 @@ Para atualizar, rode o mesmo `go install` de novo.
 ## Primeiro uso
 
 ```sh
-zapterm login
+zapterm
 ```
 
-Escaneie o QR code no celular: **WhatsApp → Aparelhos conectados →
-Conectar um aparelho**. Sem câmera à mão, `zapterm login --telefone
-5584999999999` mostra um código de 8 letras para digitar em **Conectar com
-número de telefone**. Deixe o comando rodando até o log parar de mostrar
-`history sync` (alguns minutos): é quando o histórico chega. Depois:
+Sem sessão, a própria TUI mostra a tela de login: escaneie o QR code no
+celular (**WhatsApp → Aparelhos conectados → Conectar um aparelho**) ou
+aperte `tab` e digite o número para receber um código de 8 letras, que vai
+em **Conectar com número de telefone**. O QR se renova sozinho. Pareou, a
+lista aparece e o histórico chega nos próximos minutos.
+
+Se preferir parear fora da TUI, `zapterm login` mostra o QR no terminal
+(`zapterm login --telefone 5584999999999` mostra o código de 8 letras) e
+fica rodando: deixe até o log parar de mostrar `history sync`. Depois:
 
 ```sh
 zapterm
 ```
+
+Trocar de conta não mistura as conversas: ao parear um número diferente do
+anterior, o banco antigo vira `~/.local/share/zapterm/zapterm-<número>.db` e
+o zapterm começa vazio.
 
 Para o daemon subir junto com o Sway (e as notificações chegarem sem
 abrir a TUI), no `~/.config/sway/config`, com o caminho completo, porque o
@@ -165,7 +173,8 @@ exec ~/go/bin/zapterm daemon
 Para ver sem conta nenhuma, com conversas inventadas:
 
 ```sh
-zapterm demo
+zapterm demo          # a TUI inteira, com dados inventados
+zapterm demo --login  # começando pela tela de login (QR de mentira)
 ```
 
 ## Atalhos

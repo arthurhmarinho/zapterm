@@ -34,11 +34,27 @@ type server struct {
 	me       *ipc.Me            // tela "Eu"
 	group    *ipc.GroupSettings // permissões do grupo da trilha
 	seen     map[string]bool    // status vistos
+	pairing  bool               // simula o daemon sem sessão (tela de login)
+	pair     ipc.PairInfo
+}
+
+// fakeQR tem o tamanho de um QR de pareamento de verdade, mas não pareia nada.
+var fakeQR = "2@" + strings.Repeat("DEMOzapterm", 6) + ",aGVsbG8gZGVtbyB6YXB0ZXJtIGZha2UgcXIgY29kZQ==," +
+	"bm90IGEgcmVhbCBwYWlyaW5nIGtleSBhdCBhbGwhISE=,ZGVtby1vbmx5"
+
+// ServeLogin é Serve para a tela de login: o daemon de mentira começa sem
+// sessão ("pairing"), responde OpPairPhone com um código inventado e, uns
+// segundos depois de pedido o código, "pareia" e abre as conversas de
+// demonstração. Nada sai do computador.
+func ServeLogin(path string) (*ipc.Server, error) {
+	return serve(path, true)
 }
 
 // Serve abre o socket do modo demonstração e responde em segundo plano.
-func Serve(path string) (*ipc.Server, error) {
-	d := &server{}
+func Serve(path string) (*ipc.Server, error) { return serve(path, false) }
+
+func serve(path string, pairing bool) (*ipc.Server, error) {
+	d := &server{pairing: pairing, pair: ipc.PairInfo{QR: fakeQR}}
 	d.seed(time.Now())
 	srv, err := ipc.Listen(path, d.handle, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
@@ -55,7 +71,26 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	defer d.mu.Unlock()
 	switch req.Op {
 	case ipc.OpStatus:
+		if d.pairing {
+			p := d.pair
+			return ipc.Status{State: "pairing", Pair: &p}, nil
+		}
 		return ipc.Status{State: "online", Me: me, Name: "Você (demonstração)"}, nil
+	case ipc.OpPairPhone:
+		d.lastSent = req
+		if !d.pairing {
+			return nil, errors.New("este computador já está conectado")
+		}
+		d.pair.Code = "DEMO-1234"
+		p := d.pair
+		go d.srv.Broadcast(ipc.EvStatus, ipc.Status{State: "pairing", Pair: &p})
+		time.AfterFunc(6*time.Second, func() { // "digitou o código no celular"
+			d.mu.Lock()
+			d.pairing = false
+			d.mu.Unlock()
+			d.srv.Broadcast(ipc.EvStatus, ipc.Status{State: "online", Me: me, Name: "Você (demonstração)"})
+		})
+		return d.pair.Code, nil
 	case ipc.OpChats:
 		return d.chats, nil
 	case ipc.OpMessages:

@@ -64,20 +64,24 @@ func (m *model) openInviteMenu() tea.Cmd {
 
 type qrMsg struct{ link string }
 
-// qrBox desenha o QR em meio-bloco, preto no branco (fixo: QR invertido
+// qrBlocks desenha o QR em meio-bloco, preto no branco (fixo: QR invertido
 // não é lido por todo celular, e o tema do terminal pode ser escuro).
-func qrBox(link string) string {
+func qrBlocks(data string) string {
 	var buf bytes.Buffer
-	qrterminal.GenerateWithConfig(link, qrterminal.Config{
+	qrterminal.GenerateWithConfig(data, qrterminal.Config{
 		Level: qrterminal.L, Writer: &buf, HalfBlocks: true, QuietZone: 1,
 		BlackChar: qrterminal.BLACK_BLACK, WhiteChar: qrterminal.WHITE_WHITE,
 		BlackWhiteChar: qrterminal.BLACK_WHITE, WhiteBlackChar: qrterminal.WHITE_BLACK,
 	})
 	code := strings.TrimRight(buf.String(), "\n")
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("#000000")).Background(lipgloss.Color("#ffffff")).Render(code)
+}
+
+// qrBox: o QR do link de convite numa caixa.
+func qrBox(link string) string {
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cGreen).Padding(0, 1).
 		Render(sBold.Render("Link de convite") + "\n" + sText2.Render(link) + "\n\n" +
-			lipgloss.NewStyle().Foreground(lipgloss.Color("#000000")).Background(lipgloss.Color("#ffffff")).Render(code) +
-			"\n\n" + sText2.Render("qualquer tecla fecha"))
+			qrBlocks(link) + "\n\n" + sText2.Render("qualquer tecla fecha"))
 }
 
 // ---------- link recebido ----------

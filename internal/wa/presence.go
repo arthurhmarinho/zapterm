@@ -111,6 +111,9 @@ var availSent *bool
 // e "online" dos outros a quem está online; ficar online sempre (o daemon
 // vive conectado) mostraria você online 24 horas.
 func (d *Daemon) syncAvailability() {
+	if !d.paired() {
+		return
+	}
 	want := d.notif.anyViewing() && d.cfg.Privacy.ShowOnline
 	availMu.Lock()
 	defer availMu.Unlock()

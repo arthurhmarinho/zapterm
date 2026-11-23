@@ -53,6 +53,9 @@ func (m *model) onKey(k tea.KeyPressMsg) tea.Cmd {
 	if m.popup != nil {
 		return m.keyPopup(s)
 	}
+	if m.status == "pairing" {
+		return m.keyLogin(s) // sem sessão: só a tela de login
+	}
 	if m.chans != nil && !m.searching {
 		return m.keyChannelDir(k)
 	}
@@ -537,6 +540,9 @@ func fuzzyChats(q string, chats []ipc.Chat) []int {
 // ---------- mouse ----------
 
 func (m *model) onClick(c tea.MouseClickMsg) tea.Cmd {
+	if m.status == "pairing" {
+		return nil
+	}
 	if m.menu != nil {
 		m.menu = nil // clique fora fecha o menu
 		return nil

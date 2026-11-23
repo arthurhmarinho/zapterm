@@ -69,6 +69,7 @@ const (
 	OpLists       = "lists"        // listas do celular ([]List)
 	OpMe          = "me"           // seu nome, número, recado e privacidade (Me)
 	OpSetMe       = "set_me"       // Text "name", "about" ou "privacy:<tipo>"; Options[0] o valor novo
+	OpPairPhone   = "pair_phone"   // sem sessão: pede o código de 8 letras para o número Text (só dígitos); devolve o código
 )
 
 // Eventos empurrados pelo daemon sem pedido.
@@ -413,7 +414,17 @@ type Me struct {
 
 // Status descreve a conexão com o WhatsApp.
 type Status struct {
-	State string `json:"state"` // connecting, online, offline, logged_out
+	State string `json:"state"` // connecting, pairing, online, offline, logged_out
 	Me    string `json:"me,omitempty"`
 	Name  string `json:"name,omitempty"` // seu nome de perfil
+	// Pair: o que a tela de login mostra (só com State "pairing").
+	Pair *PairInfo `json:"pair,omitempty"`
+}
+
+// PairInfo é o estado do pareamento: o QR atual (muda a cada ~20 s), o
+// código de 8 letras, se foi pedido pelo número, e o último erro ou aviso.
+type PairInfo struct {
+	QR   string `json:"qr,omitempty"`
+	Code string `json:"code,omitempty"`
+	Err  string `json:"err,omitempty"`
 }

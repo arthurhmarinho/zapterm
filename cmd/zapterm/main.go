@@ -1,15 +1,16 @@
 // zapterm: cliente de WhatsApp para o terminal.
 //
-//	zapterm                  abre a TUI (sobe o daemon se preciso)
+//	zapterm                  abre a TUI (sobe o daemon se preciso; sem sessão, mostra o login)
 //	zapterm login            pareia por QR code e fica rodando como daemon
 //	zapterm login --telefone 5584999999999   pareia pelo código de 8 letras
-//	zapterm daemon           daemon em segundo plano (exige sessão)
+//	zapterm daemon           daemon em segundo plano (sem sessão, espera o login pela TUI)
 //	zapterm chats            lista os chats (depuração do IPC)
 //	zapterm msgs <jid> [n]   últimas n mensagens de um chat
 //	zapterm send <jid> <txt> envia texto
 //	zapterm tail             mostra os eventos ao vivo
 //	zapterm media <jid> <id> baixa a mídia de uma mensagem e mostra o caminho
 //	zapterm demo             abre a TUI com conversas fictícias (para prints)
+//	zapterm demo --login     o mesmo, mas começando na tela de login (QR de mentira)
 //	zapterm config           cria ~/.config/zapterm/config.toml comentado e mostra o caminho
 //	zapterm unread [--json]  não lidas (o widget da barra usa o --json)
 //	zapterm open             traz a TUI para frente, ou abre uma (clique no widget)
@@ -76,7 +77,7 @@ func run(args []string) error {
 	case "media":
 		return media(args)
 	case "demo":
-		return demoRun()
+		return demoRun(len(args) > 0 && (args[0] == "--login" || args[0] == "login"))
 	case "config":
 		return configCmd()
 	case "unread":
@@ -245,11 +246,15 @@ func media(args []string) error {
 
 // demoRun sobe o daemon de mentira num socket próprio e abre a TUI nele;
 // o daemon de verdade e as suas conversas não são tocados.
-func demoRun() error {
+func demoRun(login bool) error {
 	sock := filepath.Join(os.TempDir(), fmt.Sprintf("zapterm-demo-%d.sock", os.Getpid()))
 	os.Setenv("ZAPTERM_SOCKET", sock)
 	os.Setenv("ZAPTERM_DEMO", "1") // a TUI abre a primeira conversa sozinha
-	srv, err := demo.Serve(sock)
+	serve := demo.Serve
+	if login {
+		serve = demo.ServeLogin // começa na tela de login (QR de mentira)
+	}
+	srv, err := serve(sock)
 	if err != nil {
 		return err
 	}

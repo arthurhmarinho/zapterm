@@ -183,6 +183,10 @@ filtro.
   conectados). `Conversation.GetLimitSharing()`. (P)
 - [x] **Transcrição de áudio local** (whisper.cpp, opcional). (G)
 - [x] **Tecla Enter configurável** e **sons de notificação** no TOML. (P)
+- [x] **Login dentro da TUI**: sem sessão, o daemon sobe em modo de
+  pareamento (QR e código pelo número, `OpPairPhone`) e a TUI desenha a
+  tela de login, sem precisar do `zapterm login`. Parear outro número
+  guarda o banco antigo à parte (`zapterm-<número>.db`). (M)
 
 ## Fora do escopo
 

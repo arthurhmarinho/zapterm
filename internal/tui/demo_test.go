@@ -1603,3 +1603,90 @@ func TestTranscrever(t *testing.T) {
 		t.Error("a transcrição não aparece embaixo do áudio")
 	}
 }
+
+func TestLoginPelaTUI(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "demo.sock")
+	srv, err := demo.ServeLogin(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	cli, err := ipc.Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	m := newModel(cli)
+	m.imgs.enabled = false
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
+	m.Update(m.loadChats()())
+	m.Update(m.loadStatus()()) // o status do daemon sem sessão
+
+	if m.status != "pairing" || m.pair == nil || m.pair.QR == "" {
+		t.Fatalf("status %q, pair %+v", m.status, m.pair)
+	}
+	screen := ansi.Strip(m.View().Content)
+	if os.Getenv("ZAPTERM_SHOW") != "" {
+		t.Log("\n" + screen)
+	}
+	for _, want := range []string{"entrar no WhatsApp", "Aparelhos conectados → Conectar um aparelho",
+		"tab: entrar com número de telefone", "▀"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("faltou %q na tela de login", want)
+		}
+	}
+	if strings.Contains(screen, "Pesquisar conversa") {
+		t.Error("a lista de conversas apareceu por baixo do login")
+	}
+
+	// Janela pequena para o QR: avisa em vez de cortar.
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	if s := ansi.Strip(m.View().Content); !strings.Contains(s, "aumente para pelo menos") {
+		t.Errorf("sem aviso de janela pequena:\n%s", s)
+	}
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
+
+	// tab abre o campo do número; enter pede o código.
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: tea.KeyTab}))
+	if m.form == nil || m.form.fields[0].label != "Número" {
+		t.Fatal("tab não abriu o campo do número")
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "Entrar com número de telefone") {
+		t.Error("o formulário não aparece sobre o login")
+	}
+	m.form.fields[0].in.SetValue("+55 (84) 99999-0000")
+	runCmd(m, m.keyForm(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	if got := demo.LastSent(srv); got.Op != ipc.OpPairPhone || got.Text != "5584999990000" {
+		t.Fatalf("pedido ao daemon: %+v", got)
+	}
+	screen = ansi.Strip(m.View().Content)
+	if !strings.Contains(screen, "D E M O - 1 2 3 4") || !strings.Contains(screen, "Conectar com número de telefone") {
+		t.Fatalf("o código não apareceu:\n%s", screen)
+	}
+	// esc volta ao QR.
+	runCmd(m, m.onKey(tea.KeyPressMsg{Code: tea.KeyEscape}))
+	if strings.Contains(ansi.Strip(m.View().Content), "D E M O") {
+		t.Error("esc não voltou ao QR")
+	}
+
+	// Erro do daemon aparece na tela.
+	m.Update(evMsg{cli: m.cli, f: ipc.Frame{Event: ipc.EvStatus,
+		Data: []byte(`{"state":"pairing","pair":{"qr":"2@x","err":"Este computador foi desconectado pelo celular."}}`)}})
+	if !strings.Contains(ansi.Strip(m.View().Content), "desconectado pelo celular") {
+		t.Error("o erro do daemon não aparece")
+	}
+
+	// ctrl+c sai.
+	if cmd := m.onKey(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}); cmd == nil {
+		t.Error("ctrl+c devia sair")
+	}
+
+	// Pareou: a tela de login some e a lista volta.
+	m.Update(evMsg{cli: m.cli, f: ipc.Frame{Event: ipc.EvStatus, Data: []byte(`{"state":"online","me":"5500000000000@s.whatsapp.net","name":"Eu"}`)}})
+	if m.status != "online" || m.pair != nil {
+		t.Fatalf("depois de parear: %q %+v", m.status, m.pair)
+	}
+	if s := ansi.Strip(m.View().Content); strings.Contains(s, "entrar no WhatsApp") || !strings.Contains(s, "Pesquisar conversa") {
+		t.Error("a lista não voltou depois de parear")
+	}
+}

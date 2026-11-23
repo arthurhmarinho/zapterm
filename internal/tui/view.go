@@ -130,6 +130,10 @@ func (m *model) View() tea.View {
 		v.SetContent("janela pequena demais para o zapterm")
 		return v
 	}
+	if m.status == "pairing" {
+		v.SetContent(m.viewLogin())
+		return v
+	}
 	if m.viewing != nil {
 		v.SetContent(m.viewPhoto())
 		return v

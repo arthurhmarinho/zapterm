@@ -28,8 +28,9 @@ import (
 
 type Options struct {
 	Log *slog.Logger
-	// QROut recebe o QR code quando não há sessão. nil = sem sessão é erro
-	// (o daemon em segundo plano não tem onde mostrar o QR).
+	// QROut recebe o QR code quando não há sessão (zapterm login). nil =
+	// o daemon em segundo plano entra no modo "pairing": publica o QR no
+	// status e a TUI mostra a tela de login.
 	QROut io.Writer
 	// Phone: parear pelo código de 8 letras (WhatsApp → Aparelhos
 	// conectados → Conectar com número de telefone) em vez do QR.
@@ -42,8 +43,9 @@ type Daemon struct {
 	st  *store.Store
 	srv *ipc.Server
 
-	mu     sync.Mutex
-	status ipc.Status
+	mu       sync.Mutex
+	status   ipc.Status
+	pairNote string // aviso fixo da tela de login (ex.: desconectado pelo celular)
 
 	groupNameFetch sync.Map // jid -> struct{}: evita buscar o mesmo grupo duas vezes
 	notif          *notifier
@@ -69,9 +71,9 @@ func Run(ctx context.Context, opt Options) error {
 	if err != nil {
 		return err
 	}
-	if device.ID == nil && opt.QROut == nil {
-		return errors.New("sem sessão do WhatsApp: rode `zapterm login` num terminal primeiro")
-	}
+	// Sem sessão e sem terminal para o QR: sobe assim mesmo, em modo de
+	// pareamento. As TUIs leem o banco e fazem o login pela própria tela.
+	pairingMode := device.ID == nil && opt.QROut == nil
 
 	msgPath, err := paths.MessagesDB()
 	if err != nil {
@@ -83,7 +85,11 @@ func Run(ctx context.Context, opt Options) error {
 	}
 	defer st.Close()
 
-	d := &Daemon{log: log, st: st, status: ipc.Status{State: "connecting"}, notif: newNotifier(), avatars: newAvatars()}
+	state := "connecting"
+	if pairingMode {
+		state = "pairing"
+	}
+	d := &Daemon{log: log, st: st, status: ipc.Status{State: state}, notif: newNotifier(), avatars: newAvatars()}
 	cfg, cfgErr := config.Load()
 	if cfgErr != nil {
 		log.Warn("config", "err", cfgErr) // vale o que deu para ler; o resto, padrão
@@ -91,6 +97,9 @@ func Run(ctx context.Context, opt Options) error {
 	d.cfg = cfg
 	d.cli = whatsmeow.NewClient(device, waLogger{log.With("mod", "whatsmeow")})
 	d.cli.AddEventHandler(d.onEvent)
+	if device.ID != nil {
+		d.claimOwner(device.ID.User)
+	}
 
 	// O socket sobe antes de conectar: assim a TUI já lista o que está no
 	// banco enquanto o WhatsApp ainda negocia.
@@ -121,12 +130,18 @@ func Run(ctx context.Context, opt Options) error {
 		log.Info("cache de mídia limpo", "arquivos", n)
 	}
 
-	if device.ID == nil {
+	switch {
+	case pairingMode:
+		d.setPair("", "", d.pairNote)
+		go d.pairLoop(ctx)
+	case device.ID == nil:
 		if err := d.pair(ctx, opt.QROut, opt.Phone); err != nil {
 			return err
 		}
-	} else if err := d.cli.Connect(); err != nil {
-		return fmt.Errorf("conectando: %w", err)
+	default:
+		if err := d.cli.Connect(); err != nil {
+			return fmt.Errorf("conectando: %w", err)
+		}
 	}
 	defer d.cli.Disconnect()
 	go d.purgeLoop(ctx)
@@ -178,6 +193,9 @@ func (d *Daemon) pair(ctx context.Context, out io.Writer, phone string) error {
 func (d *Daemon) setStatus(state string) {
 	d.mu.Lock()
 	d.status.State = state
+	if state != "pairing" {
+		d.status.Pair = nil
+	}
 	if id := d.cli.Store.ID; id != nil {
 		d.status.Me = id.ToNonAD().String()
 		d.status.Name = d.cli.Store.PushName
@@ -204,8 +222,12 @@ func (d *Daemon) onEvent(evt any) {
 		availMu.Unlock()
 		go d.syncAvailability()
 		go d.loadBlocklist()
+	case *events.PairSuccess:
+		d.claimOwner(e.ID.User)
 	case *events.Disconnected:
-		d.setStatus("offline")
+		if d.paired() { // no pareamento o QR expira e o socket cai: segue "pairing"
+			d.setStatus("offline")
+		}
 	case *events.StreamReplaced:
 		d.setStatus("offline")
 		d.log.Warn("outra instância conectou com a mesma sessão")
@@ -663,7 +685,13 @@ func (d *Daemon) ensureName(jid types.JID) {
 func (d *Daemon) handle(conn uint64, req ipc.Request) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
+	if !d.paired() {
+		data, _, err := d.handleUnpaired(ctx, req)
+		return data, err
+	}
 	switch req.Op {
+	case ipc.OpPairPhone:
+		return nil, errors.New("este computador já está conectado")
 	case ipc.OpStatus:
 		d.mu.Lock()
 		defer d.mu.Unlock()

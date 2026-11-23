@@ -501,3 +501,64 @@ func TestStatusForaDaLista(t *testing.T) {
 		t.Fatal("status não ficou guardado")
 	}
 }
+
+func TestTrocaDeDono(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "zapterm.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	if moved, err := s.SwitchOwner("5511111"); err != nil || moved != "" || s.Owner() != "5511111" {
+		t.Fatalf("primeiro dono: %q %v %q", moved, err, s.Owner())
+	}
+	if _, err := s.SaveMessage(ipc.Message{ID: "a", Chat: "1@s.whatsapp.net", Sender: "1@s.whatsapp.net",
+		TS: 1000, Kind: "text", Text: "da conta antiga"}, nil, false, false); err != nil {
+		t.Fatal(err)
+	}
+	// A mesma conta de novo: nada muda.
+	if moved, err := s.SwitchOwner("5511111"); err != nil || moved != "" {
+		t.Fatalf("mesmo dono: %q %v", moved, err)
+	}
+	if msgs, _ := s.Messages("1@s.whatsapp.net", 10, 0); len(msgs) != 1 {
+		t.Fatal("a mesma conta perdeu mensagens")
+	}
+
+	// Outra conta: o banco antigo vai para o lado e este recomeça vazio.
+	moved, err := s.SwitchOwner("5522222")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(filepath.Dir(path), "zapterm-5511111.db"); moved != want {
+		t.Fatalf("guardado em %q, esperava %q", moved, want)
+	}
+	if msgs, _ := s.Messages("1@s.whatsapp.net", 10, 0); len(msgs) != 0 {
+		t.Fatal("o banco novo devia estar vazio")
+	}
+	if s.Owner() != "5522222" {
+		t.Fatalf("dono = %q", s.Owner())
+	}
+	old, err := Open(moved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer old.Close()
+	if msgs, _ := old.Messages("1@s.whatsapp.net", 10, 0); len(msgs) != 1 || old.Owner() != "5511111" {
+		t.Fatalf("o banco guardado perdeu o conteúdo: %+v dono %q", msgs, old.Owner())
+	}
+	// O novo continua gravável.
+	if _, err := s.SaveMessage(ipc.Message{ID: "b", Chat: "2@s.whatsapp.net", Sender: "2@s.whatsapp.net",
+		TS: 2000, Kind: "text", Text: "da conta nova"}, nil, false, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Voltando à primeira conta, o arquivo guardado não é sobrescrito.
+	moved2, err := s.SwitchOwner("5511111")
+	if err != nil || moved2 == "" {
+		t.Fatalf("volta: %q %v", moved2, err)
+	}
+	if moved2 == moved {
+		t.Fatal("sobrescreveu o banco guardado")
+	}
+}

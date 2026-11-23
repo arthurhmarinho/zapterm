@@ -174,7 +174,9 @@ type model struct {
 	fallbacks map[string]string // jid -> PNG com iniciais
 
 	status  string
-	me      string // seu JID e nome de perfil, para a foto no topo
+	pair    *ipc.PairInfo // QR e código da tela de login (status "pairing")
+	loginQR bool          // tela de login: mostrar o QR mesmo com o código pedido
+	me      string        // seu JID e nome de perfil, para a foto no topo
 	myName  string
 	flash   string
 	flashAt time.Time
@@ -444,6 +446,11 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onWheel(msg)
 
 	case tea.PasteMsg:
+		if f := m.form; f != nil {
+			var cmd tea.Cmd // colar no formulário aberto (ex.: o número do login)
+			f.fields[f.idx].in, cmd = f.fields[f.idx].in.Update(msg)
+			return m, cmd
+		}
 		// Arquivo arrastado para o kitty chega como o caminho colado.
 		if files := droppedFiles(msg.Content); len(files) > 0 && m.active != "" && !m.searching {
 			m.setAttachments(files)
@@ -596,7 +603,9 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil // só redesenhar: o aviso de digitando venceu
 
 	case statusMsg:
-		m.status, m.me, m.myName = msg.State, msg.Me, msg.Name
+		return m, m.onStatus(ipc.Status(msg))
+	case pairCodeMsg:
+		m.onPairCode(string(msg))
 		return m, nil
 
 	case chosenMsg:
@@ -716,10 +725,7 @@ func (m *model) onEvent(f ipc.Frame) tea.Cmd {
 	case ipc.EvStatus:
 		var st ipc.Status
 		if json.Unmarshal(f.Data, &st) == nil {
-			m.status = st.State
-			if st.Me != "" {
-				m.me, m.myName = st.Me, st.Name
-			}
+			return m.onStatus(st)
 		}
 	case ipc.EvReload:
 		return tea.Batch(m.loadChats(), m.reloadGallery(), m.afterRefetch())
