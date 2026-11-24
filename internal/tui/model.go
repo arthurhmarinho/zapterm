@@ -492,6 +492,7 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.FocusMsg:
 		m.termFocused = true
+		m.imgs.refocus(time.Now())
 		cmds := []tea.Cmd{m.syncViewing()}
 		if m.activeChat.Unread > 0 {
 			// Voltou para a janela com mensagem nova no chat aberto.

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -294,5 +295,28 @@ func TestIniciaisDescartadasDepoisDaFoto(t *testing.T) {
 	im.placeBig("/outra.png") // estoura: a menos usada é a das iniciais
 	if !strings.Contains(strings.Join(im.pending, ""), fmt.Sprintf("a=d,d=I,i=%d,", idIni)) {
 		t.Fatal("as iniciais continuaram no kitty")
+	}
+}
+
+func TestFocoRetransmiteNoMaximoACada30s(t *testing.T) {
+	im := imagemTeste()
+	im.frame()
+	im.placeBig("/a.png")
+	t0 := time.Now()
+	im.pending = nil
+	im.refocus(t0) // primeiro foco: reenvia
+	if len(im.placed) != 0 || !strings.Contains(strings.Join(im.pending, ""), "a=d,d=I") {
+		t.Fatal("o primeiro foco não reenviou")
+	}
+	im.frame()
+	im.placeBig("/a.png")
+	im.pending = nil
+	im.refocus(t0.Add(10 * time.Second)) // logo depois: não faz nada
+	if len(im.placed) == 0 || len(im.pending) != 0 {
+		t.Fatal("reenviou de novo antes de 30 s")
+	}
+	im.refocus(t0.Add(31 * time.Second))
+	if len(im.placed) != 0 {
+		t.Fatal("não reenviou depois de 30 s")
 	}
 }

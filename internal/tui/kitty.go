@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi/kitty"
@@ -50,6 +51,24 @@ type images struct {
 	pending []string           // comandos de transmissão ainda não enviados
 	tick    uint64             // sobe uma vez por Update (frame)
 	bytes   int                // soma do custo das imagens em placed
+	// lastRefocus é quando a última retransmissão por foco aconteceu.
+	lastRefocus time.Time
+}
+
+// refocusEvery: intervalo mínimo entre retransmissões por foco. Cada uma
+// reenvia todas as imagens da tela (o kitty relê os arquivos), então não se
+// faz a cada troca de janela.
+const refocusEvery = 30 * time.Second
+
+// refocus: a janela da TUI ganhou foco de novo. Outra coisa pode ter limpado
+// as imagens do kitty (um `clear`, outra janela, um reset do terminal); reenviar
+// tudo resolve. No máximo uma vez a cada refocusEvery.
+func (im *images) refocus(now time.Time) {
+	if len(im.placed) == 0 || now.Sub(im.lastRefocus) < refocusEvery {
+		return
+	}
+	im.lastRefocus = now
+	im.reset()
 }
 
 // frame marca o começo de um quadro novo. Chamado uma vez por Update.
