@@ -14,6 +14,7 @@
 //	zapterm config           cria ~/.config/zapterm/config.toml comentado e mostra o caminho
 //	zapterm unread [--json]  não lidas (o widget da barra usa o --json)
 //	zapterm open             traz a TUI para frente, ou abre uma (clique no widget)
+//	zapterm version          mostra versão, commit e data (também --version e -v)
 package main
 
 import (
@@ -30,6 +31,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arthurhmarinho/zapterm/internal/buildinfo"
 	"github.com/arthurhmarinho/zapterm/internal/config"
 	"github.com/arthurhmarinho/zapterm/internal/demo"
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
@@ -86,11 +88,46 @@ func run(args []string) error {
 		return openUI()
 	case "":
 		return tui.Run()
+	case "version", "--version", "-v":
+		versionCmd()
+		return nil
 	case "help", "-h", "--help":
-		fmt.Println("uso: zapterm [login | daemon | chats | msgs <jid> [n] | send <jid> <texto> | tail | media <jid> <id> | demo]")
+		fmt.Print(usage)
 		return nil
 	}
 	return fmt.Errorf("comando desconhecido: %s", cmd)
+}
+
+const usage = `zapterm: cliente de WhatsApp para o terminal
+
+uso: zapterm [comando]
+
+  (sem comando)              abre a TUI (sobe o daemon se preciso; sem sessão, mostra o login)
+  login                      pareia por QR code e fica rodando como daemon
+  login --telefone 5584...   pareia pelo código de 8 letras
+  daemon                     daemon em segundo plano (sem sessão, espera o login pela TUI)
+  chats                      lista os chats (depuração do IPC)
+  msgs <jid> [n]             últimas n mensagens de um chat
+  send <jid> <texto>         envia texto
+  tail                       mostra os eventos ao vivo
+  media <jid> <id>           baixa a mídia de uma mensagem e mostra o caminho
+  demo [--login]             abre a TUI com conversas fictícias (para prints)
+  config                     cria ~/.config/zapterm/config.toml comentado e mostra o caminho
+  unread [--json]            não lidas (o widget da barra usa o --json)
+  open                       traz a TUI para frente, ou abre uma (clique no widget)
+  version                    mostra versão, commit e data (também --version e -v)
+  help                       esta ajuda
+`
+
+func versionCmd() {
+	v, c, d := buildinfo.Info()
+	fmt.Println("zapterm", v)
+	if c != "" {
+		fmt.Println("commit:", c)
+	}
+	if d != "" {
+		fmt.Println("data:  ", d)
+	}
 }
 
 func daemon(interactive bool, phone string) error {
