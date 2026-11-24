@@ -1,0 +1,139 @@
+# Release do zapterm: binário estático (sem cgo) para linux amd64 e arm64,
+# tar.gz, .deb, .rpm, pacote do Arch e o PKGBUILD do AUR (zapterm-bin).
+# Rodar de verdade: `git tag vX.Y.Z && git push --tags` (o workflow release.yml).
+# Testar sem publicar: `goreleaser release --snapshot --clean`.
+version: 2
+
+project_name: zapterm
+
+builds:
+  - id: zapterm
+    main: ./cmd/zapterm
+    binary: zapterm
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/arthurhmarinho/zapterm/internal/buildinfo.Version={{.Version}}
+      - -X github.com/arthurhmarinho/zapterm/internal/buildinfo.Commit={{.ShortCommit}}
+      - -X github.com/arthurhmarinho/zapterm/internal/buildinfo.Date={{.Date}}
+
+archives:
+  - id: zapterm
+    formats: [tar.gz]
+    name_template: "zapterm_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  groups:
+    - title: Novidades
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Correções
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+  filters:
+    exclude:
+      - '^docs(\([[:word:]]+\))??!?:'
+      - '^test(\([[:word:]]+\))??!?:'
+      - '^chore(\([[:word:]]+\))??!?:'
+
+nfpms:
+  - id: zapterm
+    package_name: zapterm
+    ids: [zapterm]
+    formats:
+      - deb
+      - rpm
+      - archlinux
+    maintainer: Arthur H Marinho <EMAIL_AQUI>
+    homepage: https://github.com/arthurhmarinho/zapterm
+    description: Cliente de WhatsApp para o terminal.
+    license: GPL-3.0
+    # Nada é obrigatório para abrir (o binário é estático); isto é o que deixa
+    # áudio, vídeo, figurinhas e colar print funcionando. `zapterm doctor` diz
+    # o que falta.
+    recommends:
+      - wl-clipboard
+      - mpv
+    overrides:
+      deb:
+        recommends:
+          - wl-clipboard
+          - mpv
+          - gstreamer1.0-tools
+          - gstreamer1.0-plugins-base
+          - gstreamer1.0-plugins-good
+          - gstreamer1.0-pulseaudio
+      rpm:
+        recommends:
+          - wl-clipboard
+          - mpv
+          - gstreamer1
+          - gstreamer1-plugins-base
+          - gstreamer1-plugins-good
+      archlinux:
+        recommends:
+          - wl-clipboard
+          - mpv
+          - gstreamer
+          - gst-plugins-base
+          - gst-plugins-good
+    contents:
+      - src: README.md
+        dst: /usr/share/doc/zapterm/README.md
+      - src: LICENSE
+        dst: /usr/share/licenses/zapterm/LICENSE
+
+aurs:
+  - name: zapterm-bin
+    ids: [zapterm]
+    homepage: https://github.com/arthurhmarinho/zapterm
+    description: Cliente de WhatsApp para o terminal (binário pronto)
+    license: GPL-3.0
+    maintainers:
+      - "Arthur H Marinho <EMAIL_AQUI>"
+    private_key: "{{ .Env.AUR_KEY }}"
+    git_url: ssh://aur@aur.archlinux.org/zapterm-bin.git
+    # Sem AUR_KEY (um fork, ou o secret ainda não criado) o release sai igual,
+    # só sem publicar no AUR.
+    skip_upload: "{{ if .Env.AUR_KEY }}false{{ else }}true{{ end }}"
+    provides:
+      - zapterm
+    conflicts:
+      - zapterm
+    optdepends:
+      - "gstreamer: tocar e gravar áudio, ver vídeo, criar figurinhas"
+      - "gst-plugins-base: voz (Opus/Ogg) e decodificação de mídia"
+      - "gst-plugins-good: microfone, imagens e WAV"
+      - "gst-plugins-bad: criar figurinhas (webp)"
+      - "gst-libav: vídeos H.264"
+      - "wl-clipboard: copiar e colar (ctrl+v) texto e prints"
+      - "mpv: abrir vídeos e tocar áudio com velocidade"
+      - "xdg-desktop-portal: seletor de arquivos ao anexar (com um backend: gtk, gnome, kde)"
+      - "xdg-utils: abrir links e arquivos"
+      - "mako: servidor de notificação (ou dunst, swaync)"
+      - "kitty: terminal com fotos e figurinhas no chat"
+    package: |-
+      install -Dm755 "./zapterm" "${pkgdir}/usr/bin/zapterm"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/zapterm-bin/LICENSE"
+      install -Dm644 "./README.md" "${pkgdir}/usr/share/doc/zapterm-bin/README.md"
+
+release:
+  github:
+    owner: arthurhmarinho
+    name: zapterm
+  prerelease: auto
