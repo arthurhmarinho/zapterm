@@ -2,7 +2,7 @@
   "settings": {
     "zapterm_path": {
       "label": "zapterm path",
-      "description": "Noctalia may not have ~/go/bin in its PATH."
+      "description": "Default: zapterm from the PATH, or ~/go/bin/zapterm."
     },
     "hide_when_zero": {
       "label": "Hide when nothing is unread"

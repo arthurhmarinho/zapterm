@@ -81,3 +81,14 @@ func TestErros(t *testing.T) {
 		t.Fatalf("sintaxe inválida: %v", err)
 	}
 }
+
+func TestTerminalDoClique(t *testing.T) {
+	write(t, "[interface]\nterminal = [\"foot\", \"-a\", \"zapterm\"]\n")
+	c, err := Load()
+	if err != nil || len(c.Interface.Terminal) != 3 || c.Interface.Terminal[0] != "foot" {
+		t.Fatalf("terminal: %+v %v", c.Interface.Terminal, err)
+	}
+	if !strings.Contains(Default, "# terminal = [") {
+		t.Error("terminal não documentado no default.toml")
+	}
+}

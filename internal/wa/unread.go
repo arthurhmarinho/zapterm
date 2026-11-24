@@ -3,11 +3,9 @@ package wa
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"os/exec"
 	"slices"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
@@ -93,17 +91,11 @@ func (d *Daemon) pushUnreadValue(u ipc.Unread, force bool) {
 }
 
 // showUI: o clique no widget. Com TUI aberta, ela vem para frente; sem
-// nenhuma, abre um kitty com o zapterm.
+// nenhuma, abre um terminal com o zapterm.
 func (d *Daemon) showUI() error {
 	if d.srv.Clients() > 0 {
 		d.srv.Broadcast(ipc.EvOpen, ipc.Open{})
 		return nil
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command("kitty", "--class", "zapterm", exe)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	return cmd.Start()
+	return d.openTerminal()
 }

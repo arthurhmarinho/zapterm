@@ -4,6 +4,10 @@ Mostra na barra quantas conversas têm mensagem não lida (sem contar
 arquivadas e silenciadas), com a lista na dica. O clique abre o zapterm,
 ou traz a janela dele para frente.
 
+O clique abre o terminal escolhido no zapterm (`[interface] terminal` no
+config, senão `$TERMINAL`, senão o primeiro instalado entre kitty, foot,
+alacritty, wezterm e ghostty).
+
 O daemon do zapterm atualiza o número sozinho sempre que ele muda; o
 widget não fica consultando.
 
@@ -26,6 +30,7 @@ end = ["arthurhmarinho/zapterm:unread", "battery", "date", "user"]
 
 ## Opções
 
-- **Caminho do zapterm** (padrão `~/go/bin/zapterm`): o Noctalia pode não
-  ter `~/go/bin` no PATH.
+- **Caminho do zapterm** (padrão `zapterm`): usa o que estiver no PATH e,
+  se o Noctalia não o enxergar lá, tenta `~/go/bin/zapterm`. Preencha com o
+  caminho completo (`command -v zapterm`) se o seu estiver em outro lugar.
 - **Esconder sem não lidas** (padrão: não).

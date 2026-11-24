@@ -35,6 +35,10 @@
 # enter_sends = true
 # Som a cada notificação (arquivo .oga/.wav/.ogg, tocado pelo pw-play).
 # notify_sound = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"
+# Terminal que abre ao clicar na notificação ou no widget da barra (o zapterm
+# vai no fim do comando). Vazio: $TERMINAL (com -e) e, sem ele, o primeiro
+# instalado entre kitty, foot, alacritty, wezterm e ghostty.
+# terminal = ["kitty", "--class", "zapterm"]
 
 [colors]
 # Número ANSI ("0"–"15", segue o tema do terminal) ou hex ("#ff79c6").

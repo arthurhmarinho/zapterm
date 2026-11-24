@@ -4,7 +4,15 @@
 -- e, ao carregar, o widget pergunta uma vez (zapterm unread --json) para não
 -- ficar zerado até a próxima mensagem. Clique: zapterm open.
 
-local zapterm = noctalia.expandPath(noctalia.getConfig("zapterm_path") or "~/go/bin/zapterm")
+-- Padrão "zapterm": o que estiver no PATH; se o Noctalia não o enxergar lá,
+-- cai para ~/go/bin/zapterm. Um caminho escolhido nas opções vale como está.
+local configured = noctalia.getConfig("zapterm_path")
+local zapterm
+if configured == nil or configured == "" or configured == "zapterm" then
+  zapterm = [[sh -c 'exec "$(command -v zapterm || echo "$HOME/go/bin/zapterm")" "$@"' zapterm]]
+else
+  zapterm = noctalia.expandPath(configured)
+end
 local hideWhenZero = noctalia.getConfig("hide_when_zero")
 
 local summary = { chats = 0, messages = 0, top = {} }

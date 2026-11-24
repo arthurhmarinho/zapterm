@@ -72,6 +72,10 @@ type Interface struct {
 	EnterSends bool `toml:"enter_sends"`
 	// NotifySound: arquivo de som tocado a cada notificação ("" = sem som).
 	NotifySound string `toml:"notify_sound"`
+	// Terminal: comando do terminal que o clique na notificação ou no widget
+	// abre (o zapterm vai no fim). Vazio = $TERMINAL, depois o primeiro
+	// instalado (kitty, foot, alacritty, wezterm, ghostty).
+	Terminal []string `toml:"terminal"`
 }
 
 // Actions são os atalhos que dá para trocar em [keys], com o padrão.

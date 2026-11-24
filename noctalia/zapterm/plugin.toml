@@ -22,7 +22,7 @@ entry = "unread.luau"
   type = "string"
   label_key = "settings.zapterm_path.label"
   description_key = "settings.zapterm_path.description"
-  default = "~/go/bin/zapterm"
+  default = "zapterm"
 
   [[widget.setting]]
   key = "hide_when_zero"

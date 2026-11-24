@@ -3,11 +3,9 @@ package wa
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"go.mau.fi/whatsmeow/types"
@@ -135,21 +133,14 @@ func (d *Daemon) notify(m ipc.Message, chat types.JID, chatName string, extra ..
 }
 
 // openFromNotification: clicou na notificação. Com uma TUI aberta, ela
-// abre o chat e põe a janela em foco; sem nenhuma, abre um kitty novo já
+// abre o chat e põe a janela em foco; sem nenhuma, abre um terminal novo já
 // nesse chat.
 func (d *Daemon) openFromNotification(chat string) {
 	if d.srv.Clients() > 0 {
 		d.srv.Broadcast(ipc.EvOpen, ipc.Open{Chat: chat})
 		return
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		return
-	}
-	cmd := exec.Command("kitty", "--class", "zapterm", exe)
-	cmd.Env = append(os.Environ(), "ZAPTERM_OPEN="+chat)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
+	if err := d.openTerminal("ZAPTERM_OPEN=" + chat); err != nil {
 		d.log.Warn("abrindo o zapterm pela notificação", "err", err)
 	}
 }
