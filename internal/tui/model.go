@@ -176,6 +176,7 @@ type model struct {
 	avatars   map[string]*ipc.Media // jid -> foto (nil = sem foto ou buscando)
 	avAsked   map[string]bool
 	avQueue   []string
+	avTries   map[string]int    // falhas seguidas ao pedir a foto de cada JID
 	fallbacks map[string]string // jid -> PNG com iniciais
 
 	status  string
@@ -219,7 +220,11 @@ type (
 		jid   string
 		media *ipc.Media
 	}
-	mediaMsg struct {
+	// avatarFailedMsg: o pedido da foto falhou (daemon fora, timeout). O JID
+	// volta a ser pedido depois de avatarRetryDelay, em avatarRetryMsg.
+	avatarFailedMsg struct{ jid string }
+	avatarRetryMsg  struct{ jid string }
+	mediaMsg        struct {
 		chat, id string
 		media    *ipc.Media
 		open     bool // abrir no programa externo quando chegar
@@ -262,7 +267,7 @@ func Run() error {
 func newModel(cli *ipc.Client) *model {
 	m := &model{cli: cli, input: newInput(), search: newSearch(), vp: viewport.New(), emojiRecent: loadRecentEmoji(),
 		status: "conectando", termFocused: true, msgSel: -1, selAnchor: -1, imgs: newImages(),
-		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}, fallbacks: map[string]string{},
+		avatars: map[string]*ipc.Media{}, avAsked: map[string]bool{}, avTries: map[string]int{}, fallbacks: map[string]string{},
 		autoAsked: map[string]bool{}, presence: map[string]*presenceState{},
 		members: map[string][]ipc.Member{}, mentioned: map[string]string{}}
 	m.vp.MouseWheelEnabled = false // a roda é tratada em input.go
@@ -713,9 +718,21 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case avatarMsg:
 		m.avatars[msg.jid] = msg.media
+		delete(m.avTries, msg.jid) // respondeu: a próxima falha começa do zero
 		if msg.media != nil && m.activeChat.Kind == "group" {
 			m.rerenderKeepingPlace()
 		}
+		return m, nil
+
+	case avatarFailedMsg:
+		n := m.avTries[msg.jid] + 1
+		m.avTries[msg.jid] = n
+		jid := msg.jid
+		return m, tea.Tick(avatarRetryDelay(n), func(time.Time) tea.Msg { return avatarRetryMsg{jid} })
+
+	case avatarRetryMsg:
+		// Libera o JID: o próximo quadro que o mostrar enfileira o pedido de novo.
+		delete(m.avAsked, msg.jid)
 		return m, nil
 
 	case errMsg:
@@ -1163,12 +1180,25 @@ func (m *model) prepareAvatars() {
 	}
 }
 
+// avatarRetryDelay é a espera antes de pedir de novo a foto de um JID que
+// falhou n vezes seguidas: 1 min, dobrando, até 30 min.
+func avatarRetryDelay(n int) time.Duration {
+	d := time.Minute
+	for i := 1; i < n && d < 30*time.Minute; i++ {
+		d *= 2
+	}
+	return min(d, 30*time.Minute)
+}
+
+// loadAvatar pede a foto ao daemon. Erro de pedido vira avatarFailedMsg (com
+// nova tentativa depois); resposta vazia (contato sem foto) é avatarMsg com
+// media nil e não se tenta de novo.
 func (m *model) loadAvatar(jid string) tea.Cmd {
 	cli := m.cli
 	return func() tea.Msg {
 		var md *ipc.Media
 		if err := cli.Call(ipc.Request{Op: ipc.OpAvatar, Chat: jid}, &md); err != nil {
-			return nil // sem foto não é erro que valha incomodar
+			return avatarFailedMsg{jid: jid}
 		}
 		return avatarMsg{jid: jid, media: md}
 	}
