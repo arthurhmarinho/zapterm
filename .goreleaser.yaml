@@ -67,35 +67,47 @@ nfpms:
     homepage: https://github.com/arthurhmarinho/zapterm
     description: Cliente de WhatsApp para o terminal.
     license: GPL-3.0
-    # Nada é obrigatório para abrir (o binário é estático); isto é o que deixa
-    # áudio, vídeo, figurinhas e colar print funcionando. `zapterm doctor` diz
-    # o que falta.
-    recommends:
-      - wl-clipboard
-      - mpv
+    # Nada é obrigatório para abrir (o binário é estático, depends fica vazio);
+    # os recommends são o que liga áudio, vídeo, copiar/colar, anexar arquivo e
+    # o terminal com fotos. O apt, o dnf e o pacman instalam junto por padrão
+    # (o pacman trata como opcionais); `zapterm doctor` diz o que ainda falta.
+    # Nomes conferidos nos repositórios do Ubuntu 24.04 (base do Mint 22), do
+    # Fedora e do Arch. O whisper.cpp só existe no Fedora (whisper-cpp); no
+    # Ubuntu e no Arch não há pacote oficial, então não entra nos outros.
     overrides:
       deb:
         recommends:
+          - kitty
           - wl-clipboard
+          - xclip
           - mpv
           - gstreamer1.0-tools
           - gstreamer1.0-plugins-base
           - gstreamer1.0-plugins-good
           - gstreamer1.0-pulseaudio
+          - xdg-desktop-portal-gtk
       rpm:
         recommends:
+          - kitty
           - wl-clipboard
+          - xclip
           - mpv
           - gstreamer1
           - gstreamer1-plugins-base
           - gstreamer1-plugins-good
+          - xdg-desktop-portal-gtk
+        suggests:
+          - whisper-cpp
       archlinux:
         recommends:
+          - kitty
           - wl-clipboard
+          - xclip
           - mpv
           - gstreamer
           - gst-plugins-base
           - gst-plugins-good
+          - xdg-desktop-portal-gtk
     contents:
       - src: README.md
         dst: /usr/share/doc/zapterm/README.md
