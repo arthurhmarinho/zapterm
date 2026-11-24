@@ -190,12 +190,16 @@ func Check(e Env) []line {
 		out = append(out, gstLines(e)...)
 	}
 
-	// Área de transferência.
-	for _, b := range []struct{ bin, what string }{
-		{"wl-copy", "copiar mensagem e link"},
-		{"wl-paste", "colar print e texto com ctrl+v"},
-	} {
-		out = append(out, binLine(e, b.bin, b.what, pkgs{"wl-clipboard", "wl-clipboard", "wl-clipboard"}))
+	// Área de transferência: wl-clipboard no Wayland, xclip no X11.
+	if e.Getenv("WAYLAND_DISPLAY") != "" {
+		for _, b := range []struct{ bin, what string }{
+			{"wl-copy", "copiar mensagem e link"},
+			{"wl-paste", "colar print e texto com ctrl+v"},
+		} {
+			out = append(out, binLine(e, b.bin, b.what, pkgs{"wl-clipboard", "wl-clipboard", "wl-clipboard"}))
+		}
+	} else {
+		out = append(out, binLine(e, "xclip", "copiar mensagem e link, colar print e texto com ctrl+v (X11)", pkgs{"xclip", "xclip", "xclip"}))
 	}
 
 	// D-Bus.

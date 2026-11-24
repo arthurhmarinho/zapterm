@@ -84,7 +84,7 @@ type inviteMsg struct{ link string }
 
 func (m *model) onInvite(msg inviteMsg) {
 	if err := copyText(msg.link); err != nil {
-		m.setFlash("wl-copy: " + err.Error())
+		m.setFlash(err.Error())
 		return
 	}
 	m.setFlash("link de convite copiado: " + msg.link)

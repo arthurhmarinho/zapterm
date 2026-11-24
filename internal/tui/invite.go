@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
-	"os/exec"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -127,9 +126,3 @@ func (m *model) onGroupLink(msg groupLinkMsg) {
 }
 
 type joinedMsg struct{ chat ipc.Chat }
-
-func copyText(text string) error {
-	cmd := exec.Command("wl-copy")
-	cmd.Stdin = strings.NewReader(text)
-	return cmd.Run()
-}

@@ -29,6 +29,9 @@ func (m *model) openRequested(jid string) {
 // focusOwnWindow sobe pela árvore de processos até o kitty que hospeda
 // esta TUI e pede ao Sway foco nessa janela.
 func focusOwnWindow() {
+	if os.Getenv("SWAYSOCK") == "" {
+		return // fora do Sway não há a quem pedir foco (e não é erro)
+	}
 	pid := os.Getppid()
 	for i := 0; i < 8 && pid > 1; i++ {
 		comm, _ := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pid))

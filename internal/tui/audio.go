@@ -293,13 +293,31 @@ func (m *model) sendRecording() tea.Cmd {
 	return m.call(ipc.Request{Op: ipc.OpTyping, Chat: m.active, Text: "recording"}, nil, nil)
 }
 
+// micSource é o elemento do GStreamer que capta o microfone: pulsesrc (também
+// serve ao PipeWire pelo pipewire-pulse), senão pipewiresrc, senão o que o
+// GStreamer escolher (autoaudiosrc). Conferido uma vez só: gst-inspect custa.
+var micSource = sync.OnceValue(func() string {
+	return pickMicSource(func(el string) bool {
+		return exec.Command("gst-inspect-1.0", "--exists", el).Run() == nil
+	})
+})
+
+func pickMicSource(exists func(string) bool) string {
+	for _, el := range []string{"pulsesrc", "pipewiresrc"} {
+		if exists(el) {
+			return el
+		}
+	}
+	return "autoaudiosrc"
+}
+
 // resume abre um trecho novo.
 func (r *recording) resume() error {
 	path := fmt.Sprintf("%s-%d.pcm", r.base, len(r.segs)+1)
 	// -e: no SIGINT o GStreamer termina direito (manda EOS).
 	// ZAPTERM_REC_SRC troca o microfone por outra fonte (os testes usam
 	// audiotestsrc para não gravar ninguém).
-	src := []string{"pulsesrc"}
+	src := []string{micSource()}
 	if v := strings.Fields(os.Getenv("ZAPTERM_REC_SRC")); len(v) > 0 {
 		src = v
 	}

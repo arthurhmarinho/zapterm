@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"os/exec"
 	"strings"
 	"time"
 	"unicode"
@@ -790,10 +789,8 @@ func (m *model) copySelected() tea.Cmd {
 		m.setFlash("essa mensagem não tem texto")
 		return nil
 	}
-	cmd := exec.Command("wl-copy")
-	cmd.Stdin = strings.NewReader(text)
-	if err := cmd.Run(); err != nil {
-		m.setFlash("wl-copy: " + err.Error())
+	if err := copyText(text); err != nil {
+		m.setFlash(err.Error())
 		return nil
 	}
 	m.setFlash("copiado")

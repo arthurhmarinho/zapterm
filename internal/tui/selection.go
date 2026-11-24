@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -77,10 +76,8 @@ func (m *model) copyRange() tea.Cmd {
 		}
 		lines = append(lines, fmt.Sprintf("[%s] %s: %s", time.UnixMilli(x.TS).Format("02/01 15:04"), who, plainText(text)))
 	}
-	cmd := exec.Command("wl-copy")
-	cmd.Stdin = strings.NewReader(strings.Join(lines, "\n"))
-	if err := cmd.Run(); err != nil {
-		m.setFlash("wl-copy: " + err.Error())
+	if err := copyText(strings.Join(lines, "\n")); err != nil {
+		m.setFlash(err.Error())
 		return nil
 	}
 	m.clearSelRange()

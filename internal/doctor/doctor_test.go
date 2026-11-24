@@ -159,3 +159,35 @@ func TestRunEscreveSemCorQuandoPedido(t *testing.T) {
 		t.Errorf("saída:\n%s", b.String())
 	}
 }
+
+func TestAreaDeTransferenciaPorSessao(t *testing.T) {
+	semClip := func(n string) (string, error) {
+		if n == "xclip" || n == "wl-copy" || n == "wl-paste" {
+			return "", errors.New("não achei")
+		}
+		return "/usr/bin/" + n, nil
+	}
+	faltas := func(e Env) []string {
+		var w []string
+		for _, l := range Check(e) {
+			if l.st == falta {
+				w = append(w, l.what)
+			}
+		}
+		return w
+	}
+	e := tudo()
+	e.LookPath = semClip
+	if got := faltas(e); len(got) != 1 || got[0] != "xclip" {
+		t.Errorf("X11 sem xclip: %v", got)
+	}
+	e.Getenv = func(k string) string {
+		if k == "WAYLAND_DISPLAY" {
+			return "wayland-1"
+		}
+		return tudo().Getenv(k)
+	}
+	if got := faltas(e); len(got) != 2 || got[0] != "wl-copy" {
+		t.Errorf("Wayland sem wl-clipboard: %v", got)
+	}
+}
