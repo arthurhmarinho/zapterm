@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"encoding/base64"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -157,5 +159,140 @@ func TestRedimensionarRetransmite(t *testing.T) {
 	m.imgs.block("/a.png", 96, 96, 6, 3)
 	if !strings.Contains(strings.Join(m.imgs.pending, ""), "a=T") {
 		t.Fatal("não retransmitiu depois do resize")
+	}
+}
+
+// Uma imagem de 4000×4000 ocupa 64 MB decodificados: duas cabem no teto
+// (128 MB), a terceira estoura. Os testes não tocam em arquivo nenhum: o
+// place só transmite o caminho.
+const bigPx = 4000
+
+func imagemTeste() *images {
+	return &images{enabled: true, next: 1, placed: map[string]*kimage{}}
+}
+
+// idDe devolve o id da imagem já transmitida com esse caminho (cols/rows
+// pelo place: largura cheia de 6 colunas).
+func idDe(t *testing.T, im *images, path string) uint32 {
+	t.Helper()
+	for key, k := range im.placed {
+		if strings.HasPrefix(key, path+"|") {
+			return k.id
+		}
+	}
+	t.Fatalf("%s não está em placed", path)
+	return 0
+}
+
+func (im *images) placeBig(path string) {
+	im.place(path, nil, nil, bigPx, bigPx, 6, 6)
+}
+
+func TestTetoApagaAMenosUsadaRecentemente(t *testing.T) {
+	im := imagemTeste()
+	im.frame()
+	im.placeBig("/a.png")
+	idA := idDe(t, im, "/a.png")
+	im.frame()
+	im.placeBig("/b.png")
+	idB := idDe(t, im, "/b.png")
+	im.pending = nil
+	im.frame()
+	im.placeBig("/c.png") // 192 MB: passa do teto
+
+	apagados := []string{}
+	for _, c := range im.pending {
+		if strings.Contains(c, "a=d,d=I") {
+			apagados = append(apagados, c)
+		}
+	}
+	if len(apagados) != 1 || apagados[0] != fmt.Sprintf("\x1b_Ga=d,d=I,i=%d,q=2\x1b\\", idA) {
+		t.Fatalf("deveria apagar só a mais antiga (id %d), saiu %q", idA, apagados)
+	}
+	if strings.Contains(strings.Join(apagados, ""), fmt.Sprintf("i=%d,", idB)) {
+		t.Fatal("apagou a segunda, que foi usada depois")
+	}
+	if keyOf(im, "/a.png") != "" {
+		t.Fatal("a apagada continua em placed")
+	}
+	if im.bytes > kittyBudget {
+		t.Fatalf("ficou acima do teto: %d", im.bytes)
+	}
+}
+
+func keyOf(im *images, path string) string {
+	for key := range im.placed {
+		if strings.HasPrefix(key, path+"|") {
+			return key
+		}
+	}
+	return ""
+}
+
+func TestAvatarUsadoEmTodoQuadroNuncaSai(t *testing.T) {
+	im := imagemTeste()
+	avatar := "/avatar.round.png"
+	im.frame()
+	im.placeBig(avatar)
+	idAv := idDe(t, im, avatar)
+	im.pending = nil
+	for i := range 20 {
+		im.frame()
+		im.placeBig(avatar) // o quadro desenha a foto de novo
+		im.placeBig(fmt.Sprintf("/foto%d.png", i))
+	}
+	if strings.Contains(strings.Join(im.pending, ""), fmt.Sprintf("a=d,d=I,i=%d,", idAv)) {
+		t.Fatal("apagou o avatar, que estava em uso em todo quadro")
+	}
+	idDe(t, im, avatar) // ainda em placed
+}
+
+func TestApagadaEPedidaDeNovoRetransmite(t *testing.T) {
+	im := imagemTeste()
+	im.frame()
+	im.placeBig("/a.png")
+	im.frame()
+	im.placeBig("/b.png")
+	im.frame()
+	im.placeBig("/c.png") // apaga /a.png
+	im.pending = nil
+	im.frame()
+	im.placeBig("/a.png") // pedida de novo: tem que sair um a=T com o caminho
+	got := strings.Join(im.pending, "")
+	if !strings.Contains(got, "a=T,U=1") || !strings.Contains(got, base64.StdEncoding.EncodeToString([]byte("/a.png"))) {
+		t.Fatalf("não retransmitiu: %q", got)
+	}
+}
+
+// Só as imagens do quadro atual: o que cabe é o que já estava na tela, então
+// nada sai, mesmo acima do teto. Sem loop infinito.
+func TestQuadroAtualNaoApagaNada(t *testing.T) {
+	im := imagemTeste()
+	im.frame()
+	im.placeBig("/a.png")
+	im.placeBig("/b.png")
+	im.placeBig("/c.png")
+	if strings.Contains(strings.Join(im.pending, ""), "a=d,") {
+		t.Fatal("apagou imagem usada no quadro atual")
+	}
+	if im.bytes <= kittyBudget {
+		t.Fatalf("a conta de bytes deveria estar acima do teto: %d", im.bytes)
+	}
+}
+
+// Correção 4: a foto real troca as iniciais. As iniciais deixam de ser
+// pedidas e, com o teto, são apagadas sozinhas.
+func TestIniciaisDescartadasDepoisDaFoto(t *testing.T) {
+	im := imagemTeste()
+	iniciais := "/fallback.png"
+	im.frame()
+	im.placeBig(iniciais)
+	idIni := idDe(t, im, iniciais)
+	im.frame()
+	im.placeBig("/foto-real.png") // a foto chega; as iniciais não são mais pedidas
+	im.frame()
+	im.placeBig("/outra.png") // estoura: a menos usada é a das iniciais
+	if !strings.Contains(strings.Join(im.pending, ""), fmt.Sprintf("a=d,d=I,i=%d,", idIni)) {
+		t.Fatal("as iniciais continuaram no kitty")
 	}
 }

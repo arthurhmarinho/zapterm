@@ -418,6 +418,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmd = tea.Batch(cmds...)
 	}
+	m.imgs.frame()
 	if f := m.imgs.flush(); f != nil {
 		// A transmissão vai antes do quadro que usa os placeholders.
 		return m, tea.Sequence(f, cmd)

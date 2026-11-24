@@ -29,9 +29,18 @@ import (
 // imagem nesse retângulo mantendo a proporção.
 const cellW, cellH = 9, 19
 
+// kittyBudget é quanto a TUI deixa ocupar no kitty, em bytes de imagem
+// decodificada (RGBA). O kitty tem o limite dele (320 MB por padrão) e, ao
+// passar, descarta as imagens mais antigas sem avisar: sem este teto, as
+// fotos de perfil (as primeiras transmitidas) sumiam e a TUI não as mandava de
+// novo. Bem abaixo do limite, de propósito.
+const kittyBudget = 128 << 20
+
 type kimage struct {
 	id         uint32
 	cols, rows int
+	cost       int    // bytes estimados no kitty: pixels × 4 × quadros
+	used       uint64 // im.tick do último quadro que a usou
 }
 
 type images struct {
@@ -39,7 +48,12 @@ type images struct {
 	next    uint32
 	placed  map[string]*kimage // chave: caminho + tamanho
 	pending []string           // comandos de transmissão ainda não enviados
+	tick    uint64             // sobe uma vez por Update (frame)
+	bytes   int                // soma do custo das imagens em placed
 }
+
+// frame marca o começo de um quadro novo. Chamado uma vez por Update.
+func (im *images) frame() { im.tick++ }
 
 // GraphicsTerminal: o terminal onde isto roda desenha imagens (protocolo
 // gráfico do kitty). O doctor usa a mesma detecção da TUI.
@@ -90,24 +104,53 @@ func (im *images) place(path string, frames []string, delays []int, pxW, pxH, ma
 		cols = max(2, min(cols, (rows*cellH*pxW/pxH)/cellW))
 	}
 	key := fmt.Sprintf("%s|%dx%d", path, cols, rows)
-	k := im.placed[key]
-	if k == nil {
-		k = &kimage{id: im.next, cols: cols, rows: rows}
-		im.next++
-		im.placed[key] = k
-		im.pending = append(im.pending, fmt.Sprintf("\x1b_Ga=T,U=1,f=100,t=f,i=%d,c=%d,r=%d,q=2;%s\x1b\\",
-			k.id, cols, rows, base64.StdEncoding.EncodeToString([]byte(path))))
-		if len(frames) > 0 {
-			for i, f := range frames {
-				im.pending = append(im.pending, fmt.Sprintf("\x1b_Ga=f,i=%d,f=100,t=f,z=%d,q=2;%s\x1b\\",
-					k.id, delays[i+1], base64.StdEncoding.EncodeToString([]byte(f))))
-			}
-			im.pending = append(im.pending,
-				fmt.Sprintf("\x1b_Ga=a,i=%d,r=1,z=%d,q=2\x1b\\", k.id, delays[0]),
-				fmt.Sprintf("\x1b_Ga=a,i=%d,s=3,v=1,q=2\x1b\\", k.id))
-		}
+	if k := im.placed[key]; k != nil {
+		k.used = im.tick
+		return placeholder(k)
 	}
+	k := &kimage{id: im.next, cols: cols, rows: rows, used: im.tick,
+		cost: pxW * pxH * 4 * (1 + len(frames))}
+	im.next++
+	im.placed[key] = k
+	im.bytes += k.cost
+	im.pending = append(im.pending, fmt.Sprintf("\x1b_Ga=T,U=1,f=100,t=f,i=%d,c=%d,r=%d,q=2;%s\x1b\\",
+		k.id, cols, rows, base64.StdEncoding.EncodeToString([]byte(path))))
+	if len(frames) > 0 {
+		for i, f := range frames {
+			im.pending = append(im.pending, fmt.Sprintf("\x1b_Ga=f,i=%d,f=100,t=f,z=%d,q=2;%s\x1b\\",
+				k.id, delays[i+1], base64.StdEncoding.EncodeToString([]byte(f))))
+		}
+		im.pending = append(im.pending,
+			fmt.Sprintf("\x1b_Ga=a,i=%d,r=1,z=%d,q=2\x1b\\", k.id, delays[0]),
+			fmt.Sprintf("\x1b_Ga=a,i=%d,s=3,v=1,q=2\x1b\\", k.id))
+	}
+	im.evict()
 	return placeholder(k)
+}
+
+// evict apaga do kitty, pelo id, as imagens menos usadas até a soma voltar ao
+// teto. Uma imagem usada neste quadro (used == tick) nunca sai: se só elas
+// couberem acima do teto, fica acima mesmo. Quem foi apagado é retransmitido
+// na próxima vez que place o pedir (a chave some de placed).
+func (im *images) evict() {
+	for im.bytes > kittyBudget {
+		var victim string
+		var vk *kimage
+		for key, k := range im.placed {
+			if k.used == im.tick {
+				continue
+			}
+			if vk == nil || k.used < vk.used || (k.used == vk.used && k.id < vk.id) {
+				victim, vk = key, k
+			}
+		}
+		if vk == nil {
+			return
+		}
+		im.pending = append(im.pending, fmt.Sprintf("\x1b_Ga=d,d=I,i=%d,q=2\x1b\\", vk.id))
+		im.bytes -= vk.cost
+		delete(im.placed, victim)
+	}
 }
 
 func placeholder(k *kimage) string {
@@ -142,6 +185,7 @@ func (im *images) reset() {
 	}
 	im.pending = append([]string{b.String()}, im.pending...)
 	im.placed = map[string]*kimage{}
+	im.bytes = 0
 }
 
 // flush manda ao terminal as transmissões pendentes.
