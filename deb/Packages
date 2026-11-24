@@ -30,3 +30,35 @@ SHA512: 1ff6b2f852ca0a30b79430ea7be2c75a60ee0cbf1f23f6e60f27d19e2359938e5a60f706
 Homepage: https://github.com/arthurhmarinho/zapterm
 Description: Cliente de WhatsApp para o terminal.
 
+Package: zapterm
+Architecture: amd64
+Version: 0.1.1
+Priority: optional
+Maintainer: Arthur H Marinho <ykhalloween4@gmail.com>
+Installed-Size: 23573
+Recommends: kitty, wl-clipboard, xclip, mpv, gstreamer1.0-tools, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-pulseaudio, xdg-desktop-portal-gtk
+Filename: ./zapterm_0.1.1_linux_amd64.deb
+Size: 9067438
+MD5sum: 0c50c5f4647d175790e46fd45aa0946f
+SHA1: 3615bfa93fe874f365d730fbc213912dc5305af7
+SHA256: f2d7b60e09ab00c2d3b2e00d13840002240b2566fecab03ea9455932115eca8c
+SHA512: 920dd0787ad947c0e0fa6991d9afab5813560903a0978dca2120d67d73d4d9a7a96726a2aeb1185621b7f408345dd7861fd125ec6d3aab8a41c7469c4f1a67b7
+Homepage: https://github.com/arthurhmarinho/zapterm
+Description: Cliente de WhatsApp para o terminal.
+
+Package: zapterm
+Architecture: arm64
+Version: 0.1.1
+Priority: optional
+Maintainer: Arthur H Marinho <ykhalloween4@gmail.com>
+Installed-Size: 22261
+Recommends: kitty, wl-clipboard, xclip, mpv, gstreamer1.0-tools, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-pulseaudio, xdg-desktop-portal-gtk
+Filename: ./zapterm_0.1.1_linux_arm64.deb
+Size: 8352998
+MD5sum: fc96838648778d9388cb05bf5f4ed709
+SHA1: f035b8726476900321371c723562f31aa8b70eb1
+SHA256: dff90b13eb614243cea0cdbc7679795d7d4cb24801a52ecfc687a31865aea593
+SHA512: 8ffb90a086742113e09df87dd72487fcdaef5a60bb0fa9f1d6e5ea191401440d87e63862e8e8a13889f09302c463d0e1cce53fa3e0b52ee9c01ed4837812aef0
+Homepage: https://github.com/arthurhmarinho/zapterm
+Description: Cliente de WhatsApp para o terminal.
+

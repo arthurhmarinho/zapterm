@@ -3,27 +3,31 @@ Hash: SHA512
 
 Architectures: amd64 arm64
 Codename: zapterm
-Date: Tue, 24 Nov 2026 17:36:30 +0000
+Date: Tue, 24 Nov 2026 18:30:46 +0000
 Description: zapterm: WhatsApp no terminal
 Label: zapterm
 Origin: zapterm
 Suite: stable
 MD5Sum:
- 51baece2056a616f0bec525177fdd151             1518 Packages
- 2a816a2af9e3a6acab86f749b0555de2              750 Packages.gz
+ 03ba4864f7d7115f4411f977e8caaff6             3060 Packages
+ 2b317cf6f1c1bd3d620e9ee22aa79fd3             1141 Packages.gz
+ 5b70b5db0b13009230191069ec9dd37b              965 Release
 SHA1:
- 0541e370d8f5919ab2598c5bac813de3d6b68363             1518 Packages
- 00a0129dd0f7cebc3ebbef8fcbce752898eea0fe              750 Packages.gz
+ e306b1068e476cd281f583c4ed84a9fe51b31d84             3060 Packages
+ 57d6c886a801688a180327ea936deac6749365e9             1141 Packages.gz
+ 6c356cfec0437e552d40f46ea12114ed8a0b880a              965 Release
 SHA256:
- 98a5ec1b7b1c2515b51b28d72d0db0610a88bb183d2885128b86ba04c84a21d0             1518 Packages
- 038be88735d50161cb21875ec15a40db3da431de93579171d5ec4af2403bc7fb              750 Packages.gz
+ d2e944dfe1bcb6b9cf8f23f323f6a27dda803b7e2c0396adb08315cb9e9cbc66             3060 Packages
+ b5c294caadff29a02bfcbb672fb0a6e6eedb8de660851af066949d65ef6571e0             1141 Packages.gz
+ 7421643d587ac11c63aa406be2528a3586797951c9e0ba86c399427128bf8c73              965 Release
 SHA512:
- 5f8c413059b6159ee48cfa6f0347bea7628a3467ce401c38af2adecf3c58a060de9fb8f153bac6bc55c86967439a997a306ce449c6283646849d59ae46c4eeb3             1518 Packages
- 22f39d0eb6f45dc62cbeb8f7b6d49ff654d85b3a2e65e82eb8f38b5c38f22452860e2941ebbabe80867fbe1fa303a343df8bd87c8b77d83e04c02f1d0403ebe2              750 Packages.gz
+ e1da696299751762a8475ea4b397338ee4076d63e6611272263c7a2f15dbbca092cc1890a894c2ce12fd55e9e3652e6726100840fd85f3b81e5c8aa066e4f890             3060 Packages
+ e027911b93fe508d89732bccd50599fb1f7c4568d80a856b52280cb41dabf8fe2cdd9db326ea08b7d50707539a4c3dac4e76d2b5135ced3b9b64fd51c2c458df             1141 Packages.gz
+ 9160f584ef8554a73734d9ed3b938893a8ff422996d7c75c6a76679d6314d81e7c54fd4e09182046ff0c5006da34e3c8381ce262f2cff0bca60c2d5a14834a17              965 Release
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYKAB0WIQRxEBI8cr32LX2tvi1cB/lAkh2h6QUCawXLHgAKCRBcB/lAkh2h
-6Z8ZAP0UTFbd0c6bAqal6ldRn6IQwD18+2JHP+t+TaKV74W+rgD/Rlo9s1xeQtYR
-GXEILAgwxeqw5q8QzEDmEg6YV3T2jgk=
-=ZqSO
+iHUEARYKAB0WIQRxEBI8cr32LX2tvi1cB/lAkh2h6QUCawXX1gAKCRBcB/lAkh2h
+6UZxAP9MIlOZN/T30YzZKukoi4yAmYM5S2chO2fovhqyMqvUiQEAxH1xB8LNIBZY
+4vk//qDgB3fFsj3czVSj9sdhszfX/As=
+=Re06
 -----END PGP SIGNATURE-----
