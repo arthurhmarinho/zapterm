@@ -116,7 +116,6 @@ Feito e testado no Linux (Wayland, Sway), no terminal **kitty**.
 
 | Para | Precisa de |
 |---|---|
-| Compilar | Go 1.27+ e um compilador C (o SQLite usa cgo) |
 | Fotos e figurinhas no terminal | kitty (em outro terminal elas viram texto) |
 | Ícones | uma [Nerd Font](https://www.nerdfonts.com) (`ZAPTERM_NERDFONT=0` troca por texto) |
 | Áudio (ouvir e gravar) | GStreamer com os plugins base, good e de Opus; PipeWire ou PulseAudio |
@@ -126,14 +125,38 @@ Feito e testado no Linux (Wayland, Sway), no terminal **kitty**.
 | Transcrever áudio (opcional) | `whisper-cli` do whisper.cpp e um modelo ggml |
 | Vídeo e PDF | mpv/vlc/celluloid e zathura/sioyek/evince (usa o primeiro instalado) |
 
+O binário é estático (o SQLite não usa cgo): não precisa de compilador C
+nem de nada instalado só para abrir. O resto da tabela é o que liga cada
+recurso; `zapterm doctor` confere o que o seu sistema tem e diz o pacote do
+que falta no Arch, no Debian/Ubuntu e no Fedora.
+
 ## Instalação
+
+**Arch** (AUR):
+
+```sh
+yay -S zapterm-bin
+```
+
+**Qualquer distro** (baixa o binário da última versão, confere o sha256 e
+instala em `~/.local/bin`; `ZAPTERM_BIN=/outra/pasta` muda o destino):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/arthurhmarinho/zapterm/main/install.sh | sh
+```
+
+**.deb e .rpm**: baixe o pacote da sua distro (amd64 ou arm64) na página de
+[Releases](https://github.com/arthurhmarinho/zapterm/releases) e instale com
+`sudo apt install ./zapterm*.deb` ou `sudo dnf install ./zapterm*.rpm`.
+
+**Pelo Go** (só precisa do Go 1.26 ou mais novo, sem compilador C):
 
 ```sh
 go install github.com/arthurhmarinho/zapterm/cmd/zapterm@latest
 ```
 
 O binário vai para `~/go/bin` (ou o `GOBIN`). Se `zapterm` não for
-encontrado, ponha essa pasta no PATH. No fish:
+encontrado, ponha a pasta em que ele foi instalado no PATH. No fish:
 
 ```fish
 fish_add_path -g $HOME/go/bin
@@ -141,7 +164,23 @@ fish_add_path -g $HOME/go/bin
 
 No bash/zsh: `export PATH="$HOME/go/bin:$PATH"` no `~/.bashrc` ou `~/.zshrc`.
 
-Para atualizar, rode o mesmo `go install` de novo.
+Depois de instalar, rode:
+
+```sh
+zapterm doctor
+```
+
+Ele lista o que está ok e o que falta (GStreamer, wl-clipboard, servidor de
+notificação…), com o pacote de cada distro. Não muda nada no sistema.
+
+### Atualizar
+
+Repita o método que você usou (`yay -Syu`, o `curl … | sh`, o pacote novo ou
+o `go install`). O daemon que estava rodando é trocado pelo da versão nova
+sozinho, na próxima vez que você abrir o zapterm (o `install.sh` já o
+reinicia na hora; ou rode `zapterm restart`). Uma TUI que estava aberta
+durante a atualização avisa para ser fechada e aberta de novo.
+`zapterm version` mostra a versão em uso.
 
 ## Primeiro uso
 
@@ -168,12 +207,14 @@ anterior, o banco antigo vira `~/.local/share/zapterm/zapterm-<número>.db` e
 o zapterm começa vazio.
 
 Para o daemon subir junto com o Sway (e as notificações chegarem sem
-abrir a TUI), no `~/.config/sway/config`, com o caminho completo, porque o
-Sway não lê o PATH do shell:
+abrir a TUI), no `~/.config/sway/config`:
 
 ```
-exec ~/go/bin/zapterm daemon
+exec zapterm daemon
 ```
+
+O Sway não lê o PATH do shell: se ele não achar o `zapterm`, troque pelo
+caminho completo que `command -v zapterm` mostra.
 
 Para ver sem conta nenhuma, com conversas inventadas:
 
