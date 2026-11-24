@@ -112,16 +112,19 @@ chat marca as mensagens como lidas, como no app.
 
 ## Requisitos
 
-Feito e testado no Linux (Wayland, Sway), no terminal **kitty**.
+Feito e testado no Linux (Wayland, Sway), no terminal **kitty**. No X11
+(Cinnamon, GNOME, KDE…) ele também funciona: copiar e colar usam o `xclip`,
+e a janela vem do terminal que o sistema tiver. Os pacotes `.deb`, `.rpm` e
+do Arch já recomendam tudo o que está abaixo, inclusive o kitty e o xclip.
 
 | Para | Precisa de |
 |---|---|
-| Fotos e figurinhas no terminal | kitty (em outro terminal elas viram texto) |
+| Fotos e figurinhas no terminal | kitty (em outro terminal, como o gnome-terminal, elas viram texto) |
 | Ícones | uma [Nerd Font](https://www.nerdfonts.com) (`ZAPTERM_NERDFONT=0` troca por texto) |
 | Áudio (ouvir e gravar) | GStreamer com os plugins base, good e de Opus; PipeWire ou PulseAudio |
-| Colar print | `wl-paste` (wl-clipboard) |
+| Copiar e colar (inclusive print) | `wl-clipboard` no Wayland, `xclip` no X11 |
 | Anexar arquivo | `xdg-desktop-portal` com um backend (gtk, gnome, kde…) |
-| Notificações | um servidor de notificação no D-Bus (mako, dunst, swaync…); o zapterm fala direto com ele, não usa o `notify-send` |
+| Notificações | um servidor de notificação no D-Bus (mako, dunst, swaync, o do Cinnamon…); o zapterm fala direto com ele, não usa o `notify-send` |
 | Transcrever áudio (opcional) | `whisper-cli` do whisper.cpp e um modelo ggml |
 | Vídeo e PDF | mpv/vlc/celluloid e zathura/sioyek/evince (usa o primeiro instalado) |
 
@@ -132,11 +135,28 @@ que falta no Arch, no Debian/Ubuntu e no Fedora.
 
 ## Instalação
 
-**Arch** (AUR):
+**Ubuntu, Linux Mint, Debian** (sem digitar comando nenhum):
 
-```sh
-yay -S zapterm-bin
-```
+1. Na página de [Releases](https://github.com/arthurhmarinho/zapterm/releases),
+   baixe o `.deb` do seu computador (`amd64` na maioria; `arm64` em Raspberry
+   Pi e similares).
+2. Dê dois cliques nele e clique em **Instalar**.
+3. Abra o **zapterm** pelo menu de aplicativos (em Rede ou Internet).
+
+O pacote recomenda o que o zapterm usa (kitty, GStreamer, xclip, mpv…), e o
+instalador costuma trazer tudo junto; se faltar algo, `zapterm doctor` diz o
+quê. Ele também registra o repositório do zapterm no apt. Por isso as **atualizações chegam
+pelo Gerenciador de Atualizações**, junto com as do resto do sistema, sem
+você baixar nada de novo. Pelo terminal dá o mesmo:
+`sudo apt install ./zapterm_*.deb` na primeira vez e
+`sudo apt update && sudo apt upgrade` depois.
+
+**Fedora** (e outras com rpm): baixe o `.rpm` em Releases e instale com
+`sudo dnf install ./zapterm*.rpm`. Para atualizar, baixe o novo (ou use o
+`install.sh` abaixo).
+
+**Arch**: `yay -S zapterm-bin` (quando o pacote estiver no AUR) ou o
+`install.sh` abaixo.
 
 **Qualquer distro** (baixa o binário da última versão, confere o sha256 e
 instala em `~/.local/bin`; `ZAPTERM_BIN=/outra/pasta` muda o destino):
@@ -144,10 +164,6 @@ instala em `~/.local/bin`; `ZAPTERM_BIN=/outra/pasta` muda o destino):
 ```sh
 curl -fsSL https://raw.githubusercontent.com/arthurhmarinho/zapterm/main/install.sh | sh
 ```
-
-**.deb e .rpm**: baixe o pacote da sua distro (amd64 ou arm64) na página de
-[Releases](https://github.com/arthurhmarinho/zapterm/releases) e instale com
-`sudo apt install ./zapterm*.deb` ou `sudo dnf install ./zapterm*.rpm`.
 
 **Pelo Go** (só precisa do Go 1.26 ou mais novo, sem compilador C):
 
@@ -170,17 +186,23 @@ Depois de instalar, rode:
 zapterm doctor
 ```
 
-Ele lista o que está ok e o que falta (GStreamer, wl-clipboard, servidor de
-notificação…), com o pacote de cada distro. Não muda nada no sistema.
+Ele lista o que está ok e o que falta (GStreamer, xclip ou wl-clipboard,
+servidor de notificação…), com o pacote de cada distro. Não muda nada no
+sistema.
 
 ### Atualizar
 
-Repita o método que você usou (`yay -Syu`, o `curl … | sh`, o pacote novo ou
-o `go install`). O daemon que estava rodando é trocado pelo da versão nova
-sozinho, na próxima vez que você abrir o zapterm (o `install.sh` já o
-reinicia na hora; ou rode `zapterm restart`). Uma TUI que estava aberta
-durante a atualização avisa para ser fechada e aberta de novo.
-`zapterm version` mostra a versão em uso.
+- **.deb:** pelo Gerenciador de Atualizações (ou `sudo apt update && sudo apt
+  upgrade`). Se você removeu o repositório do zapterm do apt, baixe o `.deb`
+  novo e instale por cima.
+- **Os outros métodos:** repita o que você usou (`yay -Syu`, o `curl … | sh`,
+  o pacote novo ou o `go install`).
+
+O daemon que estava rodando é trocado pelo da versão nova sozinho, na
+próxima vez que você abrir o zapterm (o `install.sh` já o reinicia na hora;
+ou rode `zapterm restart`). Uma TUI que estava aberta durante a atualização
+avisa para ser fechada e aberta de novo. `zapterm version` mostra a versão
+em uso.
 
 ## Primeiro uso
 
