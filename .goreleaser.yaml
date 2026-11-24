@@ -63,7 +63,7 @@ nfpms:
       - deb
       - rpm
       - archlinux
-    maintainer: Arthur H Marinho <EMAIL_AQUI>
+    maintainer: Arthur H Marinho <ykhalloween4@gmail.com>
     homepage: https://github.com/arthurhmarinho/zapterm
     description: Cliente de WhatsApp para o terminal.
     license: GPL-3.0
@@ -134,7 +134,7 @@ aurs:
     description: Cliente de WhatsApp para o terminal (binário pronto)
     license: GPL-3.0
     maintainers:
-      - "Arthur H Marinho <EMAIL_AQUI>"
+      - "Arthur H Marinho <ykhalloween4@gmail.com>"
     private_key: "{{ .Env.AUR_KEY }}"
     git_url: ssh://aur@aur.archlinux.org/zapterm-bin.git
     # Sem AUR_KEY (um fork, ou o secret ainda não criado) o release sai igual,
