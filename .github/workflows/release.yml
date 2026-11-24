@@ -14,6 +14,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Conferir o chaveiro do APT
+        run: |
+          if ! gpg --show-keys packaging/zapterm-archive-keyring.gpg >/dev/null 2>&1; then
+            echo "::error::packaging/zapterm-archive-keyring.gpg ainda é o placeholder. Gere a chave e faça o commit dela antes da tag (packaging/README.md)."
+            exit 1
+          fi
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -24,3 +30,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
+
+  # Depois do release: atualiza o repositório APT (gh-pages). Sem o secret
+  # APT_GPG_KEY ele só avisa.
+  apt:
+    needs: goreleaser
+    uses: ./.github/workflows/apt.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit
+    permissions:
+      contents: write

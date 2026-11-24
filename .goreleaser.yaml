@@ -76,6 +76,9 @@ nfpms:
     # Ubuntu e no Arch não há pacote oficial, então não entra nos outros.
     overrides:
       deb:
+        scripts:
+          postinstall: packaging/postinst.sh
+          postremove: packaging/postrm.sh
         recommends:
           - kitty
           - wl-clipboard
@@ -118,6 +121,11 @@ nfpms:
         dst: /usr/share/applications/zapterm.desktop
       - src: packaging/zapterm.svg
         dst: /usr/share/icons/hicolor/scalable/apps/zapterm.svg
+      # Só no .deb: a chave que o apt usa para conferir o repositório do
+      # zapterm (a fonte é criada pelo postinst).
+      - src: packaging/zapterm-archive-keyring.gpg
+        dst: /usr/share/keyrings/zapterm-archive-keyring.gpg
+        packager: deb
 
 aurs:
   - name: zapterm-bin

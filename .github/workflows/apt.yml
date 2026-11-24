@@ -1,0 +1,129 @@
+# Repositório APT do zapterm, servido pelo GitHub Pages (branch gh-pages, pasta
+# deb/): https://arthurhmarinho.github.io/zapterm/deb
+#
+# Chamado pelo release.yml depois do goreleaser (um release criado com o
+# GITHUB_TOKEN não dispara outros workflows, então "on: release" não serviria).
+# Também dá para rodar à mão em Actions → apt → Run workflow, com a tag.
+name: apt
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag do release (ex.: v0.1.0)"
+        type: string
+        required: false
+    secrets:
+      APT_GPG_KEY:
+        required: false
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag do release (ex.: v0.1.0)"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+# Dois releases seguidos não podem publicar ao mesmo tempo (o push perderia).
+concurrency:
+  group: apt-repo
+  cancel-in-progress: false
+
+jobs:
+  repo:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      APT_GPG_KEY: ${{ secrets.APT_GPG_KEY }}
+    steps:
+      - name: Conferir o secret da chave
+        id: key
+        run: |
+          if [ -z "$APT_GPG_KEY" ]; then
+            echo "::warning title=APT::O secret APT_GPG_KEY não existe: o repositório APT não foi atualizado. O release em si não é afetado."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.skip != 'true'
+
+      - name: Ferramentas
+        if: steps.key.outputs.skip != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apt-utils gnupg
+
+      - name: Importar a chave de assinatura
+        if: steps.key.outputs.skip != 'true'
+        run: |
+          printf '%s\n' "$APT_GPG_KEY" | gpg --batch --import
+          fpr=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')
+          [ -n "$fpr" ] || { echo "::error::APT_GPG_KEY não tem uma chave privada válida"; exit 1; }
+          echo "FPR=$fpr" >> "$GITHUB_ENV"
+
+      - name: Conferir se o chaveiro do pacote é desta chave
+        if: steps.key.outputs.skip != 'true'
+        run: |
+          pkg=$(gpg --show-keys --with-colons packaging/zapterm-archive-keyring.gpg 2>/dev/null | awk -F: '/^fpr/ {print $10; exit}')
+          if [ "$pkg" != "$FPR" ]; then
+            echo "::warning title=APT::packaging/zapterm-archive-keyring.gpg não é a chave do APT_GPG_KEY; quem instalou o .deb não conseguirá validar este repositório."
+          fi
+
+      - name: Pegar a branch gh-pages (ou começar uma)
+        if: steps.key.outputs.skip != 'true'
+        run: |
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$url" gh-pages >/dev/null 2>&1; then
+            git clone --quiet --branch gh-pages --single-branch "$url" pages
+          else
+            git init --quiet --initial-branch gh-pages pages
+            git -C pages remote add origin "$url"
+          fi
+          mkdir -p pages/deb
+          touch pages/.nojekyll
+
+      - name: Baixar os .deb do release
+        if: steps.key.outputs.skip != 'true'
+        run: |
+          # Os das versões anteriores já estão em pages/deb e ficam.
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir pages/deb --clobber
+          ls -l pages/deb
+
+      - name: Montar e assinar o repositório
+        if: steps.key.outputs.skip != 'true'
+        working-directory: pages/deb
+        run: |
+          apt-ftparchive packages . > Packages
+          gzip -9 -k -f Packages
+          # Release fora da pasta: o apt-ftparchive hasheia tudo o que está nela.
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin=zapterm \
+            -o APT::FTPArchive::Release::Label=zapterm \
+            -o APT::FTPArchive::Release::Suite=stable \
+            -o APT::FTPArchive::Release::Codename=zapterm \
+            -o APT::FTPArchive::Release::Architectures="amd64 arm64" \
+            -o APT::FTPArchive::Release::Description="zapterm: WhatsApp no terminal" \
+            release . > ../Release.new
+          mv ../Release.new Release
+          gpg --batch --yes --pinentry-mode loopback --default-key "$FPR" --clearsign -o InRelease Release
+          gpg --batch --yes --pinentry-mode loopback --default-key "$FPR" --armor --detach-sign -o Release.gpg Release
+          # Chave pública em binário, para quem adiciona o repositório à mão.
+          gpg --export "$FPR" > zapterm.gpg
+          ls -l
+
+      - name: Publicar
+        if: steps.key.outputs.skip != 'true'
+        working-directory: pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nada mudou"
+            exit 0
+          fi
+          git commit --quiet -m "apt: zapterm ${TAG}"
+          git push origin gh-pages
