@@ -39,6 +39,10 @@ func TestPickTerminal(t *testing.T) {
 		{"wezterm", nil, "", []string{"wezterm", "ghostty"}, []string{"wezterm", "start", "--class", "zapterm", "--"}, TermAuto, false},
 		{"ghostty", nil, "", []string{"ghostty", "xdg-terminal-exec"}, []string{"ghostty", "--class=zapterm", "-e"}, TermAuto, false},
 		{"xdg-terminal-exec por último", nil, "", []string{"xdg-terminal-exec"}, []string{"xdg-terminal-exec"}, TermAuto, false},
+		{"gnome-terminal no Mint", nil, "", []string{"gnome-terminal", "x-terminal-emulator", "xterm"}, []string{"gnome-terminal", "--class=zapterm", "--"}, TermAuto, false},
+		{"x-terminal-emulator antes do xterm", nil, "", []string{"x-terminal-emulator", "xterm"}, []string{"x-terminal-emulator", "-e"}, TermAuto, false},
+		{"xterm por último", nil, "", []string{"xterm"}, []string{"xterm", "-class", "zapterm", "-e"}, TermAuto, false},
+		{"kitty vence o gnome-terminal", nil, "", []string{"gnome-terminal", "kitty"}, []string{"kitty", "--class", "zapterm"}, TermAuto, false},
 		{"nenhum", nil, "", nil, nil, "", true},
 	}
 	for _, c := range casos {

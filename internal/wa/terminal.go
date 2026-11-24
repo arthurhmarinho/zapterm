@@ -20,6 +20,11 @@ var knownTerminals = [][]string{
 	{"wezterm", "start", "--class", "zapterm", "--"},
 	{"ghostty", "--class=zapterm", "-e"},
 	{"xdg-terminal-exec"},
+	// Debian, Ubuntu e Mint: o terminal da área de trabalho (gnome-terminal no
+	// Cinnamon) e, por último, o que o sistema marcou como padrão.
+	{"gnome-terminal", "--class=zapterm", "--"},
+	{"x-terminal-emulator", "-e"},
+	{"xterm", "-class", "zapterm", "-e"},
 }
 
 // Origem do terminal escolhido, para o doctor dizer de onde veio.
@@ -69,18 +74,41 @@ func selfExe(lookPath func(string) (string, error)) (string, error) {
 	return lookPath("zapterm")
 }
 
-// openTerminal abre o zapterm numa janela nova de terminal, desligada do
-// daemon (setsid). env entra no ambiente do processo (ex.: ZAPTERM_OPEN=jid).
-func (d *Daemon) openTerminal(env ...string) error {
-	argv, _, err := TerminalCommand(d.cfg)
+// TerminalArgv é o comando completo: o terminal escolhido e o zapterm no fim.
+func TerminalArgv(cfg config.Config) ([]string, error) {
+	argv, _, err := TerminalCommand(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	exe, err := selfExe(exec.LookPath)
 	if err != nil {
+		return nil, err
+	}
+	return append(argv, exe), nil
+}
+
+// Launch troca este processo por um terminal rodando o zapterm: é o que o
+// atalho do menu chama (`zapterm launch`). Só volta se falhar.
+func Launch(cfg config.Config) error {
+	argv, err := TerminalArgv(cfg)
+	if err != nil {
 		return err
 	}
-	cmd := exec.Command(argv[0], append(argv[1:], exe)...)
+	path, err := exec.LookPath(argv[0])
+	if err != nil {
+		return err
+	}
+	return syscall.Exec(path, argv, os.Environ())
+}
+
+// openTerminal abre o zapterm numa janela nova de terminal, desligada do
+// daemon (setsid). env entra no ambiente do processo (ex.: ZAPTERM_OPEN=jid).
+func (d *Daemon) openTerminal(env ...string) error {
+	argv, err := TerminalArgv(d.cfg)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = append(os.Environ(), env...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	return cmd.Start()

@@ -37,7 +37,8 @@
 # notify_sound = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"
 # Terminal que abre ao clicar na notificação ou no widget da barra (o zapterm
 # vai no fim do comando). Vazio: $TERMINAL (com -e) e, sem ele, o primeiro
-# instalado entre kitty, foot, alacritty, wezterm e ghostty.
+# instalado entre kitty, foot, alacritty, wezterm, ghostty, gnome-terminal,
+# x-terminal-emulator e xterm (só o kitty mostra fotos e figurinhas).
 # terminal = ["kitty", "--class", "zapterm"]
 
 [colors]

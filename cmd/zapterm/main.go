@@ -16,6 +16,7 @@
 //	zapterm open             traz a TUI para frente, ou abre uma (clique no widget)
 //	zapterm stop             encerra o daemon (as conversas ficam; a conexão com o WhatsApp cai)
 //	zapterm restart          reinicia o daemon (vale para mudanças de [privacy] e para atualizações)
+//	zapterm launch           abre o zapterm numa janela de terminal (o atalho do menu usa)
 //	zapterm doctor           confere o que o sistema tem e o que falta (com o pacote em cada distro)
 //	zapterm version          mostra versão, commit e data (também --version e -v)
 package main
@@ -98,6 +99,9 @@ func run(args []string) error {
 		return stopCmd()
 	case "restart":
 		return restartCmd()
+	case "launch":
+		cfg, _ := config.Load()
+		return wa.Launch(cfg)
 	case "doctor":
 		return doctorCmd()
 	case "version", "--version", "-v":
@@ -129,6 +133,7 @@ uso: zapterm [comando]
   open                       traz a TUI para frente, ou abre uma (clique no widget)
   stop                       encerra o daemon (as conversas ficam; a conexão com o WhatsApp cai)
   restart                    reinicia o daemon (vale para mudanças de [privacy] e para atualizações)
+  launch                     abre o zapterm numa janela de terminal (o atalho do menu usa)
   doctor                     confere o que o sistema tem e o que falta (com o pacote em cada distro)
   version                    mostra versão, commit e data (também --version e -v)
   help                       esta ajuda

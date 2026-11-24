@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=zapterm
+GenericName=WhatsApp no terminal
+Comment=WhatsApp no terminal, com fotos, áudio e notificações
+Comment[pt_BR]=WhatsApp no terminal, com fotos, áudio e notificações
+Exec=zapterm launch
+Icon=zapterm
+Terminal=false
+Categories=Network;InstantMessaging;
+Keywords=whatsapp;zap;chat;mensagens;
+StartupWMClass=zapterm

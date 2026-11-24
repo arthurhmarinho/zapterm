@@ -6,7 +6,7 @@ ou traz a janela dele para frente.
 
 O clique abre o terminal escolhido no zapterm (`[interface] terminal` no
 config, senão `$TERMINAL`, senão o primeiro instalado entre kitty, foot,
-alacritty, wezterm e ghostty).
+alacritty, wezterm, ghostty e os terminais padrão do Debian).
 
 O daemon do zapterm atualiza o número sozinho sempre que ele muda; o
 widget não fica consultando.

@@ -32,6 +32,10 @@ archives:
     files:
       - LICENSE
       - README.md
+      - src: packaging/zapterm.desktop
+        strip_parent: true
+      - src: packaging/zapterm.svg
+        strip_parent: true
 
 checksum:
   name_template: checksums.txt
@@ -97,6 +101,11 @@ nfpms:
         dst: /usr/share/doc/zapterm/README.md
       - src: LICENSE
         dst: /usr/share/licenses/zapterm/LICENSE
+      # Atalho no menu de aplicativos (Cinnamon, GNOME, KDE…).
+      - src: packaging/zapterm.desktop
+        dst: /usr/share/applications/zapterm.desktop
+      - src: packaging/zapterm.svg
+        dst: /usr/share/icons/hicolor/scalable/apps/zapterm.svg
 
 aurs:
   - name: zapterm-bin
@@ -131,6 +140,8 @@ aurs:
       install -Dm755 "./zapterm" "${pkgdir}/usr/bin/zapterm"
       install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/zapterm-bin/LICENSE"
       install -Dm644 "./README.md" "${pkgdir}/usr/share/doc/zapterm-bin/README.md"
+      install -Dm644 "./zapterm.desktop" "${pkgdir}/usr/share/applications/zapterm.desktop"
+      install -Dm644 "./zapterm.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/zapterm.svg"
 
 release:
   github:
