@@ -122,7 +122,7 @@ Feito e testado no Linux (Wayland, Sway), no terminal **kitty**.
 | Áudio (ouvir e gravar) | GStreamer com os plugins base, good e de Opus; PipeWire ou PulseAudio |
 | Colar print | `wl-paste` (wl-clipboard) |
 | Anexar arquivo | `xdg-desktop-portal` com um backend (gtk, gnome, kde…) |
-| Notificações | `notify-send` e um servidor de notificação |
+| Notificações | um servidor de notificação no D-Bus (mako, dunst, swaync…); o zapterm fala direto com ele, não usa o `notify-send` |
 | Transcrever áudio (opcional) | `whisper-cli` do whisper.cpp e um modelo ggml |
 | Vídeo e PDF | mpv/vlc/celluloid e zathura/sioyek/evince (usa o primeiro instalado) |
 

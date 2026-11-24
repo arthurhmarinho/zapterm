@@ -16,6 +16,7 @@
 //	zapterm open             traz a TUI para frente, ou abre uma (clique no widget)
 //	zapterm stop             encerra o daemon (as conversas ficam; a conexão com o WhatsApp cai)
 //	zapterm restart          reinicia o daemon (vale para mudanças de [privacy] e para atualizações)
+//	zapterm doctor           confere o que o sistema tem e o que falta (com o pacote em cada distro)
 //	zapterm version          mostra versão, commit e data (também --version e -v)
 package main
 
@@ -38,6 +39,7 @@ import (
 	"github.com/arthurhmarinho/zapterm/internal/config"
 	"github.com/arthurhmarinho/zapterm/internal/daemonctl"
 	"github.com/arthurhmarinho/zapterm/internal/demo"
+	"github.com/arthurhmarinho/zapterm/internal/doctor"
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 	"github.com/arthurhmarinho/zapterm/internal/paths"
 	"github.com/arthurhmarinho/zapterm/internal/tui"
@@ -96,6 +98,8 @@ func run(args []string) error {
 		return stopCmd()
 	case "restart":
 		return restartCmd()
+	case "doctor":
+		return doctorCmd()
 	case "version", "--version", "-v":
 		versionCmd()
 		return nil
@@ -125,9 +129,21 @@ uso: zapterm [comando]
   open                       traz a TUI para frente, ou abre uma (clique no widget)
   stop                       encerra o daemon (as conversas ficam; a conexão com o WhatsApp cai)
   restart                    reinicia o daemon (vale para mudanças de [privacy] e para atualizações)
+  doctor                     confere o que o sistema tem e o que falta (com o pacote em cada distro)
   version                    mostra versão, commit e data (também --version e -v)
   help                       esta ajuda
 `
+
+func doctorCmd() error {
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Println("atenção:", err)
+	}
+	st, _ := os.Stdout.Stat()
+	color := st != nil && st.Mode()&os.ModeCharDevice != 0 && os.Getenv("NO_COLOR") == ""
+	doctor.Run(os.Stdout, doctor.System(cfg, color))
+	return nil
+}
 
 func stopCmd() error {
 	if err := daemonctl.Stop(); err != nil {

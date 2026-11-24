@@ -41,8 +41,14 @@ type images struct {
 	pending []string           // comandos de transmissão ainda não enviados
 }
 
+// GraphicsTerminal: o terminal onde isto roda desenha imagens (protocolo
+// gráfico do kitty). O doctor usa a mesma detecção da TUI.
+func GraphicsTerminal() bool {
+	return os.Getenv("TERM") == "xterm-kitty" || os.Getenv("KITTY_WINDOW_ID") != ""
+}
+
 func newImages() *images {
-	on := (os.Getenv("TERM") == "xterm-kitty" || os.Getenv("KITTY_WINDOW_ID") != "") && imagesAllowed()
+	on := GraphicsTerminal() && imagesAllowed()
 	if os.Getenv("ZAPTERM_IMAGES") == "1" {
 		on = true // força, para testes fora do kitty
 	}

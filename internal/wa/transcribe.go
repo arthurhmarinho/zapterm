@@ -57,6 +57,9 @@ func whisperSetup(t config.Transcription) (cmd, model string, err error) {
 	return cmd, model, nil
 }
 
+// WhisperSetup diz o que a transcrição vai usar (ou o que falta), para o doctor.
+func WhisperSetup(t config.Transcription) (cmd, model string, err error) { return whisperSetup(t) }
+
 func fileSize(p string) int64 {
 	if st, err := os.Stat(p); err == nil {
 		return st.Size()
