@@ -1,0 +1,29 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: amd64 arm64
+Codename: zapterm
+Date: Tue, 24 Nov 2026 17:36:30 +0000
+Description: zapterm: WhatsApp no terminal
+Label: zapterm
+Origin: zapterm
+Suite: stable
+MD5Sum:
+ 51baece2056a616f0bec525177fdd151             1518 Packages
+ 2a816a2af9e3a6acab86f749b0555de2              750 Packages.gz
+SHA1:
+ 0541e370d8f5919ab2598c5bac813de3d6b68363             1518 Packages
+ 00a0129dd0f7cebc3ebbef8fcbce752898eea0fe              750 Packages.gz
+SHA256:
+ 98a5ec1b7b1c2515b51b28d72d0db0610a88bb183d2885128b86ba04c84a21d0             1518 Packages
+ 038be88735d50161cb21875ec15a40db3da431de93579171d5ec4af2403bc7fb              750 Packages.gz
+SHA512:
+ 5f8c413059b6159ee48cfa6f0347bea7628a3467ce401c38af2adecf3c58a060de9fb8f153bac6bc55c86967439a997a306ce449c6283646849d59ae46c4eeb3             1518 Packages
+ 22f39d0eb6f45dc62cbeb8f7b6d49ff654d85b3a2e65e82eb8f38b5c38f22452860e2941ebbabe80867fbe1fa303a343df8bd87c8b77d83e04c02f1d0403ebe2              750 Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYKAB0WIQRxEBI8cr32LX2tvi1cB/lAkh2h6QUCawXLHgAKCRBcB/lAkh2h
+6Z8ZAP0UTFbd0c6bAqal6ldRn6IQwD18+2JHP+t+TaKV74W+rgD/Rlo9s1xeQtYR
+GXEILAgwxeqw5q8QzEDmEg6YV3T2jgk=
+=ZqSO
+-----END PGP SIGNATURE-----
