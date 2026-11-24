@@ -65,8 +65,8 @@ func Run(ctx context.Context, opt Options) error {
 	if err != nil {
 		return err
 	}
-	container, err := sqlstore.New(ctx, "sqlite3",
-		"file:"+sessPath+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000", waLogger{log.With("mod", "whatsmeow")})
+	container, err := sqlstore.New(ctx, "sqlite",
+		"file:"+sessPath+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", waLogger{log.With("mod", "whatsmeow")})
 	if err != nil {
 		return fmt.Errorf("abrindo sessão: %w", err)
 	}

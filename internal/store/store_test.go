@@ -562,3 +562,24 @@ func TestTrocaDeDono(t *testing.T) {
 		t.Fatal("sobrescreveu o banco guardado")
 	}
 }
+
+// A DSN do driver sem cgo muda o jeito de ligar os pragmas; se um deles não
+// pegar, o upgrade do whatsmeow (que exige foreign_keys) quebra só em produção.
+func TestPragmasDoDriver(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var fk, busy int
+	var jm string
+	if err := s.db.QueryRow("PRAGMA foreign_keys").Scan(&fk); err != nil || fk != 1 {
+		t.Errorf("foreign_keys = %d (%v), quer 1", fk, err)
+	}
+	if err := s.db.QueryRow("PRAGMA journal_mode").Scan(&jm); err != nil || jm != "wal" {
+		t.Errorf("journal_mode = %q (%v), quer wal", jm, err)
+	}
+	if err := s.db.QueryRow("PRAGMA busy_timeout").Scan(&busy); err != nil || busy != 5000 {
+		t.Errorf("busy_timeout = %d (%v), quer 5000", busy, err)
+	}
+}

@@ -22,8 +22,8 @@ func daemonSemSessao(t *testing.T) *Daemon {
 	t.Helper()
 	dir := t.TempDir()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	container, err := sqlstore.New(context.Background(), "sqlite3",
-		"file:"+filepath.Join(dir, "session.db")+"?_foreign_keys=on", waLogger{log})
+	container, err := sqlstore.New(context.Background(), "sqlite",
+		"file:"+filepath.Join(dir, "session.db")+"?_pragma=foreign_keys(1)", waLogger{log})
 	if err != nil {
 		t.Fatal(err)
 	}
