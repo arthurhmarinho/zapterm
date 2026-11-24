@@ -7,8 +7,14 @@ package ipc
 
 import "encoding/json"
 
+// ProtoVersion sobe quando o protocolo muda de um jeito que TUI e daemon de
+// versões diferentes não entendem.
+const ProtoVersion = 1
+
 // Operações aceitas pelo daemon.
 const (
+	OpHello       = "hello"        // versão do daemon (Hello); vale também sem sessão
+	OpShutdown    = "shutdown"     // encerra o daemon, sem desconectar do WhatsApp; vale também sem sessão
 	OpStatus      = "status"       // estado da conexão
 	OpChats       = "chats"        // lista de chats, mais recente primeiro
 	OpMessages    = "messages"     // mensagens de um chat
@@ -85,6 +91,13 @@ const (
 	EvPins     = "pins"     // mudaram as fixadas do chat (Data: o JID)
 	EvCleared  = "cleared"  // conversa limpa (Data: o JID): recarregue as mensagens
 )
+
+// Hello é a resposta de OpHello.
+type Hello struct {
+	Version string `json:"version"`
+	Proto   int    `json:"proto"`
+	PID     int    `json:"pid"`
+}
 
 // Request vai da TUI para o daemon.
 type Request struct {

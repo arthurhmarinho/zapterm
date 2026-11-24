@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/arthurhmarinho/zapterm/internal/buildinfo"
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 )
 
@@ -76,6 +77,8 @@ func (d *server) handle(_ uint64, req ipc.Request) (any, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	switch req.Op {
+	case ipc.OpHello: // mesma versão da TUI: o demo nunca é "reiniciado"
+		return ipc.Hello{Version: buildinfo.V(), Proto: ipc.ProtoVersion, PID: os.Getpid()}, nil
 	case ipc.OpStatus:
 		if d.pairing {
 			p := d.pair

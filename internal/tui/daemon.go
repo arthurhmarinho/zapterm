@@ -1,49 +1,24 @@
 package tui
 
 import (
-	"errors"
-	"fmt"
-	"os"
-	"os/exec"
-	"syscall"
-	"time"
+	"sync/atomic"
 
+	"github.com/arthurhmarinho/zapterm/internal/daemonctl"
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
-	"github.com/arthurhmarinho/zapterm/internal/paths"
 )
 
-// connect devolve um cliente ligado ao daemon, subindo o daemon se preciso.
-// O daemon nasce em sessão própria (setsid): fechar a TUI ou o terminal não
-// derruba a conexão com o WhatsApp.
+// staleUI vira true quando o binário foi trocado com esta TUI aberta: o
+// daemon (já na versão nova) é mantido e o aviso pede para reabrir.
+var staleUI atomic.Bool
+
+const staleMsg = "o zapterm foi atualizado: feche e abra de novo"
+
+// connect devolve um cliente ligado ao daemon, subindo o daemon se preciso e
+// reiniciando o que for de outra versão (ver daemonctl.Connect).
 func connect() (*ipc.Client, error) {
-	if c, err := ipc.Dial(paths.Socket()); err == nil {
-		return c, nil
+	cli, stale, err := daemonctl.Connect()
+	if stale {
+		staleUI.Store(true)
 	}
-
-	exe, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
-	cmd := exec.Command(exe, "daemon")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("subindo o daemon: %w", err)
-	}
-	died := make(chan error, 1)
-	go func() { died <- cmd.Wait() }()
-
-	deadline := time.After(8 * time.Second)
-	for {
-		select {
-		case err := <-died:
-			logPath, _ := paths.Log()
-			return nil, fmt.Errorf("o daemon saiu logo ao subir (%v); veja %s ou rode `zapterm login`", err, logPath)
-		case <-deadline:
-			return nil, errors.New("o daemon não abriu o socket em 8s")
-		case <-time.After(100 * time.Millisecond):
-			if c, err := ipc.Dial(paths.Socket()); err == nil {
-				return c, nil
-			}
-		}
-	}
+	return cli, err
 }

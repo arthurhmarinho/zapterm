@@ -245,6 +245,9 @@ func Run() error {
 	if cfgErr != nil {
 		m.setFlash("config: " + cfgErr.Error())
 	}
+	if staleUI.Load() {
+		m.setFlash(staleMsg)
+	}
 	m.autoOpen = os.Getenv("ZAPTERM_DEMO") != ""
 	if jid := os.Getenv("ZAPTERM_OPEN"); jid != "" {
 		m.pendingOpen = ipc.Chat{JID: jid, Name: jid, LastStatus: -1}
@@ -676,6 +679,9 @@ func (m *model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.setFlash(msg.err.Error())
 			return m, reconnect()
+		}
+		if staleUI.Load() {
+			m.setFlash(staleMsg)
 		}
 		m.cli.Close()
 		m.cli = msg.cli

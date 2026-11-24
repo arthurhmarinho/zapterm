@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/arthurhmarinho/zapterm/internal/buildinfo"
 	"github.com/arthurhmarinho/zapterm/internal/config"
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 	"github.com/arthurhmarinho/zapterm/internal/paths"
@@ -65,6 +67,13 @@ func Run(ctx context.Context, opt Options) error {
 	if err != nil {
 		return err
 	}
+	// Dois daemons no mesmo banco se atropelam; o lock vale enquanto o Run durar
+	// (o sistema solta quando o processo morre, mesmo à força).
+	lock, err := lockDaemon()
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
 	container, err := sqlstore.New(ctx, "sqlite",
 		"file:"+sessPath+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", waLogger{log.With("mod", "whatsmeow")})
 	if err != nil {
@@ -700,6 +709,16 @@ func (d *Daemon) handle(conn uint64, req ipc.Request) (res any, err error) {
 			res, err = nil, fmt.Errorf("erro interno em %s", req.Op)
 		}
 	}()
+	// Valem também sem sessão (pareamento): a TUI confere a versão e pode
+	// pedir que o daemon velho saia antes de qualquer outra coisa.
+	switch req.Op {
+	case ipc.OpHello:
+		return ipc.Hello{Version: buildinfo.V(), Proto: ipc.ProtoVersion, PID: os.Getpid()}, nil
+	case ipc.OpShutdown:
+		d.log.Info("encerrando a pedido (shutdown)")
+		d.exitSoon()
+		return nil, nil
+	}
 	if !d.paired() {
 		data, _, err := d.handleUnpaired(ctx, req)
 		return data, err

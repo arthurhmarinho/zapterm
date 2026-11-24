@@ -31,6 +31,10 @@ func SessionDB() (string, error) { return inData("session.db") }
 // MessagesDB é o banco do zapterm (chats e mensagens).
 func MessagesDB() (string, error) { return inData("zapterm.db") }
 
+// Lock é o arquivo travado (flock) pelo daemon enquanto roda: impede dois
+// daemons no mesmo banco.
+func Lock() (string, error) { return inData("daemon.lock") }
+
 // Log é o arquivo de log do daemon.
 func Log() (string, error) { return inData("daemon.log") }
 

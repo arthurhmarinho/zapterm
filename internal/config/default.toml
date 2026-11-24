@@ -2,7 +2,7 @@
 # quiser mudar e vale o padrão (que é o valor mostrado em cada linha).
 # Mudanças valem ao reabrir o zapterm; as de [privacy] também pedem
 # reiniciar o daemon (ele sobe sozinho de novo):
-#   kill $(pgrep -f 'zapterm daemon$')
+#   zapterm restart
 
 [privacy]
 # Abrir um chat manda o tracinho azul (lido) para quem escreveu.

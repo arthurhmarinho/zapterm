@@ -254,8 +254,7 @@ e mostra o caminho. Sem o arquivo, vale o padrão. Dá para:
 - **[interface]**: imagens, ícones da Nerd Font, largura da lista.
 
 Mudanças valem ao reabrir o zapterm; as de privacidade também pedem
-reiniciar o daemon (`kill $(pgrep -f 'zapterm daemon$')`, ele sobe sozinho
-de novo).
+reiniciar o daemon (`zapterm restart`).
 
 ## Limitações
 

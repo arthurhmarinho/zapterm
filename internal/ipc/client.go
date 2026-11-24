@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // Client é o lado da TUI. Call é síncrono; eventos chegam em Events().
@@ -79,8 +81,43 @@ func (cl *Client) Call(req Request, out any) error {
 	}
 }
 
+// Hello pergunta a versão ao daemon. Um daemon anterior à OpHello responde com
+// erro de operação desconhecida (ver daemonctl.IsLegacy).
+func (cl *Client) Hello() (Hello, error) {
+	var h Hello
+	err := cl.Call(Request{Op: OpHello}, &h)
+	return h, err
+}
+
+// PeerPID devolve o PID de quem está do outro lado do socket (SO_PEERCRED).
+func (cl *Client) PeerPID() (int, error) {
+	uc, ok := cl.c.(*net.UnixConn)
+	if !ok {
+		return 0, errors.New("não é um socket unix")
+	}
+	raw, err := uc.SyscallConn()
+	if err != nil {
+		return 0, err
+	}
+	var cred *unix.Ucred
+	var serr error
+	if err := raw.Control(func(fd uintptr) {
+		cred, serr = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
+	}); err != nil {
+		return 0, err
+	}
+	if serr != nil {
+		return 0, serr
+	}
+	return int(cred.Pid), nil
+}
+
 func callTimeout(op string) time.Duration {
 	switch op {
+	case OpHello:
+		return 2 * time.Second
+	case OpShutdown:
+		return 5 * time.Second
 	case OpSendFile, OpTranscribe:
 		return 11 * time.Minute // upload grande; transcrição de áudio longo na CPU
 	case OpMedia, OpSendImage, OpStickers, OpSendSticker, OpSendAudio:

@@ -14,12 +14,15 @@
 //	zapterm config           cria ~/.config/zapterm/config.toml comentado e mostra o caminho
 //	zapterm unread [--json]  não lidas (o widget da barra usa o --json)
 //	zapterm open             traz a TUI para frente, ou abre uma (clique no widget)
+//	zapterm stop             encerra o daemon (as conversas ficam; a conexão com o WhatsApp cai)
+//	zapterm restart          reinicia o daemon (vale para mudanças de [privacy] e para atualizações)
 //	zapterm version          mostra versão, commit e data (também --version e -v)
 package main
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -33,6 +36,7 @@ import (
 
 	"github.com/arthurhmarinho/zapterm/internal/buildinfo"
 	"github.com/arthurhmarinho/zapterm/internal/config"
+	"github.com/arthurhmarinho/zapterm/internal/daemonctl"
 	"github.com/arthurhmarinho/zapterm/internal/demo"
 	"github.com/arthurhmarinho/zapterm/internal/ipc"
 	"github.com/arthurhmarinho/zapterm/internal/paths"
@@ -88,6 +92,10 @@ func run(args []string) error {
 		return openUI()
 	case "":
 		return tui.Run()
+	case "stop":
+		return stopCmd()
+	case "restart":
+		return restartCmd()
 	case "version", "--version", "-v":
 		versionCmd()
 		return nil
@@ -115,9 +123,40 @@ uso: zapterm [comando]
   config                     cria ~/.config/zapterm/config.toml comentado e mostra o caminho
   unread [--json]            não lidas (o widget da barra usa o --json)
   open                       traz a TUI para frente, ou abre uma (clique no widget)
+  stop                       encerra o daemon (as conversas ficam; a conexão com o WhatsApp cai)
+  restart                    reinicia o daemon (vale para mudanças de [privacy] e para atualizações)
   version                    mostra versão, commit e data (também --version e -v)
   help                       esta ajuda
 `
+
+func stopCmd() error {
+	if err := daemonctl.Stop(); err != nil {
+		if errors.Is(err, daemonctl.ErrNotRunning) {
+			fmt.Println(err)
+			return nil
+		}
+		return err
+	}
+	fmt.Println("daemon encerrado")
+	return nil
+}
+
+func restartCmd() error {
+	if err := daemonctl.Stop(); err != nil && !errors.Is(err, daemonctl.ErrNotRunning) {
+		return err
+	}
+	c, err := daemonctl.Start()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	if h, err := c.Hello(); err == nil {
+		fmt.Printf("daemon reiniciado (%s, pid %d)\n", h.Version, h.PID)
+	} else {
+		fmt.Println("daemon reiniciado")
+	}
+	return nil
+}
 
 func versionCmd() {
 	v, c, d := buildinfo.Info()
